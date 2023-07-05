@@ -15,10 +15,10 @@ class ChargingStation:
         self.traffic += 1
 
         # Evenly distribute load if needed
-        if self.charge_per_hour * self.traffic > self.max_load:
+        if self.charger_per_hour * self.traffic > self.max_load:
             output = self.max_load / self.traffic
         else:
-            output = self.charge_per_hour
+            output = self.charger_per_hour
 
         return output
 

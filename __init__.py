@@ -8,13 +8,13 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 ############ Algorithm ############
 
-algorithm = "DQN"
+algorithm = "SARSA"
 
 ############ Configuration ############
 
 train_model = True
 generate_baseline = False
-start_from_previous_session = True
+start_from_previous_session = False
 save_data = True
 generate_plots = True
 
@@ -23,22 +23,22 @@ generate_plots = True
 num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
-starting_charge = 10000 # 50kW
+starting_charge = 500 # 0.5kW
 max_charge = 100000 # 100kW
 # 400 Lyle St, London
 org_lat = 42.98881506714761
 org_long = -81.22807778867828
-# 7720 Patrick St, Port Franks
-dest_lat = 43.23157243219816
-dest_long = -81.88029292946138
+# Western Engineering Building
+dest_lat = 43.005660746066205
+dest_long = -81.27623319791091
 
 ############ Hyperparameters ############
 
-num_episodes = 10000
+num_episodes = 1000
 epsilon = 0.50
 discount_factor = 0.99999
 batch_size = 128
-max_num_timesteps = 120 # 2 hours
+max_num_timesteps = 20 # 20 minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 2
 layers = [32, 64, 128, 64, 32]
 

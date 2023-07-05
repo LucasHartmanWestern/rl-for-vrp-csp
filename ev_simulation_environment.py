@@ -84,7 +84,7 @@ class EVSimEnvironment:
 
         self.average_reward = []
 
-        self.usage_per_hour, self.charge_per_hour = self.ev_info()
+        self.usage_per_hour = self.ev_info()
 
         self.is_charging = False
 
@@ -144,7 +144,7 @@ class EVSimEnvironment:
         # Log every tenth episode
         if self.episode_num % math.ceil(self.num_of_episodes / 10) == 0 or self.tracking_baseline:
             time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
-            if time_to_destination <= 15 and done:
+            if time_to_destination <= 1 and done:
                 self.log(action, True)
             else:
                 self.log(action)
@@ -181,14 +181,14 @@ class EVSimEnvironment:
     # Simulates traffic updates at chargers
     def update_traffic(self):
         for charger in self.charger_list:
-            charger.update_traffic()
+            self.charger_list[charger].update_traffic()
 
     # Simulates geographical movement of EV
     def move(self, action):
         done = False
 
         # Find out how far EV can travel given current charge
-        usage_per_hour, charge_per_hour = self.ev_info()
+        usage_per_hour = self.ev_info()
         max_distance = self.cur_soc / (usage_per_hour / 60)
         travel_distance = min(max_distance, 1)
 
@@ -368,8 +368,10 @@ class EVSimEnvironment:
         charger_info = [] # Set of charger distance, current traffic, peak traffic, and charging rate
         for charger in self.charger_coords: # Populate above set
             station = self.charger_list[charger[0]]
-            distance = get_distance_and_time((self.cur_lat, self.cur_long), (station.coords[0], station.coords[1]))[0]
-            charger_info.append((distance, station.traffic, station.peak_traffic, self.charger_per_hour / 1000))
+            charger_info.append(get_distance_and_time((self.cur_lat, self.cur_long), (station.coord[0], station.coord[1]))[0])
+            charger_info.append(station.traffic)
+            charger_info.append(station.peak_traffic)
+            charger_info.append(station.charger_per_hour / 1000)
 
         # Recalculate remaining distance to destination
         distance_to_dest = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[0]
