@@ -1,4 +1,6 @@
 import math
+import random
+
 from geopy.geocoders import Nominatim
 from geopy import Point
 from geopy.distance import geodesic
@@ -99,6 +101,22 @@ def move_towards(origin, destination, travel_time):
     new_location = geodesic(kilometers=travel_distance).destination(Point(*origin), bearing)
 
     return new_location.latitude, new_location.longitude
+
+def get_org_dest_coords(center):
+    lat, long = center
+    km_in_degrees = 10 / 111.11  # Approximation
+
+    org_lat = lat + random.uniform(-km_in_degrees, km_in_degrees)
+    org_long = long + random.uniform(-km_in_degrees, km_in_degrees)
+
+    # Ensure destination coordinates are different from origin
+    while True:
+        dest_lat = lat + random.uniform(-km_in_degrees, km_in_degrees)
+        dest_long = long + random.uniform(-km_in_degrees, km_in_degrees)
+        if (dest_lat, dest_long) != (org_lat, org_long):
+            break
+
+    return org_lat, org_long, dest_lat, dest_long
 
 def get_initial_compass_bearing(pointA, pointB):
     """

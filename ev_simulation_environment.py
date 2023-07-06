@@ -31,7 +31,8 @@ class EVSimEnvironment:
             org_lat,
             org_long,
             dest_lat,
-            dest_long
+            dest_long,
+            seed=[0]
     ):
         """Create environment
 
@@ -49,6 +50,8 @@ class EVSimEnvironment:
         Returns:
             Environment to use for EV simulations
         """
+
+        self.seed = seed
 
         self.tracking_baseline = False
 
@@ -144,7 +147,7 @@ class EVSimEnvironment:
         # Log every tenth episode
         if self.episode_num % math.ceil(self.num_of_episodes / 10) == 0 or self.tracking_baseline:
             time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
-            if time_to_destination <= 1 and self.cur_soc >= 0 and done:
+            if time_to_destination <= 1 and self.cur_soc > 0 and done:
                 self.log(action, True)
             else:
                 self.log(action)
@@ -172,9 +175,9 @@ class EVSimEnvironment:
                 self.cur_soc = self.max_soc
 
         # Start charging if within range of charging station
-        if action != 0 and time_to_station <= 0.1:
+        if action != 0 and time_to_station <= 0.01:
             self.is_charging = True
-        # Depart station
+        # Not at a station
         else:
             self.is_charging = False
 
@@ -194,28 +197,18 @@ class EVSimEnvironment:
         time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
 
         # EV has reached destination or ran out of battery before reaching destination
-        if time_to_destination <= 1 or self.cur_soc <= 0 or self.step_num == self.max_num_timesteps:
+        if time_to_destination < 1 or self.cur_soc <= 0 or self.step_num == self.max_num_timesteps:
             return True
 
         # EV is driving to destination
         if action == 0:
-            # Drive 15 minutes towards selected destination
+            # Drive towards selected destination
             self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long), travel_distance)
 
         # EV is driving towards a charging station
         else:
-            # Find how far station is away from current coordinates in minutes
-            time_to_station = get_distance_and_time((self.cur_lat, self.cur_long), (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2]))[1] / 60
-
-            # Arrive at charging station if within distance
-            if time_to_station <= 1:
-                # Arrive or stay at charging station
-                self.cur_lat, self.cur_long = (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2])
-
-            # Not within distance of charging station yet, drive towards it for 15 minutes
-            else:
-                # Drive 15 minutes towards selected destination
-                self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2]), travel_distance)
+            # Drive towards station
+            self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2]), travel_distance)
 
         return False
 
@@ -303,7 +296,12 @@ class EVSimEnvironment:
 
             if self.tracking_baseline is not True: # Ignore baseline in average calculations
                 # Track average reward of all episodes
-                self.average_reward.append((self.episode_reward, self.episode_num))
+                if self.episode_num == 0:
+                    self.average_reward.append((self.episode_reward, 0))
+                else:
+                    prev_reward = self.average_reward[-1][0]
+                    prev_reward *= self.episode_num
+                    self.average_reward.append(((prev_reward + self.episode_reward) / (self.episode_num + 1), self.episode_num))
 
         # Reset to initial values
         self.step_num = 0
@@ -341,15 +339,17 @@ class EVSimEnvironment:
         if battery_percentage > 0:
             reward -= (1 / battery_percentage)
 
-        # Big negative bonus for running out of battery before reaching destination
-        if distance_from_origin < 1:
-            reward += 10000
+        # Big bonus for reaching destination
+        if distance_to_dest < 1 and battery_percentage > 0:
+            reward += 1000
 
+        # Big penalty for running out of battery
         if battery_percentage <= 0:
-            reward -= 5000
+            reward -= 1000
 
-        if distance_from_origin > 1 and done:
-            reward -= 10000
+        # Big penalty for finishing without reaching the destination
+        if distance_to_dest > 1 and done:
+            reward -= distance_to_dest * 1000
 
         return reward
 
