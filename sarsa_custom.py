@@ -39,12 +39,12 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
         for t in range(max_num_timesteps):
             action_values = network(state)
             action_distribution = torch.distributions.Categorical(logits=action_values)
-            action = action_distribution.sample()
+            action = action_distribution.sample().item()
 
             if np.random.random() < epsilon:
-                action = torch.tensor(environment.action_space.sample())
+                action = np.random.choice(action_dim)  # Random action
 
-            next_state, reward, done = environment.step(action.item())
+            next_state, reward, done = environment.step(action)
             next_state = torch.tensor(next_state, dtype=torch.float32)
 
             next_action_values = network(next_state)

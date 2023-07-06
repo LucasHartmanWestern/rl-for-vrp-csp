@@ -303,12 +303,7 @@ class EVSimEnvironment:
 
             if self.tracking_baseline is not True: # Ignore baseline in average calculations
                 # Track average reward of all episodes
-                if self.episode_num == 0:
-                    self.average_reward.append((self.episode_reward, 0))
-                else:
-                    prev_reward = self.average_reward[-1][0]
-                    prev_reward *= self.episode_num
-                    self.average_reward.append(((prev_reward + self.episode_reward) / (self.episode_num + 1), self.episode_num))
+                self.average_reward.append((self.episode_reward, self.episode_num))
 
         # Reset to initial values
         self.step_num = 0

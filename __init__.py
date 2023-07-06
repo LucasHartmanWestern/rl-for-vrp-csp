@@ -14,7 +14,7 @@ algorithm = "SARSA"
 
 train_model = True
 generate_baseline = False
-start_from_previous_session = False
+start_from_previous_session = True
 save_data = True
 generate_plots = True
 
@@ -23,7 +23,7 @@ generate_plots = True
 num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
-starting_charge = 1000 # in W
+starting_charge = 2000 # in W
 max_charge = 100000 # 100kW
 # 400 Lyle St, London
 org_lat = 42.98881506714761
@@ -34,14 +34,14 @@ dest_long = -81.27623319791091
 
 ############ Hyperparameters ############
 
-num_episodes = 1000
+num_episodes = 5000
 epsilon = 0.6
 discount_factor = 0.9999
-epsilon_decay = 0.9999
+epsilon_decay = 0.999
 batch_size = 10
-max_num_timesteps = 20 # 20 minutes
+max_num_timesteps = 30 # 30 minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
-layers = [32, 64, 64, 32]
+layers = [32, 64, 128, 64, 32]
 
 ############ Initialization ############
 
