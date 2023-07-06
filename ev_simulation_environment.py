@@ -21,6 +21,7 @@ from charging_station import ChargingStation
 class EVSimEnvironment:
     def __init__(
             self,
+            max_num_timesteps,
             num_of_episodes,
             num_of_chargers,
             make,
@@ -61,6 +62,7 @@ class EVSimEnvironment:
         self.charger_list = {} # List of ChargingStation objects
 
         self.step_num = 0
+        self.max_num_timesteps = max_num_timesteps
         self.episode_reward = 0
 
         self.max_reward = math.inf * -1
@@ -144,7 +146,7 @@ class EVSimEnvironment:
         # Log every tenth episode
         if self.episode_num % math.ceil(self.num_of_episodes / 10) == 0 or self.tracking_baseline:
             time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
-            if time_to_destination <= 1 and done:
+            if time_to_destination <= 1 and self.cur_soc >= 0 and done:
                 self.log(action, True)
             else:
                 self.log(action)
@@ -185,8 +187,6 @@ class EVSimEnvironment:
 
     # Simulates geographical movement of EV
     def move(self, action):
-        done = False
-
         # Find out how far EV can travel given current charge
         usage_per_hour = self.ev_info()
         max_distance = self.cur_soc / (usage_per_hour / 60)
@@ -195,12 +195,9 @@ class EVSimEnvironment:
         # Find how far destination is away from current coordinates in minutes
         time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
 
-        # EV has reached destination
-        if time_to_destination <= 1:
-            done = True
-
-        if done:
-            return done
+        # EV has reached destination or ran out of battery before reaching destination
+        if time_to_destination <= 1 or self.cur_soc <= 0 or self.step_num == self.max_num_timesteps:
+            return True
 
         # EV is driving to destination
         if action == 0:
@@ -222,11 +219,7 @@ class EVSimEnvironment:
                 # Drive 15 minutes towards selected destination
                 self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2]), travel_distance)
 
-        # EV ran out of battery before reaching destination
-        if self.cur_soc <= 0:
-            done = True
-
-        return done
+        return False
 
     # Used to log the info for the paths
     def log(self, action, final = False, episode_offset = 0):
@@ -349,10 +342,11 @@ class EVSimEnvironment:
 
         # Decrease reward proportionately to distance remaining distance and battery percentage
         reward -= (distance_to_dest / distance_from_origin) * 100
-        reward -= (1 / battery_percentage)
+        if battery_percentage > 0:
+            reward -= (1 / battery_percentage)
 
         # Big negative bonus for running out of battery before reaching destination
-        if battery_percentage <= 0 and done:
+        if distance_from_origin > 1 and done:
             reward -= 10000
 
         return reward
@@ -382,7 +376,7 @@ class EVSimEnvironment:
     # Used for creating NNs
     def get_state_action_dimension(self):
         states = len(self.state)
-        actions = 1 + self.num_of_chargers
+        actions = 1 + (self.num_of_chargers * 3)
         return states, actions
 
     # Used for displaying paths on the graph sim

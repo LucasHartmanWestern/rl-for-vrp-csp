@@ -34,17 +34,17 @@ dest_long = -81.27623319791091
 
 ############ Hyperparameters ############
 
-num_episodes = 1000
+num_episodes = 10000
 epsilon = 0.50
-discount_factor = 0.99999
+discount_factor = 0.9999
 batch_size = 128
 max_num_timesteps = 20 # 20 minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 2
-layers = [32, 64, 128, 64, 32]
+layers = [32, 64, 64, 32]
 
 ############ Initialization ############
 
-env = EVSimEnvironment(num_episodes, num_of_chargers, make, model, starting_charge, max_charge, org_lat, org_long, dest_lat, dest_long)
+env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, org_lat, org_long, dest_lat, dest_long)
 
 if generate_baseline:
     baseline(env)
