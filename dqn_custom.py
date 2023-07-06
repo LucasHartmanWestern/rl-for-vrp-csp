@@ -150,7 +150,7 @@ def train_dqn(
         # Log every tenth episode
         if i % 10 == 0:
             elapsed_time = time.time() - start_time
-            print(f"Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+            print(f"Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Epsilon: {epsilon}")
 
         for j in range(max_num_timesteps):  # For each timestep
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor

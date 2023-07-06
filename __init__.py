@@ -23,7 +23,7 @@ generate_plots = True
 num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
-starting_charge = 500 # 0.5kW
+starting_charge = 1000 # in W
 max_charge = 100000 # 100kW
 # 400 Lyle St, London
 org_lat = 42.98881506714761
@@ -34,12 +34,13 @@ dest_long = -81.27623319791091
 
 ############ Hyperparameters ############
 
-num_episodes = 10000
-epsilon = 0.50
+num_episodes = 1000
+epsilon = 0.6
 discount_factor = 0.9999
-batch_size = 128
+epsilon_decay = 0.9999
+batch_size = 10
 max_num_timesteps = 20 # 20 minutes
-buffer_limit = (num_episodes * max_num_timesteps) / 2
+buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
 layers = [32, 64, 64, 32]
 
 ############ Initialization ############
@@ -58,7 +59,7 @@ if train_model:
         train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
     else:
         print("Training using Expected SARSA")
-        train_sarsa(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
+        train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
 
 if save_data:
     env.write_path_to_csv('outputs/routes.csv')

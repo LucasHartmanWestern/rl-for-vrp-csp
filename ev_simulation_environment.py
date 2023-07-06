@@ -127,8 +127,6 @@ class EVSimEnvironment:
 
         self.step_num += 1
 
-        current_state = copy.copy(self.state)
-
         # Update traffic, SoC, and geographical position
         done = self.move(action)
         self.update_traffic()
@@ -138,7 +136,7 @@ class EVSimEnvironment:
         self.update_state()
 
         # Get reward of current state
-        reward = self.reward(current_state, done)
+        reward = self.reward(self.state, done)
 
         # Episode reward is the sum of the reward at each step
         self.episode_reward += reward
@@ -151,7 +149,7 @@ class EVSimEnvironment:
             else:
                 self.log(action)
 
-        return current_state, reward, done
+        return self.state, reward, done
 
     # Simulates battery life of EV as it travels
     def update_charge(self, action):
@@ -174,7 +172,7 @@ class EVSimEnvironment:
                 self.cur_soc = self.max_soc
 
         # Start charging if within range of charging station
-        if action != 0 and time_to_station <= 1:
+        if action != 0 and time_to_station <= 0.1:
             self.is_charging = True
         # Depart station
         else:
@@ -320,6 +318,9 @@ class EVSimEnvironment:
         self.cur_long = self.org_long
         self.current_path = []
 
+        for charger in self.charger_list:
+            self.charger_list[charger].reset()
+
         if self.tracking_baseline is not True: # Ignore basline in average calculations
             self.episode_num += 1
 
@@ -346,6 +347,12 @@ class EVSimEnvironment:
             reward -= (1 / battery_percentage)
 
         # Big negative bonus for running out of battery before reaching destination
+        if distance_from_origin < 1:
+            reward += 10000
+
+        if battery_percentage <= 0:
+            reward -= 5000
+
         if distance_from_origin > 1 and done:
             reward -= 10000
 
