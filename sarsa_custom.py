@@ -28,7 +28,7 @@ class QNetwork(nn.Module):
 
 
 # Function to train a network using SARSA (State-Action-Reward-State-Action) method
-def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dim, action_dim, load_saved=False, seed=None, layers=[64, 128, 1024, 128, 64]):
+def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dim, action_dim, load_saved=False, seed=None, layers=[64, 128, 1024, 128, 64], sim=None):
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -54,6 +54,11 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
 
         # Time step loop for each episode
         for t in range(max_num_timesteps):
+
+            # Update visualizer
+            if sim is not None:
+                sim.update_ev_position((environment.cur_lat, environment.cur_long))
+
             action_values = network(state)  # getting action values by forward propagation
             # creating a categorical distribution of action values
             action_distribution = torch.distributions.Categorical(logits=action_values)

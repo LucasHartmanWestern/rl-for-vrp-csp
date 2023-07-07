@@ -40,7 +40,7 @@ def generate_plot(df):
     plt.show()
 
 
-def generate_average_reward_plot(algorithm, df):
+def generate_average_reward_plot(algorithm, df, session_number):
     """Visualize the data using a graph.
         The graph shows the average reward over time per episode"""
 
@@ -52,14 +52,14 @@ def generate_average_reward_plot(algorithm, df):
 
     # Add legend, grid, title and labels
     plt.grid(True)
-    plt.title(f'{algorithm} Average Reward vs Episode Num')
+    plt.title(f'{algorithm} Average Reward vs Episode Num for session {session_number}')
     plt.ylabel('Average Reward')
     plt.xlabel('Episode Num')
 
     # Show the plot
     plt.show()
 
-def generate_interactive_plot(algorithm, routes, chargers, origin, destination):
+def generate_interactive_plot(algorithm, session_number, routes, chargers, origin, destination):
     """Visualize the data using an interactive graph."""
 
     fig = go.Figure()
@@ -118,7 +118,7 @@ def generate_interactive_plot(algorithm, routes, chargers, origin, destination):
 
 
     fig.update_layout(
-        title=f'{algorithm} Path Visualization',
+        title=f'{algorithm} Path Visualization for session {session_number}',
         xaxis_title='Longitude',
         yaxis_title='Latitude',
         annotations=[

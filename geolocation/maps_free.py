@@ -102,9 +102,9 @@ def move_towards(origin, destination, travel_time):
 
     return new_location.latitude, new_location.longitude
 
-def get_org_dest_coords(center):
+def get_org_dest_coords(center, km):
     lat, long = center
-    km_in_degrees = 10 / 111.11  # Approximation
+    km_in_degrees = km / 111.11  # Approximation of km radius
 
     org_lat = lat + random.uniform(-km_in_degrees, km_in_degrees)
     org_long = long + random.uniform(-km_in_degrees, km_in_degrees)

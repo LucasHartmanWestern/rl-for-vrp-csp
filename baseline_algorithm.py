@@ -1,76 +1,136 @@
-import heapq
-import math
-
+import copy
+from geolocation.maps_free import get_distance_and_time
 
 def baseline(environment):
     environment.tracking_baseline = True
     environment.reset()
 
     make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state
+    usage_per_min = environment.ev_info() / 60
 
-    distances = energy_efficient_path(environment, battery_percentage)
-    print(distances)
+    # Build graph of possible paths from chargers to each other, the origin, and destination
+    verts, edges = build_graph(environment)
 
+    # Use Dijkstra's algorithm to get shortest paths from origin
+    dist, previous = dijkstra((verts, edges), 'origin')
 
-def energy_efficient_path(environment, starting_battery_percentage):
-    usage_per_hour, charge_per_hour = environment.ev_info()
+    path = []
 
-    graph = create_graph(environment.charger_coords, ('origin', environment.org_lat, environment.org_long), ('destination', environment.dest_lat, environment.dest_long))
+    # If user can make it to destination, go straight there
+    if edges['origin'].get('destination') is not None:
+        path.append(('destination', 0))
 
-    start = 'origin'
+    # Build path based on going to chargers first
+    else:
+        prev = previous['destination']
+        cur = 'destination'
 
-    # Assume total battery charge can cover a distance equal to the full_charge_distance
-    full_charge_distance = (environment.max_soc / (usage_per_hour)) * 60  # (kW / (kW/hr)) * km/h = km
-    starting_distance = full_charge_distance * (starting_battery_percentage)
+        # Populate path to travel
+        while prev != None:
+            time_needed = edges[cur][prev] # Find time needed to get to next step
+            target_soc = time_needed * usage_per_min # Find SoC needed to get to next step
 
-    print(f'Full Charge {full_charge_distance}\nStarting dist {starting_distance}\nBattery Percentage {starting_battery_percentage}')
+            path.append((cur, target_soc)) # Update path
 
-    distances = {node: float('infinity') for node in graph}
-    distances[start] = starting_distance
+            # Update step
+            cur = copy.copy(prev)
+            prev = previous[prev]
 
-    pq = [(starting_distance, start)]
+    path.reverse() # Put destination step at the end
 
-    while pq:
-        curr_distance, curr_node = heapq.heappop(pq)
+    print(path)
 
-        if curr_distance > distances[curr_node]:
-            continue
+    # Travel path using simulator
+    for i in range(len(path)):
+        if path[i][0] != 'destination':
+            # Go to charger
+            while environment.is_charging is not True:
+                environment.step(path[i][0])
 
-        for neighbor, weight in graph[curr_node].items():
-            # weight here stands for the distance between curr_node and neighbor
-            # it also represents the amount of energy to travel this distance
-            distance_left = curr_distance - weight
+            # Charge to needed amount
+            while environment.cur_soc < path[i + 1][1]:
+                environment.step(path[i][0])
 
-            # If the remaining energy (distance_left) after reaching the neighbor is greater than
-            # the current stored energy (distance) at the neighbor, update it
-            if distance_left > distances[neighbor]:
-                distances[neighbor] = distance_left
-                heapq.heappush(pq, (distance_left, neighbor))
+        else:
+            # Go to destination
+            done = False
+            while done is not True:
+                next_state, reward, done = environment.step(0)
 
-    return distances
+def build_graph(env):
+    usage_per_min = env.ev_info() / 60
+    start_soc = env.base_soc
+    max_soc = env.max_soc
+    max_dist_from_start = start_soc / usage_per_min
+    max_dist_on_full_charge = max_soc / usage_per_min
 
-def haversine(coord1, coord2):
-    R = 6371 # Radius of the Earth in kilometers
-    lat1, lon1 = math.radians(coord1[0]), math.radians(coord1[1])
-    lat2, lon2 = math.radians(coord2[0]), math.radians(coord2[1])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R * c
+    vertices = ['origin', 'destination']
+    edges = {'origin': {}, 'destination': {}}
 
-def create_graph(array, origin, destination):
-    graph = {}
-    nodes = [origin] + array + [destination]
-    for i in range(len(nodes)):
-        for j in range(i+1, len(nodes)):
-            id1, lat1, lon1 = nodes[i]
-            id2, lat2, lon2 = nodes[j]
-            distance = haversine((lat1, lon1), (lat2, lon2))
-            if id1 not in graph:
-                graph[id1] = {}
-            if id2 not in graph:
-                graph[id2] = {}
-            graph[id1][id2] = distance
-            graph[id2][id1] = distance  # Assuming distance is the same in both directions
-    return graph
+    # Distance in minutes from destination to origin
+    org_to_dest_time = get_distance_and_time((env.dest_lat, env.dest_long), (env.org_lat, env.org_long))[1] / 60
+    if org_to_dest_time < max_dist_from_start:
+        edges['origin']['destination'] = org_to_dest_time
+        edges['destination']['origin'] = org_to_dest_time
+
+    # Loop through all chargers
+    for i in range(len(env.charger_coords)):
+        vertices.append(i + 1) # Track charger ID
+        edges[i + 1] = {} # Add station to edges
+
+        charger = env.charger_coords[i]
+
+        # Distance in minutes from charger to origin
+        time_to_charger = get_distance_and_time((charger[1], charger[2]), (env.org_lat, env.org_long))[1] / 60
+
+        # If you can make it to charger from origin, log it in the graph
+        if time_to_charger < max_dist_from_start:
+            edges['origin'][i + 1] = time_to_charger
+            edges[i + 1]['origin'] = time_to_charger
+
+        # Distance in minutes from destination to origin
+        charger_to_dest_time = get_distance_and_time((charger[1], charger[2]), (env.dest_lat, env.dest_long))[1] / 60
+        if charger_to_dest_time < max_dist_on_full_charge:
+            edges[i + 1]['destination'] = charger_to_dest_time
+            edges['destination'][i + 1] = charger_to_dest_time
+
+        # Populate graph of individual charger
+        for j in range(len(env.charger_coords)):
+            if i != j: # Ignore self reference
+                other_charger = env.charger_coords[j]
+
+                # Distance in minutes
+                time_to_other_charger = get_distance_and_time((charger[1], charger[2]), (other_charger[1], other_charger[2]))[1] / 60
+
+                # If you can make it from one charger to another on full charge, log it
+                if time_to_other_charger < max_dist_on_full_charge:
+                    edges[i + 1][j + 1] = time_to_other_charger
+
+    return vertices, edges
+
+def dijkstra(graph, source):
+    vertices, edges = graph
+    dist = dict()
+    previous = dict()
+
+    for vertex in vertices:
+        dist[vertex] = float('inf')
+        previous[vertex] = None
+
+    dist[source] = 0
+    vertices = set(vertices)
+
+    while vertices:
+        current_vertex = min(vertices, key=lambda vertex: dist[vertex])
+        vertices.remove(current_vertex)
+
+        if dist[current_vertex] == float('inf'):
+            break
+
+        for neighbour, cost in edges[current_vertex].items():
+            alternative_route = dist[current_vertex] + cost
+            if alternative_route < dist[neighbour]:
+                dist[neighbour] = alternative_route
+                previous[neighbour] = current_vertex
+
+    return dist, previous

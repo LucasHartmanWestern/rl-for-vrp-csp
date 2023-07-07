@@ -335,9 +335,9 @@ class EVSimEnvironment:
         distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat, self.org_long), (self.dest_lat, self.dest_long))
 
         # Decrease reward proportionately to distance remaining distance and battery percentage
-        reward -= (distance_to_dest / distance_from_origin) * 100
+        reward -= min((distance_to_dest / distance_from_origin) * 100, 100)
         if battery_percentage > 0:
-            reward -= (1 / battery_percentage)
+            reward -= min((1 / battery_percentage), 100)
 
         # Big bonus for reaching destination
         if distance_to_dest < 1 and battery_percentage > 0:
@@ -349,7 +349,7 @@ class EVSimEnvironment:
 
         # Big penalty for finishing without reaching the destination
         if distance_to_dest > 1 and done:
-            reward -= distance_to_dest * 1000
+            reward -= distance_to_dest * 100
 
         return reward
 

@@ -101,17 +101,18 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
     optimizer.step()  # Update weights
 
 def train_dqn(
-        environment,
-        epsilon,
-        discount_factor,
-        num_episodes,
-        batch_size,
-        buffer_limit,
-        max_num_timesteps,
-        state_dim,
-        action_dim,
-        load_saved=False,
-        layers=[64, 128, 1024, 128, 64]
+    environment,
+    epsilon,
+    discount_factor,
+    num_episodes,
+    batch_size,
+    buffer_limit,
+    max_num_timesteps,
+    state_dim,
+    action_dim,
+    load_saved=False,
+    layers=[64, 128, 1024, 128, 64],
+    sim=None
 ):
     """Main training loop
 
@@ -153,6 +154,11 @@ def train_dqn(
             print(f"Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Epsilon: {epsilon}")
 
         for j in range(max_num_timesteps):  # For each timestep
+
+            # Update visualizer
+            if sim is not None:
+                sim.update_ev_position((environment.cur_lat, environment.cur_long))
+
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
                 action = np.random.choice(action_dim)  # Random action
