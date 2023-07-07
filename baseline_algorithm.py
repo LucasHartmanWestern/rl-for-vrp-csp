@@ -38,8 +38,6 @@ def baseline(environment):
 
     path.reverse() # Put destination step at the end
 
-    print(path)
-
     # Travel path using simulator
     for i in range(len(path)):
         if path[i][0] != 'destination':

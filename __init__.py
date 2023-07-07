@@ -15,7 +15,7 @@ algorithm = "SARSA"
 
 ############ Configuration ############
 
-train_model = False
+train_model = True
 generate_baseline = True
 start_from_previous_session = False
 save_data = True
@@ -34,7 +34,7 @@ city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 ############ Hyperparameters ############
 
 num_training_sesssions = 25
-num_episodes = 5000
+num_episodes = 10000
 epsilon = 0.8
 discount_factor = 0.9999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
@@ -51,8 +51,10 @@ for session in range(num_training_sesssions):
     if session != 0 and train_model:
         start_from_previous_session = True # Always continue from previous training session when running back-to-back sessions
 
-    starting_charge = random.randrange(1000, 2000)  # Random charge between 1-2%
-    org_lat, org_long, dest_lat, dest_long = get_org_dest_coords((city_lat, city_long), 5)  # Get origin and destination coordinates
+    # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
+    starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
+    # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
+    org_lat, org_long, dest_lat, dest_long = get_org_dest_coords((city_lat, city_long), ((1 / (num_training_sesssions / 9)) * session) + 1)
 
     env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, org_lat, org_long, dest_lat, dest_long, seeds)
 
