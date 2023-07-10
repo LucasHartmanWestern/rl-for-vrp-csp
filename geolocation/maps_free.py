@@ -104,17 +104,16 @@ def move_towards(origin, destination, travel_time):
 
 def get_org_dest_coords(center, km):
     lat, long = center
-    km_in_degrees = km / 111.11  # Approximation of km radius
+    km_in_degrees = km / 111.11  # Approximation of km to degrees
+    angle = random.uniform(0, 2 * math.pi)  # Angle in radians
 
-    org_lat = lat + random.uniform(-km_in_degrees, km_in_degrees)
-    org_long = long + random.uniform(-km_in_degrees, km_in_degrees)
+    # Calculate coordinates of origin point on the circle's circumference
+    org_lat = lat + km_in_degrees * math.sin(angle)
+    org_long = long + km_in_degrees * math.cos(angle)
 
-    # Ensure destination coordinates are different from origin
-    while True:
-        dest_lat = lat + random.uniform(-km_in_degrees, km_in_degrees)
-        dest_long = long + random.uniform(-km_in_degrees, km_in_degrees)
-        if (dest_lat, dest_long) != (org_lat, org_long):
-            break
+    # Calculate coordinates of destination point diametrically opposite on the circle's circumference
+    dest_lat = lat + km_in_degrees * math.sin(angle + math.pi)
+    dest_long = long + km_in_degrees * math.cos(angle + math.pi)
 
     return org_lat, org_long, dest_lat, dest_long
 

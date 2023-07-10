@@ -14,7 +14,7 @@ from charging_station import ChargingStation
 
 # TODO - Create simulation environment which is capable of:
 #  - Introducing randomness (traffic will randomly fluctuate at charging stations based on time-of-day)
-#  - Considering different makes and mmodels and decreasing (or increasing while charging) an EVs SoC propotionately
+#  - Considering different makes and mmodels and decreasing (or increasing while charging) an E   Vs SoC propotionately
 #  - Considering the load placed on each charging station relative to the traffic at the station
 #  - Simulating the travel from an origin to destination
 
@@ -334,6 +334,16 @@ class EVSimEnvironment:
 
         distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat, self.org_long), (self.dest_lat, self.dest_long))
 
+        # Find max traffic
+        max_traffic = 0
+        for charger in self.charger_list:
+            charger_traffic = self.charger_list[charger].traffic
+            if charger_traffic > max_traffic:
+                max_traffic = charger_traffic
+
+        # Reward negatively for high traffic at stations
+        reward -= 10 * max_traffic
+
         # Decrease reward proportionately to distance remaining distance and battery percentage
         reward -= min((distance_to_dest / distance_from_origin) * 100, 100)
         if battery_percentage > 0:
@@ -341,7 +351,7 @@ class EVSimEnvironment:
 
         # Big bonus for reaching destination
         if distance_to_dest < 1 and battery_percentage > 0:
-            reward += 1000
+            reward += 1000 * battery_percentage
 
         # Big penalty for running out of battery
         if battery_percentage <= 0:

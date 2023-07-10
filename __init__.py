@@ -17,7 +17,7 @@ algorithm = "SARSA"
 
 train_model = True
 generate_baseline = True
-start_from_previous_session = False
+start_from_previous_session = True
 save_data = True
 generate_plots = True
 visualize_training = False
@@ -33,7 +33,7 @@ city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 25
+num_training_sesssions = 10
 num_episodes = 10000
 epsilon = 0.8
 discount_factor = 0.9999
@@ -41,7 +41,7 @@ epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * 
 batch_size = 1000
 max_num_timesteps = 25 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
-layers = [32, 64, 64, 32]
+layers = [32, 64, 128, 64, 32]
 
 ############ Initialization ############
 
