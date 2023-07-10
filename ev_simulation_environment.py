@@ -28,10 +28,7 @@ class EVSimEnvironment:
             model,
             cur_soc,
             max_soc,
-            org_lat,
-            org_long,
-            dest_lat,
-            dest_long,
+            routes,
             seed=[0]
     ):
         """Create environment
@@ -55,47 +52,52 @@ class EVSimEnvironment:
 
         self.tracking_baseline = False
 
+        self.agent_index = 0
+
         self.num_of_episodes = num_of_episodes
         self.episode_num = -1
         self.visited_list = []
         self.current_path = []
         self.best_path = []
         self.used_chargers = []
+        self.charger_coords = []
+
+        self.state = [() for route in routes]
 
         self.charger_list = {} # List of ChargingStation objects
 
-        self.step_num = 0
+        self.step_num = [0 for route in routes]
         self.max_num_timesteps = max_num_timesteps
-        self.episode_reward = 0
+        self.episode_reward = [0 for route in routes]
 
         self.max_reward = math.inf * -1
 
-        self.prev_distance = 0
-
-        self.prev_charging = False
+        self.prev_charging = [False for route in routes]
+        self.is_charging = [False for route in routes]
 
         self.num_of_chargers = num_of_chargers
         self.make = make
         self.model = model
-        self.cur_soc = cur_soc
+
+        self.cur_soc = [cur_soc for route in routes]
         self.max_soc = max_soc
-        self.base_soc = cur_soc # Used to reset
-        self.cur_lat = org_lat
-        self.cur_long = org_long
-        self.org_lat = org_lat
-        self.org_long = org_long
-        self.dest_lat = dest_lat
-        self.dest_long = dest_long
+        self.base_soc = copy.copy(cur_soc) # Used to reset
+
+        self.org_lat = [route[0] for route in routes]
+        self.org_long = [route[1] for route in routes]
+        self.dest_lat = [route[2] for route in routes]
+        self.dest_long = [route[3] for route in routes]
+
+        self.cur_lat = copy.copy(self.org_lat)
+        self.cur_long = copy.copy(self.org_long)
 
         self.average_reward = []
 
         self.usage_per_hour = self.ev_info()
 
-        self.is_charging = False
-
         self.get_charger_data()
-
         self.get_charger_list()
+
         self.update_state()
 
     # Used to get the coordinates of the chargers from the API dataset
@@ -128,7 +130,7 @@ class EVSimEnvironment:
             done: Indicator for if simulation is done
         """
 
-        self.step_num += 1
+        self.step_num[self.agent_index] += 1
 
         # Update traffic, SoC, and geographical position
         done = self.move(action)
@@ -142,44 +144,49 @@ class EVSimEnvironment:
         reward = self.reward(self.state, done)
 
         # Episode reward is the sum of the reward at each step
-        self.episode_reward += reward
+        self.episode_reward[self.agent_index] += reward
 
         # Log every tenth episode
         if self.episode_num % math.ceil(self.num_of_episodes / 10) == 0 or self.tracking_baseline:
-            time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
-            if time_to_destination <= 1 and self.cur_soc > 0 and done:
+            time_to_destination = get_distance_and_time((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (self.dest_lat[self.agent_index], self.dest_long[self.agent_index]))[1] / 60
+            if time_to_destination <= 1 and self.cur_soc[self.agent_index] > 0 and done:
                 self.log(action, True)
             else:
                 self.log(action)
 
-        return self.state, reward, done
+        # Check if using multiple agents or just 1
+        if len(self.org_lat) > 1:
+            self.agent_index += 1 # Go to next agent now
+            return self.state[self.agent_index - 1], reward, done
+        else:
+            return self.state[0], reward, done
 
     # Simulates battery life of EV as it travels
     def update_charge(self, action):
 
-        charger_id = self.charger_coords[action - 1][0]
+        charger_id = self.charger_coords[self.agent_index][action - 1][0]
         station = self.charger_list[charger_id]
 
         # Find how far station is away from current coordinates in minutes
-        time_to_station = get_distance_and_time((self.cur_lat, self.cur_long), (station.coord[0], station.coord[1]))[1] / 60
+        time_to_station = get_distance_and_time((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (station.coord[0], station.coord[1]))[1] / 60
 
         # Consume battery while driving
-        if self.is_charging is not True:
-            self.cur_soc -= self.usage_per_hour / (60)
+        if self.is_charging[self.agent_index] is not True:
+            self.cur_soc[self.agent_index] -= self.usage_per_hour / (60)
 
         # Increase battery while charging
         else:
-            self.cur_soc += station.charge() / 60
+            self.cur_soc[self.agent_index] += station.charge() / 60
             # Cap SoC at max
-            if self.cur_soc > self.max_soc:
-                self.cur_soc = self.max_soc
+            if self.cur_soc[self.agent_index] > self.max_soc:
+                self.cur_soc[self.agent_index] = self.max_soc
 
         # Start charging if within range of charging station
         if action != 0 and time_to_station <= 0.01:
-            self.is_charging = True
+            self.is_charging[self.agent_index] = True
         # Not at a station
         else:
-            self.is_charging = False
+            self.is_charging[self.agent_index] = False
 
     # Simulates traffic updates at chargers
     def update_traffic(self):
@@ -190,25 +197,25 @@ class EVSimEnvironment:
     def move(self, action):
         # Find out how far EV can travel given current charge
         usage_per_hour = self.ev_info()
-        max_distance = self.cur_soc / (usage_per_hour / 60)
+        max_distance = self.cur_soc[self.agent_index] / (usage_per_hour / 60)
         travel_distance = min(max_distance, 1)
 
         # Find how far destination is away from current coordinates in minutes
-        time_to_destination = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[1] / 60
+        time_to_destination = get_distance_and_time((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (self.dest_lat[self.agent_index], self.dest_long[self.agent_index]))[1] / 60
 
         # EV has reached destination or ran out of battery before reaching destination
-        if time_to_destination < 1 or self.cur_soc <= 0 or self.step_num == self.max_num_timesteps:
+        if time_to_destination < 1 or self.cur_soc[self.agent_index] <= 0 or self.step_num[self.agent_index] == self.max_num_timesteps:
             return True
 
         # EV is driving to destination
         if action == 0:
             # Drive towards selected destination
-            self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long), travel_distance)
+            self.cur_lat[self.agent_index], self.cur_long[self.agent_index] = move_towards((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (self.dest_lat[self.agent_index], self.dest_long[self.agent_index]), travel_distance)
 
         # EV is driving towards a charging station
         else:
             # Drive towards station
-            self.cur_lat, self.cur_long = move_towards((self.cur_lat, self.cur_long), (self.charger_coords[action - 1][1], self.charger_coords[action - 1][2]), travel_distance)
+            self.cur_lat[self.agent_index], self.cur_long[self.agent_index] = move_towards((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (self.charger_coords[self.agent_index][action - 1][1], self.charger_coords[self.agent_index][action - 1][2]), travel_distance)
 
         return False
 
@@ -228,30 +235,30 @@ class EVSimEnvironment:
         elif action == 0:
             new_row.append(action)
         else:
-            new_row.append(self.charger_coords[action - 1][0])
+            new_row.append(self.charger_coords[self.agent_index][action - 1][0])
 
         # Step number within episode
-        new_row.append(self.step_num)
+        new_row.append(self.step_num[self.agent_index])
 
         # SoC in kW
-        new_row.append(round(self.cur_soc / 1000, 2))
+        new_row.append(round(self.cur_soc[self.agent_index] / 1000, 2))
 
         # EV is charging bool
         new_row.append(self.is_charging)
 
         # Episode reward (sum of step rewards up to this timestep)
-        new_row.append(round(self.episode_reward, 2))
+        new_row.append(round(self.episode_reward[self.agent_index], 2))
 
         # Coordinates (current or destination depending if episode is done)
         if final is not True:
-            new_row.append(self.cur_lat)
-            new_row.append(self.cur_long)
+            new_row.append(self.cur_lat[self.agent_index])
+            new_row.append(self.cur_long[self.agent_index])
         else:
-            new_row.append(self.dest_lat)
-            new_row.append(self.dest_long)
+            new_row.append(self.dest_lat[self.agent_index])
+            new_row.append(self.dest_long[self.agent_index])
 
         # Entire state (used for debugging)
-        new_row.append(self.state)
+        new_row.append(self.state[self.agent_index])
 
         if self.tracking_baseline is not True:
             self.current_path.append(new_row)
@@ -263,53 +270,56 @@ class EVSimEnvironment:
         list_of_chargers = [(i, val1, val2) for i, (val1, val2) in enumerate(list_of_chargers)]
 
         # Calculate the midway point between origin and destination
-        midway_lat = (self.org_lat + self.dest_lat) / 2
-        midway_long = (self.org_long + self.dest_long) / 2
+        for i in range(len(self.org_lat)):
+            midway_lat = (self.org_lat[i] + self.dest_lat[i]) / 2
+            midway_long = (self.org_long[i] + self.dest_long[i]) / 2
 
-        # Get list of chargers around origin, destination, and midway point
-        org_chargers = get_closest_chargers(self.org_lat, self.org_long, self.num_of_chargers, list_of_chargers)
-        dest_chargers = get_closest_chargers(self.dest_lat, self.dest_long, self.num_of_chargers, list_of_chargers)
-        midway_chargers = get_closest_chargers(midway_lat, midway_long, self.num_of_chargers, list_of_chargers)
+            # Get list of chargers around origin, destination, and midway point
+            org_chargers = get_closest_chargers(self.org_lat[i], self.org_long[i], self.num_of_chargers, list_of_chargers)
+            dest_chargers = get_closest_chargers(self.dest_lat[i], self.dest_long[i], self.num_of_chargers, list_of_chargers)
+            midway_chargers = get_closest_chargers(midway_lat, midway_long, self.num_of_chargers, list_of_chargers)
 
-        # Combine lists
-        self.charger_coords = org_chargers + dest_chargers + midway_chargers
+            # Combine and append lists
+            self.charger_coords.append(org_chargers + dest_chargers + midway_chargers)
 
-        # Create list of ChargingStation objects
-        for charger in self.charger_coords:
-            if charger[0] not in self.charger_list:
-                self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]))
+            # Create list of ChargingStation objects
+            for charger in self.charger_coords[i]:
+                if charger[0] not in self.charger_list:
+                    self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]))
 
-        self.update_traffic()
+            self.update_traffic()
 
-        # Legacy code - not really useful anymore
-        for charger in self.charger_coords:
-            self.used_chargers.append(charger)
+            # Legacy code - not really useful anymore
+            for charger in self.charger_coords[i]:
+                self.used_chargers.append(charger)
 
     # Reset all states
     def reset(self):
         if self.episode_num != -1: # Ignore initial reset
 
             # Track best path
-            if self.episode_reward > self.max_reward and len(self.current_path) != 0:
+            if self.episode_reward[self.agent_index] > self.max_reward and len(self.current_path) != 0:
                 self.best_path = self.current_path.copy()
-                self.max_reward = self.episode_reward
+                self.max_reward = self.episode_reward[self.agent_index]
 
             if self.tracking_baseline is not True: # Ignore baseline in average calculations
                 # Track average reward of all episodes
                 if self.episode_num == 0:
-                    self.average_reward.append((self.episode_reward, 0))
+                    self.average_reward.append((self.episode_reward[self.agent_index], 0))
                 else:
                     prev_reward = self.average_reward[-1][0]
                     prev_reward *= self.episode_num
-                    self.average_reward.append(((prev_reward + self.episode_reward) / (self.episode_num + 1), self.episode_num))
+                    self.average_reward.append(((prev_reward + self.episode_reward[self.agent_index]) / (self.episode_num + 1), self.episode_num))
 
         # Reset to initial values
-        self.step_num = 0
-        self.episode_reward = 0
-        self.cur_soc = self.base_soc
-        self.cur_lat = self.org_lat
-        self.cur_long = self.org_long
+        self.step_num[self.agent_index] = 0
+        self.episode_reward[self.agent_index] = 0
+        self.cur_soc[self.agent_index] = self.base_soc
+        self.cur_lat[self.agent_index] = self.org_lat[self.agent_index]
+        self.cur_long[self.agent_index] = self.org_long[self.agent_index]
         self.current_path = []
+
+        self.agent_index = 0
 
         for charger in self.charger_list:
             self.charger_list[charger].reset()
@@ -325,14 +335,14 @@ class EVSimEnvironment:
         # Update state
         self.update_state()
 
-        return self.state
+        return self.state[self.agent_index]
 
     # Scale negative rewards to fractions
     def reward(self, state, done):
         reward = 0
-        make, model, battery_percentage, distance_to_dest, *charger_distances = state
+        make, model, battery_percentage, distance_to_dest, *charger_distances = state[self.agent_index]
 
-        distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat, self.org_long), (self.dest_lat, self.dest_long))
+        distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat[self.agent_index], self.org_long[self.agent_index]), (self.dest_lat[self.agent_index], self.dest_long[self.agent_index]))
 
         # Find max traffic
         max_traffic = 0
@@ -369,25 +379,28 @@ class EVSimEnvironment:
         usage_per_hour = 15600 # Average usage per hour of Tesla
         return usage_per_hour
 
-    def update_state(self):
+    def update_state(self, index=None):
+
+        if index is None:
+            index = self.agent_index
 
         charger_info = [] # Set of charger distance, current traffic, peak traffic, and charging rate
-        for charger in self.charger_coords: # Populate above set
+        for charger in self.charger_coords[index]: # Populate above set
             station = self.charger_list[charger[0]]
-            charger_info.append(get_distance_and_time((self.cur_lat, self.cur_long), (station.coord[0], station.coord[1]))[0])
+            charger_info.append(get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (station.coord[0], station.coord[1]))[0])
             charger_info.append(station.traffic)
             charger_info.append(station.peak_traffic)
             charger_info.append(station.charger_per_hour / 1000)
 
         # Recalculate remaining distance to destination
-        distance_to_dest = get_distance_and_time((self.cur_lat, self.cur_long), (self.dest_lat, self.dest_long))[0]
+        distance_to_dest = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
 
         # Update state
-        self.state = (self.make, self.model, (self.cur_soc / self.max_soc), distance_to_dest, *charger_info)
+        self.state[index] = (self.make, self.model, (self.cur_soc[index] / self.max_soc), distance_to_dest, *charger_info)
 
     # Used for creating NNs
     def get_state_action_dimension(self):
-        states = len(self.state)
+        states = len(self.state[0])
         actions = 1 + (self.num_of_chargers * 3)
         return states, actions
 

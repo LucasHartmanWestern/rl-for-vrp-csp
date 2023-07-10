@@ -1,15 +1,17 @@
 import copy
 from geolocation.maps_free import get_distance_and_time
 
-def baseline(environment):
+def baseline(environment, index=0):
     environment.tracking_baseline = True
     environment.reset()
 
-    make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state
+    agent_index = index
+
+    make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state[agent_index]
     usage_per_min = environment.ev_info() / 60
 
     # Build graph of possible paths from chargers to each other, the origin, and destination
-    verts, edges = build_graph(environment)
+    verts, edges = build_graph(environment, agent_index)
 
     # Use Dijkstra's algorithm to get shortest paths from origin
     dist, previous = dijkstra((verts, edges), 'origin')
@@ -55,7 +57,7 @@ def baseline(environment):
             while done is not True:
                 next_state, reward, done = environment.step(0)
 
-def build_graph(env):
+def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60
     start_soc = env.base_soc
     max_soc = env.max_soc
@@ -66,20 +68,20 @@ def build_graph(env):
     edges = {'origin': {}, 'destination': {}}
 
     # Distance in minutes from destination to origin
-    org_to_dest_time = get_distance_and_time((env.dest_lat, env.dest_long), (env.org_lat, env.org_long))[1] / 60
+    org_to_dest_time = get_distance_and_time((env.dest_lat[agent_index], env.dest_long[agent_index]), (env.org_lat[agent_index], env.org_long[agent_index]))[1] / 60
     if org_to_dest_time < max_dist_from_start:
         edges['origin']['destination'] = org_to_dest_time
         edges['destination']['origin'] = org_to_dest_time
 
     # Loop through all chargers
-    for i in range(len(env.charger_coords)):
+    for i in range(len(env.charger_coords[agent_index])):
         vertices.append(i + 1) # Track charger ID
         edges[i + 1] = {} # Add station to edges
 
-        charger = env.charger_coords[i]
+        charger = env.charger_coords[agent_index][i]
 
         # Distance in minutes from charger to origin
-        time_to_charger = get_distance_and_time((charger[1], charger[2]), (env.org_lat, env.org_long))[1] / 60
+        time_to_charger = get_distance_and_time((charger[1], charger[2]), (env.org_lat[agent_index], env.org_long[agent_index]))[1] / 60
 
         # If you can make it to charger from origin, log it in the graph
         if time_to_charger < max_dist_from_start:
@@ -87,15 +89,15 @@ def build_graph(env):
             edges[i + 1]['origin'] = time_to_charger
 
         # Distance in minutes from destination to origin
-        charger_to_dest_time = get_distance_and_time((charger[1], charger[2]), (env.dest_lat, env.dest_long))[1] / 60
+        charger_to_dest_time = get_distance_and_time((charger[1], charger[2]), (env.dest_lat[agent_index], env.dest_long[agent_index]))[1] / 60
         if charger_to_dest_time < max_dist_on_full_charge:
             edges[i + 1]['destination'] = charger_to_dest_time
             edges['destination'][i + 1] = charger_to_dest_time
 
         # Populate graph of individual charger
-        for j in range(len(env.charger_coords)):
+        for j in range(len(env.charger_coords[agent_index])):
             if i != j: # Ignore self reference
-                other_charger = env.charger_coords[j]
+                other_charger = env.charger_coords[agent_index][j]
 
                 # Distance in minutes
                 time_to_other_charger = get_distance_and_time((charger[1], charger[2]), (other_charger[1], other_charger[2]))[1] / 60

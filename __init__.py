@@ -25,6 +25,7 @@ visualize_training = False
 ############ Environment Settings ############
 
 seeds = 123 # Used for reproducibility
+num_of_agents = 1
 num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
@@ -54,29 +55,23 @@ for session in range(num_training_sesssions):
     # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
     starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
     # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
-    org_lat, org_long, dest_lat, dest_long = get_org_dest_coords((city_lat, city_long), ((1 / (num_training_sesssions / 9)) * session) + 1)
+    routes = [get_org_dest_coords((city_lat, city_long), ((1 / (num_training_sesssions / 9)) * session) + 1) for i in range(num_of_agents)]
 
-    env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, org_lat, org_long, dest_lat, dest_long, seeds)
-
-    sim = None
-    if visualize_training:
-        # Usage
-        sim = Simulation(env.charger_coords, (org_lat, org_long), (dest_lat, dest_long))
-        sim.show()  # show the initial state
+    env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
 
     if generate_baseline:
         baseline(env)
 
-    if train_model:
+    if train_model and num_of_agents == 1:
 
         state_dimension, action_dimension = env.get_state_action_dimension()
 
         if algorithm == "DQN":
             print("Training using Deep-Q Learning")
-            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers, sim)
+            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
         else:
             print("Training using Expected SARSA")
-            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, seeds, layers, sim)
+            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, seeds, layers)
 
     if save_data:
         env.write_path_to_csv('outputs/routes.csv')
@@ -95,4 +90,4 @@ for session in range(num_training_sesssions):
         if train_model or start_from_previous_session:
             generate_average_reward_plot(algorithm, reward_data, session)
 
-        generate_interactive_plot(algorithm, session, route_datasets, charger_data, (org_lat, org_long), (dest_lat, dest_long))
+        generate_interactive_plot(algorithm, session, route_datasets, charger_data, (routes[0][0], routes[0][1]), (routes[0][2], routes[0][3]))
