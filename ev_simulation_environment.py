@@ -244,7 +244,7 @@ class EVSimEnvironment:
         new_row.append(round(self.cur_soc[self.agent_index] / 1000, 2))
 
         # EV is charging bool
-        new_row.append(self.is_charging)
+        new_row.append(self.is_charging[self.agent_index])
 
         # Episode reward (sum of step rewards up to this timestep)
         new_row.append(round(self.episode_reward[self.agent_index], 2))

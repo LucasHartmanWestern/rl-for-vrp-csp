@@ -42,14 +42,16 @@ def baseline(environment, index=0):
 
     # Travel path using simulator
     for i in range(len(path)):
+        done = False
+
         if path[i][0] != 'destination':
             # Go to charger
-            while environment.is_charging is not True:
-                environment.step(path[i][0])
+            while environment.is_charging is not True and done is not True:
+                next_state, reward, done = environment.step(path[i][0])
 
             # Charge to needed amount
-            while environment.cur_soc < path[i + 1][1]:
-                environment.step(path[i][0])
+            while environment.cur_soc[index] < path[i + 1][1] and done is not True:
+                next_state, reward, done = environment.step(path[i][0])
 
         else:
             # Go to destination
