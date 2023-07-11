@@ -34,7 +34,7 @@ city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 100
+num_training_sesssions = 10
 num_episodes = 10000
 epsilon = 0.8
 discount_factor = 0.9999
@@ -60,7 +60,7 @@ for session in range(num_training_sesssions):
     env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
 
     if generate_baseline:
-        baseline(env)
+        baseline(env, 'A*')
 
     if train_model and num_of_agents == 1:
 

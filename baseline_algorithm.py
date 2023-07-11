@@ -1,7 +1,10 @@
 import copy
+import heapq
+import math
+
 from geolocation.maps_free import get_distance_and_time
 
-def baseline(environment, index=0):
+def baseline(environment, algorithm='dijkstra', index=0):
     environment.tracking_baseline = True
     environment.reset()
 
@@ -13,8 +16,12 @@ def baseline(environment, index=0):
     # Build graph of possible paths from chargers to each other, the origin, and destination
     verts, edges = build_graph(environment, agent_index)
 
-    # Use Dijkstra's algorithm to get shortest paths from origin
-    dist, previous = dijkstra((verts, edges), 'origin')
+    if algorithm == 'dijkstra':
+        # Use Dijkstra's algorithm to get shortest paths from origin
+        dist, previous = dijkstra((verts, edges), 'origin')
+    elif algorithm == 'A*':
+        # Use Dijkstra's algorithm to get shortest paths from origin
+        dist, previous = a_star((verts, edges), 'origin', 'destination')
 
     path = []
 
@@ -46,7 +53,7 @@ def baseline(environment, index=0):
 
         if path[i][0] != 'destination':
             # Go to charger
-            while environment.is_charging is not True and done is not True:
+            while environment.is_charging[index] is not True and done is not True:
                 next_state, reward, done = environment.step(path[i][0])
 
             # Charge to needed amount
@@ -109,6 +116,46 @@ def build_graph(env, agent_index):
                     edges[i + 1][j + 1] = time_to_other_charger
 
     return vertices, edges
+
+
+def a_star(graph, start, end):
+    graph = graph[1]
+
+    # Define heuristic function
+    def h(n):
+        if n == end:
+            return 0
+        else:
+            return graph[n][end]
+
+    # Initialize heap with start node and cost
+    heap = [(h(start), start)]
+    # Initiate costs dictionary with infinite cost for all nodes except start node
+    costs = {node: float('inf') for node in graph}
+    costs[start] = 0
+    # Track paths
+    paths = {start: [start]}
+    # Visited nodes
+    visited = set()
+
+    while heap:
+        (fn, node) = heapq.heappop(heap)
+        visited.add(node)
+
+        if node == end:
+            return paths[node]
+
+        for neighbour, cost in graph[node].items():
+            if neighbour not in visited:
+                old_cost = costs[neighbour]
+                new_cost = costs[node] + cost
+
+                if new_cost < old_cost:
+                    costs[neighbour] = new_cost
+                    paths[neighbour] = paths[node] + [neighbour]
+                    heapq.heappush(heap, (new_cost + h(neighbour), neighbour))
+
+    return None
 
 def dijkstra(graph, source):
     vertices, edges = graph
