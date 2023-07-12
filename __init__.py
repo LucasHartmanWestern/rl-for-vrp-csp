@@ -32,16 +32,17 @@ model = 0 # Not currently used
 max_charge = 100000 # 100kW
 city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 radius = 5
+starting_charge = 1000 # 1%
 
 ############ Hyperparameters ############
 
 num_training_sesssions = 5
-num_episodes = 1000
+num_episodes = 5000
 epsilon = 0.8
 discount_factor = 0.9999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
 batch_size = 1000
-max_num_timesteps = 50 # Amonut of minutes
+max_num_timesteps = 25 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
 layers = [32, 64, 128, 64, 32]
 
@@ -57,7 +58,9 @@ for session in range(num_training_sesssions):
         radius = ((1 / (num_training_sesssions / 9)) * session) + 1
 
     # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
-    starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
+    if starting_charge is None:
+        starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
+
     # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
     routes = [get_org_dest_coords((city_lat, city_long), radius) for i in range(num_of_agents)]
 

@@ -60,7 +60,7 @@ def baseline(environment, algorithm='dijkstra', index=0):
                 next_state, reward, done = environment.step(path[i][0])
 
             # Charge to needed amount
-            while environment.cur_soc[index] < path[i + 1][1] and done is not True:
+            while environment.cur_soc[index] < path[i + 1][1] + usage_per_min and done is not True:
                 next_state, reward, done = environment.step(path[i][0])
 
         else:
