@@ -20,8 +20,11 @@ def baseline(environment, algorithm='dijkstra', index=0):
         # Use Dijkstra's algorithm to get shortest paths from origin
         dist, previous = dijkstra((verts, edges), 'origin')
     elif algorithm == 'A*':
-        # Use Dijkstra's algorithm to get shortest paths from origin
+        # Use A* algorithm to get shortest paths from origin
         dist, previous = a_star((verts, edges), 'origin', 'destination')
+    elif algorithm == 'floyd-warshall':
+        # Use Floyd-Warshall algorithm to get shortest paths from origin
+        dist, previous = floyd_warshall((verts, edges))
 
     path = []
 
@@ -117,6 +120,35 @@ def build_graph(env, agent_index):
 
     return vertices, edges
 
+def floyd_warshall(graph):
+    vertices, edges = graph
+    dist = dict()
+    previous = dict()
+
+    # Initialize distance and previous dictionaries
+    for vertex in vertices:
+        dist[vertex] = dict()
+        previous[vertex] = dict()
+        for other_vertex in vertices:
+            if vertex == other_vertex:
+                dist[vertex][other_vertex] = 0
+                previous[vertex][other_vertex] = None
+            elif other_vertex in edges[vertex]:
+                dist[vertex][other_vertex] = edges[vertex][other_vertex]
+                previous[vertex][other_vertex] = vertex
+            else:
+                dist[vertex][other_vertex] = float('inf')
+                previous[vertex][other_vertex] = None
+
+    # Floyd-Warshall algorithm
+    for k in vertices:
+        for i in vertices:
+            for j in vertices:
+                if dist[i][k] + dist[k][j] < dist[i][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                    previous[i][j] = previous[k][j]
+
+    return dist, previous
 
 def a_star(graph, start, end):
     graph = graph[1]

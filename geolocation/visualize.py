@@ -59,6 +59,29 @@ def generate_average_reward_plot(algorithm, df, session_number):
     # Show the plot
     plt.show()
 
+def generate_traffic_plot(df):
+    """Visualize the traffic per charger id over the timesteps."""
+
+    plt.figure(figsize=(10, 8))
+
+    # Unique charger ids in your data
+    charger_ids = df['Charger ID'].unique()
+
+    # For each charger id, plot a line representing traffic over time
+    for charger in charger_ids:
+        subset = df[df['Charger ID'] == charger]
+        plt.plot(subset['Timestep'], subset['Traffic'], label=str(charger))
+
+    # Add legend, grid, title and labels
+    plt.grid(True)
+    plt.legend(title="Charger ID")
+    plt.title(f'Traffic at Each Station vs Timestep')
+    plt.ylabel('Traffic')
+    plt.xlabel('Timestep')
+
+    # Show the plot
+    plt.show()
+
 def generate_interactive_plot(algorithm, session_number, routes, chargers, origin, destination):
     """Visualize the data using an interactive graph."""
 

@@ -72,7 +72,7 @@ class EVSimEnvironment:
 
         self.max_reward = math.inf * -1
 
-        self.prev_charging = [False for route in routes]
+        self.prev_charging = [None for route in routes]
         self.is_charging = [False for route in routes]
 
         self.num_of_chargers = num_of_chargers
@@ -134,7 +134,10 @@ class EVSimEnvironment:
 
         # Update traffic, SoC, and geographical position
         done = self.move(action)
-        self.update_traffic()
+
+        if self.agent_index == len(self.is_charging) - 1: # Only update the traffic after each agent had a turn
+            self.update_traffic()
+
         self.update_charge(action)
 
         # Update state
@@ -171,7 +174,7 @@ class EVSimEnvironment:
         time_to_station = get_distance_and_time((self.cur_lat[self.agent_index], self.cur_long[self.agent_index]), (station.coord[0], station.coord[1]))[1] / 60
 
         # Consume battery while driving
-        if self.is_charging[self.agent_index] is not True:
+        if self.is_charging[self.agent_index] is not True or self.prev_charging[self.agent_index] != charger_id:
             self.cur_soc[self.agent_index] -= self.usage_per_hour / (60)
 
         # Increase battery while charging
@@ -184,9 +187,12 @@ class EVSimEnvironment:
         # Start charging if within range of charging station
         if action != 0 and time_to_station <= 0.01:
             self.is_charging[self.agent_index] = True
+            self.prev_charging[self.agent_index] = charger_id
         # Not at a station
         else:
             self.is_charging[self.agent_index] = False
+            self.prev_charging[self.agent_index] = None
+
 
     # Simulates traffic updates at chargers
     def update_traffic(self):
@@ -285,7 +291,7 @@ class EVSimEnvironment:
             # Create list of ChargingStation objects
             for charger in self.charger_coords[i]:
                 if charger[0] not in self.charger_list:
-                    self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]))
+                    self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]), len(self.is_charging))
 
             self.update_traffic()
 
@@ -436,6 +442,18 @@ class EVSimEnvironment:
             writer.writerow(['Charger ID', 'Latitude', 'Longitude'])
             for charger in self.used_chargers:
                 writer.writerow(charger)
+
+    def write_charger_traffic_to_csv(self, filepath):
+        charger_traffic = []
+        for charger in self.charger_list:
+            charger_traffic.append(self.charger_list[charger].charge_statistics)
+
+        with open(filepath, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Charger ID', 'Timestep', 'Load', 'Traffic', 'Max Load'])
+            for charger in charger_traffic:
+                for timestep in charger:
+                    writer.writerow(timestep)
 
     # Used for creating average reward graph
     def write_reward_graph_to_csv(self, filepath):

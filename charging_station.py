@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class ChargingStation:
-    def __init__(self, id, coord, peak_traffic=10, max_load=66000, start_time=0):
+    def __init__(self, id, coord, agent_count=1, peak_traffic=10, max_load=66000, start_time=0):
         self.charge_statistics = []
         self.id = id # ID of station
         self.coord = coord # Long and Lat of station
@@ -12,6 +12,7 @@ class ChargingStation:
         self.t = start_time # Amount of time passed in minutes
         self.charger_per_hour = 12500 # Average charge per hour in watts
         self.start_time = start_time
+        self.agent_count = agent_count
 
     def charge(self):
         self.traffic += 1
@@ -27,15 +28,20 @@ class ChargingStation:
     def update_traffic(self):
         self.log_charge_statistics()
 
-        base_traffic = self.peak_traffic * abs(np.sin(self.t * np.pi / 720))  # 720 minutes in 12 hours, creating a cycle.
-        random_noise = random.gauss(0, self.peak_traffic * 0.1)  # Gaussian noise
-        self.traffic = max(0, int(base_traffic + random_noise))  # Ensure traffic never goes negative
-        self.t += 1
+        if self.agent_count == 1:
+            base_traffic = self.peak_traffic * abs(np.sin(self.t * np.pi / 720))  # 720 minutes in 12 hours, creating a cycle.
+            random_noise = random.gauss(0, self.peak_traffic * 0.1)  # Gaussian noise
+            self.traffic = max(0, int(base_traffic + random_noise))  # Ensure traffic never goes negative
+            self.t += 1
+        else:
+            self.traffic = 0
+            self.t += 1
 
     def reset(self):
+        self.charge_statistics = []
         self.update_traffic()
         self.t = self.start_time
 
     def log_charge_statistics(self):
         load = min(self.traffic * self.charger_per_hour, self.max_load)
-        self.charge_statistics.append((self.t, load, self.traffic, self.max_load))
+        self.charge_statistics.append((self.id, self.t, load, self.traffic, self.max_load))
