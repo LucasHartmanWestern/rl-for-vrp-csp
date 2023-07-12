@@ -16,10 +16,10 @@ algorithm = "SARSA"
 ############ Configuration ############
 
 train_model = True
-generate_baseline = False
+generate_baseline = True
 start_from_previous_session = False
-save_data = False
-generate_plots = False
+save_data = True
+generate_plots = True
 visualize_training = False
 
 ############ Environment Settings ############
@@ -31,16 +31,17 @@ make = 0 # Not currently used
 model = 0 # Not currently used
 max_charge = 100000 # 100kW
 city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
+radius = 5
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 100
-num_episodes = 10000
+num_training_sesssions = 5
+num_episodes = 1000
 epsilon = 0.8
 discount_factor = 0.9999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
 batch_size = 1000
-max_num_timesteps = 15 # Amonut of minutes
+max_num_timesteps = 50 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
 layers = [32, 64, 128, 64, 32]
 
@@ -52,17 +53,20 @@ for session in range(num_training_sesssions):
     if session != 0 and train_model:
         start_from_previous_session = True # Always continue from previous training session when running back-to-back sessions
 
+    if radius is None:
+        radius = ((1 / (num_training_sesssions / 9)) * session) + 1
+
     # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
     starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
     # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
-    routes = [get_org_dest_coords((city_lat, city_long), ((1 / (num_training_sesssions / 9)) * session) + 1) for i in range(num_of_agents)]
+    routes = [get_org_dest_coords((city_lat, city_long), radius) for i in range(num_of_agents)]
 
     env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
 
     if generate_baseline:
         baseline(env, 'dijkstra')
 
-    if train_model and num_of_agents == 1:
+    if train_model:
 
         state_dimension, action_dimension = env.get_state_action_dimension()
 
@@ -71,7 +75,7 @@ for session in range(num_training_sesssions):
             train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
         else:
             print(f"Training using Expected SARSA - Session {session}")
-            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, seeds, layers)
+            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
 
     if save_data:
         env.write_path_to_csv('outputs/routes.csv')
@@ -86,12 +90,18 @@ for session in range(num_training_sesssions):
         traffic_data = read_csv_data('outputs/traffic.csv')
 
         route_datasets = []
-        for id_value, group in route_data.groupby('Episode Num'):
-            route_datasets.append(group)
+        if num_of_agents == 1:
+            for id_value, group in route_data.groupby('Episode Num'):
+                route_datasets.append(group)
+        else:
+            for id_value, group in route_data.groupby('Agent Num'):
+                route_datasets.append(group)
 
         if train_model or start_from_previous_session:
             generate_average_reward_plot(algorithm, reward_data, session)
 
         generate_traffic_plot(traffic_data)
 
-        generate_interactive_plot(algorithm, session, route_datasets, charger_data, (routes[0][0], routes[0][1]), (routes[0][2], routes[0][3]))
+        origins = [(route[0], route[1]) for route in routes]
+        destinations = [(route[2], route[3]) for route in routes]
+        generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)

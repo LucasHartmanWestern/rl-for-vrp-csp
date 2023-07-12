@@ -28,7 +28,7 @@ class QNetwork(nn.Module):
 
 
 # Function to train a network using SARSA (State-Action-Reward-State-Action) method
-def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dim, action_dim, load_saved=False, seed=None, layers=[64, 128, 1024, 128, 64], sim=None):
+def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dim, action_dim, num_of_agents=1, load_saved=False, seed=None, layers=[64, 128, 1024, 128, 64], sim=None):
 
     environment.tracking_baseline = False
 
@@ -54,8 +54,11 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
         epsilon *= epsilon_decay  # decaying epsilon
         cumulative_reward = 0  # initialize cumulative reward for the episode
 
+        done = False
+        done_counter = 0
+
         # Time step loop for each episode
-        for t in range(max_num_timesteps):
+        for t in range(max_num_timesteps * num_of_agents):
 
             # Update visualizer
             if sim is not None:
@@ -96,6 +99,9 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
             cumulative_reward += reward  # adding reward to cumulative reward
 
             if done:  # if episode ends
+                done_counter += 1
+
+            if done_counter == num_of_agents:
                 break
 
         # Print training information every 10 episodes

@@ -85,25 +85,33 @@ def generate_traffic_plot(df):
 def generate_interactive_plot(algorithm, session_number, routes, chargers, origin, destination):
     """Visualize the data using an interactive graph."""
 
+    multi_agent = False
+    if len(origin) > 1:
+       multi_agent = True
+
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
-        x=[origin[1]],
-        y=[origin[0]],
+        x=[coord[1] for coord in origin],
+        y=[coord[0] for coord in origin],
         mode='markers',
         name='Origin',
         marker=dict(symbol='triangle-up', size=10)
     ))
     fig.add_trace(go.Scatter(
-        x=[destination[1]],
-        y=[destination[0]],
+        x=[coord[1] for coord in destination],
+        y=[coord[0] for coord in destination],
         mode='markers',
         name='Destination',
         marker=dict(symbol='triangle-down', size=10)
     ))
 
     for idx, route in enumerate(routes, start=1):
-        name = f'Path {route.iloc[0][0]}'  # Changed idx to 0 and routes to route
+        if multi_agent is not True:
+            name = f'Path {route.iloc[0][0]}'  # Changed idx to 0 and routes to route
+        else:
+            name = f'Agent {route.iloc[0][1]}'
+
 
         # Plot the path
         fig.add_trace(go.Scatter(
@@ -113,8 +121,8 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
             name=name,
             legendgroup=name,
             customdata=route[
-                ['Episode Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward']].values.tolist(),
-            hovertemplate='Episode: %{customdata[0]}<br>Action: %{customdata[1]}<br>Timestep: %{customdata[2]}<br>SoC: %{customdata[3]}kW<br>Charging: %{customdata[4]}<br>Episode Reward: %{customdata[5]}<br>Lat: %{y}<br>Lon: %{x}'
+                ['Episode Num', 'Agent Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward']].values.tolist(),
+            hovertemplate='Episode: %{customdata[0]}<br>Agent: %{customdata[1]}<br>Action: %{customdata[2]}<br>Timestep: %{customdata[3]}<br>SoC: %{customdata[4]}kW<br>Charging: %{customdata[5]}<br>Episode Reward: %{customdata[6]}<br>Lat: %{y}<br>Lon: %{x}'
         ))
 
         # Plot the last point with a different marker
@@ -146,8 +154,8 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
         yaxis_title='Latitude',
         annotations=[
             dict(
-                x=origin[1],
-                y=origin[0],
+                x=[coord[1] for coord in origin],
+                y=[coord[0] for coord in origin],
                 xref="x",
                 yref="y",
                 text="Origin",
@@ -157,8 +165,8 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
                 ay=-40
             ),
             dict(
-                x=destination[1],
-                y=destination[0],
+                x=[coord[1] for coord in destination],
+                y=[coord[0] for coord in destination],
                 xref="x",
                 yref="y",
                 text="Destination",
