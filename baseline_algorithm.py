@@ -4,70 +4,83 @@ import math
 
 from geolocation.maps_free import get_distance_and_time
 
-def baseline(environment, algorithm='dijkstra', index=0):
+def baseline(environment, algorithm='dijkstra', num_of_agents=0):
     environment.tracking_baseline = True
     environment.reset()
 
-    agent_index = index
+    paths = []
 
-    make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state[agent_index]
-    usage_per_min = environment.ev_info() / 60
+    for i in range(num_of_agents):
+        make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state[i]
+        usage_per_min = environment.ev_info() / 60
 
-    # Build graph of possible paths from chargers to each other, the origin, and destination
-    verts, edges = build_graph(environment, agent_index)
+        # Build graph of possible paths from chargers to each other, the origin, and destination
+        verts, edges = build_graph(environment, i)
 
-    if algorithm == 'dijkstra':
-        # Use Dijkstra's algorithm to get shortest paths from origin
-        dist, previous = dijkstra((verts, edges), 'origin')
-    elif algorithm == 'A*':
-        # Use A* algorithm to get shortest paths from origin
-        dist, previous = a_star((verts, edges), 'origin', 'destination')
-    elif algorithm == 'floyd-warshall':
-        # Use Floyd-Warshall algorithm to get shortest paths from origin
-        dist, previous = floyd_warshall((verts, edges))
+        if algorithm == 'dijkstra':
+            # Use Dijkstra's algorithm to get shortest paths from origin
+            dist, previous = dijkstra((verts, edges), 'origin')
+        elif algorithm == 'A*':
+            # Use A* algorithm to get shortest paths from origin
+            dist, previous = a_star((verts, edges), 'origin', 'destination')
+        elif algorithm == 'floyd-warshall':
+            # Use Floyd-Warshall algorithm to get shortest paths from origin
+            dist, previous = floyd_warshall((verts, edges))
 
-    path = []
+        path = []
 
-    # If user can make it to destination, go straight there
-    if edges['origin'].get('destination') is not None:
-        path.append(('destination', 0))
+        # If user can make it to destination, go straight there
+        if edges['origin'].get('destination') is not None:
+            path.append(('destination', 0))
 
-    # Build path based on going to chargers first
-    else:
-        prev = previous['destination']
-        cur = 'destination'
+        # Build path based on going to chargers first
+        else:
+            prev = previous['destination']
+            cur = 'destination'
 
-        # Populate path to travel
-        while prev != None:
-            time_needed = edges[cur][prev] # Find time needed to get to next step
-            target_soc = time_needed * usage_per_min # Find SoC needed to get to next step
+            # Populate path to travel
+            while prev != None:
+                time_needed = edges[cur][prev] # Find time needed to get to next step
+                target_soc = time_needed * usage_per_min # Find SoC needed to get to next step
 
-            path.append((cur, target_soc)) # Update path
+                path.append((cur, target_soc)) # Update path
 
-            # Update step
-            cur = copy.copy(prev)
-            prev = previous[prev]
+                # Update step
+                cur = copy.copy(prev)
+                prev = previous[prev]
 
-    path.reverse() # Put destination step at the end
+        path.reverse() # Put destination step at the end
 
-    # Travel path using simulator
-    for i in range(len(path)):
+        paths.append(path)
+
+    current_path = 0
+    current_path_list = [i for i in range(len(paths))]
+
+    while len(current_path_list) > 0:
+
         done = False
 
-        if path[i][0] != 'destination':
-            # Go to charger
-            while environment.is_charging[index] is not True and done is not True:
-                next_state, reward, done = environment.step(path[i][0])
+        # Check if step in path is completed
+        if len(paths[current_path_list[current_path]]) > 1:
+            if environment.is_charging[current_path_list[current_path]] is True and environment.cur_soc[current_path_list[current_path]] > paths[current_path_list[current_path]][1][1] + usage_per_min:
+                del paths[current_path_list[current_path]][0]
 
-            # Charge to needed amount
-            while environment.cur_soc[index] < path[i + 1][1] + usage_per_min and done is not True:
-                next_state, reward, done = environment.step(path[i][0])
+        if paths[current_path_list[current_path]][0][0] != 'destination':
+            next_state, reward, done = environment.step(paths[current_path_list[current_path]][0][0]) # Go to charger and charge until full
+        else:
+            next_state, reward, done = environment.step(0)
+
+
+        if done is True:
+
+            del current_path_list[current_path]
+
+            if len(current_path_list) != 0:
+                current_path = current_path % len(current_path_list)
 
         else:
-            # Go to destination
-            done = False
-            while done is not True:
-                next_state, reward, done = environment.step(0)
+            if len(current_path_list) > 0:
+                current_path = (current_path + 1) % len(current_path_list)
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60

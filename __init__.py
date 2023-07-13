@@ -15,7 +15,7 @@ algorithm = "SARSA"
 
 ############ Configuration ############
 
-train_model = True
+train_model = False
 generate_baseline = True
 start_from_previous_session = False
 save_data = True
@@ -25,7 +25,7 @@ visualize_training = False
 ############ Environment Settings ############
 
 seeds = 123 # Used for reproducibility
-num_of_agents = 1
+num_of_agents = 100
 num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
@@ -36,13 +36,13 @@ starting_charge = 1000 # 1%
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 5
-num_episodes = 5000
+num_training_sesssions = 1
+num_episodes = 1
 epsilon = 0.8
 discount_factor = 0.9999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
 batch_size = 1000
-max_num_timesteps = 25 # Amonut of minutes
+max_num_timesteps = 50 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
 layers = [32, 64, 128, 64, 32]
 
@@ -67,7 +67,7 @@ for session in range(num_training_sesssions):
     env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
 
     if generate_baseline:
-        baseline(env, 'dijkstra')
+        baseline(env, 'dijkstra', num_of_agents)
 
     if train_model:
 

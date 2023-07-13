@@ -166,6 +166,7 @@ class EVSimEnvironment:
 
             if done:
                 del self.agent_list[self.agent_index]
+
                 if len(self.agent_list) != 0:
                     self.agent_index = self.agent_index % len(self.agent_list)
             else:
@@ -284,7 +285,7 @@ class EVSimEnvironment:
 
 
         # Entire state (used for debugging)
-        new_row.append(self.state)
+        # new_row.append(self.state)
 
         if self.tracking_baseline is not True:
             self.current_path.append(new_row)
@@ -313,11 +314,11 @@ class EVSimEnvironment:
                 if charger[0] not in self.charger_list:
                     self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]), len(self.is_charging))
 
-            self.update_traffic()
+        self.update_traffic()
 
-            # Legacy code - not really useful anymore
-            for charger in self.charger_coords[i]:
-                self.used_chargers.append(charger)
+        # Legacy code - not really useful anymore
+        for charger in self.charger_coords[i]:
+            self.used_chargers.append(charger)
 
     # Reset all states
     def reset(self):
@@ -461,12 +462,11 @@ class EVSimEnvironment:
 
     # Used for displaying all chargers on graph sim
     def write_chargers_to_csv(self, filepath):
-        self.used_chargers = list(dict.fromkeys(self.used_chargers))
         with open(filepath, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(['Charger ID', 'Latitude', 'Longitude'])
-            for charger in self.used_chargers:
-                writer.writerow(charger)
+            for charger in self.charger_list:
+                writer.writerow((self.charger_list[charger].id, self.charger_list[charger].coord[0], self.charger_list[charger].coord[1]))
 
     def write_charger_traffic_to_csv(self, filepath):
         charger_traffic = []
