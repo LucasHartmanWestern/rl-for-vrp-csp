@@ -322,6 +322,9 @@ class EVSimEnvironment:
 
     # Reset all states
     def reset(self):
+        self.agent_list = [index for index in range(len(self.org_lat))]
+        self.agent_index = 0
+
         if self.episode_num != -1: # Ignore initial reset
 
             # Track best path
@@ -330,13 +333,19 @@ class EVSimEnvironment:
                 self.max_reward = self.episode_reward[self.agent_list[self.agent_index]]
 
             if self.tracking_baseline is not True: # Ignore baseline in average calculations
+
+                average_ep_reward = 0
+                for agent in self.agent_list:
+                    average_ep_reward += self.episode_reward[self.agent_list[agent]]
+                average_ep_reward /= len(self.agent_list)
+
                 # Track average reward of all episodes
                 if self.episode_num == 0:
-                    self.average_reward.append((self.episode_reward[self.agent_list[self.agent_index]], 0))
+                    self.average_reward.append((average_ep_reward, 0))
                 else:
                     prev_reward = self.average_reward[-1][0]
                     prev_reward *= self.episode_num
-                    self.average_reward.append(((prev_reward + self.episode_reward[self.agent_list[self.agent_index]]) / (self.episode_num + 1), self.episode_num))
+                    self.average_reward.append(((prev_reward + average_ep_reward) / (self.episode_num + 1), self.episode_num))
 
         # Reset all EVs to initial values
         for i in range(len(self.org_lat)):
@@ -347,9 +356,6 @@ class EVSimEnvironment:
             self.cur_long[i] = self.org_long[i]
 
         self.current_path = []
-
-        self.agent_list = [index for index in range(len(self.org_lat))]
-        self.agent_index = 0
 
         for charger in self.charger_list:
             self.charger_list[charger].reset()

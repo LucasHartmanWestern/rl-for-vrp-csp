@@ -15,11 +15,11 @@ algorithm = "SARSA"
 
 ############ Configuration ############
 
-train_model = False
-generate_baseline = True
+train_model = True
+generate_baseline = False
 start_from_previous_session = False
-save_data = True
-generate_plots = True
+save_data = False
+generate_plots = False
 visualize_training = False
 
 ############ Environment Settings ############
@@ -36,8 +36,8 @@ starting_charge = 1000 # 1%
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 1
-num_episodes = 1
+num_training_sesssions = 10
+num_episodes = 10000
 epsilon = 0.8
 discount_factor = 0.9999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
