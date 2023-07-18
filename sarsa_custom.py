@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
+# Check if CUDA is available and set the device accordingly
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Defining a Q-network class that inherits from PyTorch's nn.Module
 class QNetwork(nn.Module):
@@ -26,7 +28,6 @@ class QNetwork(nn.Module):
             x = torch.relu(layer(x))
         return self.layers[-1](x)  # the output of the final layer
 
-
 # Function to train a network using SARSA (State-Action-Reward-State-Action) method
 def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dim, action_dim, num_of_agents=1, load_saved=False, seed=None, layers=[64, 128, 1024, 128, 64], sim=None):
 
@@ -37,7 +38,7 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
         torch.manual_seed(seed)
         np.random.seed(seed)
 
-    network = QNetwork(state_dim, action_dim, layers)  # initializing the Q-network
+    network = QNetwork(state_dim, action_dim, layers).to(device)  # initializing the Q-network and moving to device
     optimizer = optim.Adam(network.parameters())  # using Adam optimizer for training
     loss_fn = nn.MSELoss()  # using Mean Square Error as the loss function
 
@@ -50,7 +51,7 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
     # Training loop for each episode
     for episode in range(num_episodes):
         state = environment.reset()  # resetting the environment for the new episode
-        state = torch.tensor(state, dtype=torch.float32)  # converting state to tensor
+        state = torch.tensor(state, dtype=torch.float32).to(device)  # converting state to tensor and moving to device
         epsilon *= epsilon_decay  # decaying epsilon
         cumulative_reward = 0  # initialize cumulative reward for the episode
 
@@ -75,20 +76,21 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
 
             # Taking action in the environment
             next_state, reward, done = environment.step(action)
-            next_state = torch.tensor(next_state, dtype=torch.float32)  # converting next state to tensor
+            next_state = torch.tensor(next_state, dtype=torch.float32).to(device)  # converting next state to tensor and moving to device
 
             # Getting next action values by forward propagation
             next_action_values = network(next_state)
-            # Creating a categorical distribution of next action values
-            next_action_distribution = torch.distributions.Categorical(logits=next_action_values)
-            next_action = next_action_distribution.sample()  # sampling a next action from the distribution
 
-            # Defining the target and current Q values to compute loss
-            target = reward + discount_factor * torch.sum(next_action_distribution.probs * next_action_values)
-            current = action_values[action]
+            # Expected SARSA: calculate expected q values based on current policy (epsilon-greedy)
+            next_action_probs = torch.ones(action_dim).to(device) * epsilon / action_dim
+            next_action_probs[torch.argmax(next_action_values)] += (1.0 - epsilon)
+            expected_q_next_state = torch.sum(next_action_probs * next_action_values)
+            target = reward + discount_factor * expected_q_next_state
+
+            current = action_values[torch.tensor(action, dtype=torch.int64)]
 
             # Calculating loss using the loss function
-            loss = loss_fn(current, target)
+            loss = loss_fn(current.unsqueeze(0), target.unsqueeze(0))
 
             # Backpropagation
             optimizer.zero_grad()  # resetting the gradients to zero

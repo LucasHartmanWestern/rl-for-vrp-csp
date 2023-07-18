@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class ChargingStation:
-    def __init__(self, id, coord, agent_count=1, peak_traffic=10, max_load=66000, start_time=360):
+    def __init__(self, id, coord, agent_count=1, peak_traffic=10, max_load=66000, start_time=0):
         self.charge_statistics = []
         self.id = id # ID of station
         self.coord = coord # Long and Lat of station

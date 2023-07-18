@@ -121,8 +121,8 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
             name=name,
             legendgroup=name,
             customdata=route[
-                ['Episode Num', 'Agent Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward']].values.tolist(),
-            hovertemplate='Episode: %{customdata[0]}<br>Agent: %{customdata[1]}<br>Action: %{customdata[2]}<br>Timestep: %{customdata[3]}<br>SoC: %{customdata[4]}kW<br>Charging: %{customdata[5]}<br>Episode Reward: %{customdata[6]}<br>Lat: %{y}<br>Lon: %{x}'
+                ['Episode Num', 'Agent Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward', 'Max Time Left', 'Time to Destination']].values.tolist(),
+            hovertemplate='Episode: %{customdata[0]}<br>Agent: %{customdata[1]}<br>Time on SOC: %{customdata[7]}<br>Time to Destination: %{customdata[8]}<br>Action: %{customdata[2]}<br>Timestep: %{customdata[3]}<br>SoC: %{customdata[4]}kW<br>Charging: %{customdata[5]}<br>Episode Reward: %{customdata[6]}<br>Lat: %{y}<br>Lon: %{x}'
         ))
 
         # Plot the last point with a different marker
@@ -135,8 +135,8 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
             legendgroup=name,
             showlegend=False,
             customdata=[
-                route[['Episode Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward']].values.tolist()[-1]],
-            hovertemplate='Episode: %{customdata[0]}<br>Action: %{customdata[1]}<br>Timestep: %{customdata[2]}<br>SoC: %{customdata[3]}kW<br>Charging: %{customdata[4]}<br>Episode Reward: %{customdata[5]}<br>Lat: %{y}<br>Lon: %{x}'
+                route[['Episode Num', 'Agent Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward', 'Max Time Left', 'Time to Destination']].values.tolist()[-1]],
+            hovertemplate='Episode: %{customdata[0]}<br>Agent: %{customdata[1]}<br>Time on SOC: %{customdata[7]}<br>Time to Destination: %{customdata[8]}<br>Action: %{customdata[2]}<br>Timestep: %{customdata[3]}<br>SoC: %{customdata[4]}kW<br>Charging: %{customdata[5]}<br>Episode Reward: %{customdata[6]}<br>Lat: %{y}<br>Lon: %{x}'
         ))
 
     for i in range(len(chargers)):

@@ -65,6 +65,8 @@ class EVSimEnvironment:
 
         self.state = [() for route in routes]
 
+        self.distances = [get_distance_and_time((route[0], route[1]), (route[2], route[3]))[0] for route in routes]
+
         self.charger_list = {} # List of ChargingStation objects
 
         self.step_num = [0 for route in routes]
@@ -111,8 +113,8 @@ class EVSimEnvironment:
         charger_data = []
         for station in data['fuel_stations']:
             charger_id = station['id']
-            charger_lat = station['latitude']
-            charger_long = station['longitude']
+            charger_lat = round(station['latitude'], 4)
+            charger_long = round(station['longitude'], 4)
             charger_data.append([charger_id, charger_lat, charger_long])
         self.charger_info = pd.DataFrame(charger_data, columns=['id', 'latitude', 'longitude'])
 
@@ -242,6 +244,8 @@ class EVSimEnvironment:
     def log(self, action, final = False, episode_offset = 0, a_index=None):
         new_row = []
 
+        usage_per_hour = self.ev_info()
+
         if a_index is None:
             index = self.agent_list[self.agent_index]
         else:
@@ -283,6 +287,13 @@ class EVSimEnvironment:
             new_row.append(self.dest_lat[index])
             new_row.append(self.dest_long[index])
 
+        new_row.append(self.distances[index])
+
+        max_time_on_soc = self.cur_soc[index] / (usage_per_hour / 60)
+        time_left_in_trip = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[1] / 60
+
+        new_row.append(max_time_on_soc)
+        new_row.append(time_left_in_trip)
 
         # Entire state (used for debugging)
         # new_row.append(self.state)
@@ -427,13 +438,13 @@ class EVSimEnvironment:
             charger_info.append(get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (station.coord[0], station.coord[1]))[0])
             charger_info.append(station.traffic)
             charger_info.append(station.peak_traffic)
-            charger_info.append(station.charger_per_hour / 1000)
+            charger_info.append(round(station.charger_per_hour / 1000, 1))
 
         # Recalculate remaining distance to destination
         distance_to_dest = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
 
         # Update state
-        self.state[index] = (self.make, self.model, (self.cur_soc[index] / self.max_soc), distance_to_dest, *charger_info)
+        self.state[index] = (self.make, self.model, round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
 
     # Used for creating NNs
     def get_state_action_dimension(self):
@@ -455,6 +466,9 @@ class EVSimEnvironment:
             header_row.append('Episode Reward')
             header_row.append('Latitude')
             header_row.append('Longitude')
+            header_row.append('Distance')
+            header_row.append('Max Time Left')
+            header_row.append('Time to Destination')
             header_row.append('State')
 
             writer.writerow(header_row)

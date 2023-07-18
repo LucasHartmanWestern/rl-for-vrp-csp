@@ -74,11 +74,11 @@ def get_distance_and_time(origin, destination):
     # Calculate the distance between origin and destination using geodesic distance
     distance = geodesic(origin, destination).km
 
-    round(distance, 2)
+    round(distance, 1)
 
     # Calculate the travel time based on the distance and average speed
     # Time = distance / speed
-    time = distance / average_speed * 3600  # time in seconds
+    time = round((distance / average_speed) * 3600, 1)  # time in seconds
 
     return distance, time
 
@@ -102,20 +102,34 @@ def move_towards(origin, destination, travel_time):
     # Calculate the new point after moving towards the destination
     new_location = geodesic(kilometers=travel_distance).destination(Point(*origin), bearing)
 
-    return new_location.latitude, new_location.longitude
+    return round(new_location.latitude, 4), round(new_location.longitude, 4)
 
-def get_org_dest_coords(center, km):
+def get_org_dest_coords(center, km, seed):
     lat, long = center
     km_in_degrees = km / 111.11  # Approximation of km to degrees
-    angle = random.uniform(0, 2 * math.pi)  # Angle in radians
 
-    # Calculate coordinates of origin point on the circle's circumference
-    org_lat = lat + km_in_degrees * math.sin(angle)
-    org_long = long + km_in_degrees * math.cos(angle)
+    # Setting the seed
+    random.seed(seed)
 
-    # Calculate coordinates of destination point diametrically opposite on the circle's circumference
-    dest_lat = lat + km_in_degrees * math.sin(angle + math.pi)
-    dest_long = long + km_in_degrees * math.cos(angle + math.pi)
+    # Random angle in radians for origin point
+    org_angle = random.uniform(0, 2 * math.pi)
+
+    # Random radius for origin point, at least half the maximum radius
+    org_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+
+    # Calculate coordinates of origin point inside the circle
+    org_lat = round(lat + org_radius * math.sin(org_angle), 4)
+    org_long = round(long + org_radius * math.cos(org_angle), 4)
+
+    # Random angle in radians for destination point
+    dest_angle = random.uniform(0, 2 * math.pi)
+
+    # Random radius for destination point, at least half the maximum radius
+    dest_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+
+    # Calculate coordinates of destination point inside the circle
+    dest_lat = round(lat + dest_radius * math.sin(dest_angle), 4)
+    dest_long = round(long + dest_radius * math.cos(dest_angle), 4)
 
     return org_lat, org_long, dest_lat, dest_long
 

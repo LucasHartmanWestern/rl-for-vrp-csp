@@ -5,6 +5,8 @@ import math
 from geolocation.maps_free import get_distance_and_time
 
 def baseline(environment, algorithm='dijkstra', num_of_agents=0):
+    print('Starting Baseline Calculations')
+
     environment.tracking_baseline = True
     environment.reset()
 
@@ -41,7 +43,7 @@ def baseline(environment, algorithm='dijkstra', num_of_agents=0):
             # Populate path to travel
             while prev != None:
                 time_needed = edges[cur][prev] # Find time needed to get to next step
-                target_soc = time_needed * usage_per_min # Find SoC needed to get to next step
+                target_soc = time_needed * usage_per_min + usage_per_min # Find SoC needed to get to next step
 
                 path.append((cur, target_soc)) # Update path
 
@@ -53,6 +55,8 @@ def baseline(environment, algorithm='dijkstra', num_of_agents=0):
 
         paths.append(path)
 
+    print('Baseline Paths Built')
+
     current_path = 0
     current_path_list = [i for i in range(len(paths))]
 
@@ -63,16 +67,20 @@ def baseline(environment, algorithm='dijkstra', num_of_agents=0):
         # Check if step in path is completed
         if len(paths[current_path_list[current_path]]) > 1:
             if environment.is_charging[current_path_list[current_path]] is True and environment.cur_soc[current_path_list[current_path]] > paths[current_path_list[current_path]][1][1] + usage_per_min:
+                print(f'DELETING STEP - {paths[current_path_list[current_path]][0]}')
                 del paths[current_path_list[current_path]][0]
 
-        if paths[current_path_list[current_path]][0][0] != 'destination':
-            next_state, reward, done = environment.step(paths[current_path_list[current_path]][0][0]) # Go to charger and charge until full
-        else:
-            next_state, reward, done = environment.step(0)
+        if len(paths[current_path_list[current_path]]) > 0:
+            print(f'STEP - {paths[current_path_list[current_path]][0]}')
 
+            if paths[current_path_list[current_path]][0][0] != 'destination':
+                next_state, reward, done = environment.step(paths[current_path_list[current_path]][0][0]) # Go to charger and charge until full
+            else:
+                next_state, reward, done = environment.step(0)
 
         if done is True:
 
+            print(f'DELETING ROUTE - {current_path_list[current_path]} : REMAINING LENGTH - {len(current_path_list) - 1}')
             del current_path_list[current_path]
 
             if len(current_path_list) != 0:
