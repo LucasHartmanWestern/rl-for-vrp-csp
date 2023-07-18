@@ -212,7 +212,7 @@ class EVSimEnvironment:
     # Simulates traffic updates at chargers
     def update_traffic(self):
         for charger in self.charger_list:
-            self.charger_list[charger].update_traffic()
+            self.charger_list[charger].update_traffic(self.seed + self.episode_num)
 
     # Simulates geographical movement of EV
     def move(self, action):
@@ -400,12 +400,13 @@ class EVSimEnvironment:
                 max_traffic = charger_traffic
 
         # Reward negatively for high traffic at stations
-        reward -= 10 * max_traffic
+        # reward -= 10 * max_traffic
 
         # Decrease reward proportionately to distance remaining distance and battery percentage
         reward -= min((distance_to_dest / distance_from_origin) * 100, 100)
-        if battery_percentage > 0:
-            reward -= min((1 / battery_percentage), 100)
+
+        # if battery_percentage > 0:
+        #     reward -= min((1 / battery_percentage), 100)
 
         # Big bonus for reaching destination
         if distance_to_dest < 1 and battery_percentage > 0:
@@ -414,10 +415,6 @@ class EVSimEnvironment:
         # Big penalty for running out of battery
         if battery_percentage <= 0:
             reward -= 1000
-
-        # Big penalty for finishing without reaching the destination
-        if distance_to_dest > 1 and done:
-            reward -= distance_to_dest * 100
 
         return reward
 
@@ -443,8 +440,13 @@ class EVSimEnvironment:
         # Recalculate remaining distance to destination
         distance_to_dest = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
 
+        if self.is_charging[index] is True:
+            charge_bool = 1
+        else:
+            charge_bool = 0
+
         # Update state
-        self.state[index] = (self.make, self.model, round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
+        self.state[index] = (charge_bool, round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
 
     # Used for creating NNs
     def get_state_action_dimension(self):

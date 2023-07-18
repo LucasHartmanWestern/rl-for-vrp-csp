@@ -36,15 +36,15 @@ starting_charge = 1000 # 0.5%
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 25
-num_episodes = 10000
+num_training_sesssions = 1
+num_episodes = 30000
 epsilon = 0.8
-discount_factor = 0.9999
-epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
+discount_factor = 0.999999
+epsilon_decay = (10 ** (-5 / (2 * num_episodes))) * ((1 / epsilon) ** (5 / (2 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
 batch_size = 1000
 max_num_timesteps = 50 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
-layers = [128, 1024, 2048, 16384, 2048, 1024, 128, 64, 32]
+layers = [64, 64, 32]
 
 ############ Initialization ############
 

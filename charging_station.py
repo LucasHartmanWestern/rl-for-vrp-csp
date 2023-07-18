@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class ChargingStation:
-    def __init__(self, id, coord, agent_count=1, peak_traffic=10, max_load=66000, start_time=0):
+    def __init__(self, id, coord, agent_count=1, peak_traffic=10, max_load=66000, start_time=320):
         self.charge_statistics = []
         self.id = id # ID of station
         self.coord = coord # Long and Lat of station
@@ -25,7 +25,9 @@ class ChargingStation:
 
         return output
 
-    def update_traffic(self):
+    def update_traffic(self, seed):
+        random.seed(seed)
+
         self.log_charge_statistics()
 
         if self.agent_count == 1:
@@ -39,7 +41,7 @@ class ChargingStation:
 
     def reset(self):
         self.charge_statistics = []
-        self.update_traffic()
+        self.traffic = 0
         self.t = self.start_time
 
     def log_charge_statistics(self):

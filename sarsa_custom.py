@@ -53,6 +53,8 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
         state = environment.reset()  # resetting the environment for the new episode
         state = torch.tensor(state, dtype=torch.float32).to(device)  # converting state to tensor and moving to device
         epsilon *= epsilon_decay  # decaying epsilon
+        epsilon = max(epsilon, 0.1)
+
         cumulative_reward = 0  # initialize cumulative reward for the episode
 
         done = False
@@ -83,7 +85,12 @@ def train_sarsa(environment, epsilon, discount_factor, num_episodes, epsilon_dec
 
             # Expected SARSA: calculate expected q values based on current policy (epsilon-greedy)
             next_action_probs = torch.ones(action_dim).to(device) * epsilon / action_dim
-            next_action_probs[torch.argmax(next_action_values)] += (1.0 - epsilon)
+
+            max_val = next_action_values.max()
+            count = (next_action_values == max_val).sum()
+
+            next_action_probs[torch.argmax(next_action_values)] += (1.0 - epsilon) / count.item()
+
             expected_q_next_state = torch.sum(next_action_probs * next_action_values)
             target = reward + discount_factor * expected_q_next_state
 
