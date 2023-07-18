@@ -292,8 +292,8 @@ class EVSimEnvironment:
         max_time_on_soc = self.cur_soc[index] / (usage_per_hour / 60)
         time_left_in_trip = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[1] / 60
 
-        new_row.append(max_time_on_soc)
-        new_row.append(time_left_in_trip)
+        new_row.append(round(max_time_on_soc, 2))
+        new_row.append(round(time_left_in_trip, 2))
 
         # Entire state (used for debugging)
         # new_row.append(self.state)

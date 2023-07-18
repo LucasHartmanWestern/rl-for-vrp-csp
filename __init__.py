@@ -105,7 +105,8 @@ for session in range(num_training_sesssions):
         if train_model or start_from_previous_session:
             generate_average_reward_plot(algorithm, reward_data, session)
 
-        generate_traffic_plot(traffic_data)
+        if num_episodes == 1 and num_of_agents > 1:
+            generate_traffic_plot(traffic_data)
 
         origins = [(route[0], route[1]) for route in routes]
         destinations = [(route[2], route[3]) for route in routes]
