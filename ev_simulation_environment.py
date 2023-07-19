@@ -67,6 +67,8 @@ class EVSimEnvironment:
 
         self.distances = [get_distance_and_time((route[0], route[1]), (route[2], route[3]))[0] for route in routes]
 
+        self.prev_action = [-1 for route in routes]
+
         self.charger_list = {} # List of ChargingStation objects
 
         self.step_num = [0 for route in routes]
@@ -136,13 +138,15 @@ class EVSimEnvironment:
 
         self.step_num[self.agent_list[self.agent_index]] += 1
 
+        self.prev_action[self.agent_list[self.agent_index]] = action
+
         # Update traffic, SoC, and geographical position
-        done = self.move(action)
+        done, distance_travelled = self.move(action)
 
         if self.agent_index == len(self.agent_list) - 1: # Only update the traffic after each agent had a turn
             self.update_traffic()
 
-        self.update_charge(action)
+        self.update_charge(action, distance_travelled)
 
         # Update state
         self.update_state()
@@ -180,7 +184,7 @@ class EVSimEnvironment:
             return self.state[0], reward, done
 
     # Simulates battery life of EV as it travels
-    def update_charge(self, action):
+    def update_charge(self, action, distance_travelled):
 
         charger_id = self.charger_coords[self.agent_list[self.agent_index]][action - 1][0]
         station = self.charger_list[charger_id]
@@ -190,11 +194,11 @@ class EVSimEnvironment:
 
         # Consume battery while driving
         if self.is_charging[self.agent_list[self.agent_index]] is not True or self.prev_charging[self.agent_list[self.agent_index]] != charger_id:
-            self.cur_soc[self.agent_list[self.agent_index]] -= self.usage_per_hour / (60)
+            self.cur_soc[self.agent_list[self.agent_index]] -= (self.usage_per_hour / (60)) * distance_travelled
 
         # Increase battery while charging
         else:
-            self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 60
+            self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 12
             # Cap SoC at max
             if self.cur_soc[self.agent_list[self.agent_index]] > self.max_soc:
                 self.cur_soc[self.agent_list[self.agent_index]] = self.max_soc
@@ -219,14 +223,19 @@ class EVSimEnvironment:
         # Find out how far EV can travel given current charge
         usage_per_hour = self.ev_info()
         max_distance = self.cur_soc[self.agent_list[self.agent_index]] / (usage_per_hour / 60)
-        travel_distance = min(max_distance, 1)
+        # Min of (max distance on battery, 5 minutes, and distance to destination)
+        travel_distance = min(max_distance, 5, get_distance_and_time(
+            (self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (
+                self.charger_coords[self.agent_list[self.agent_index]][action - 1][1],
+                self.charger_coords[self.agent_list[self.agent_index]][action - 1][2]))[1] / 60)
+
 
         # Find how far destination is away from current coordinates in minutes
         time_to_destination = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.dest_lat[self.agent_list[self.agent_index]], self.dest_long[self.agent_list[self.agent_index]]))[1] / 60
 
         # EV has reached destination or ran out of battery before reaching destination
         if time_to_destination < 1 or self.cur_soc[self.agent_list[self.agent_index]] <= 0 or self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
-            return True
+            return True, travel_distance
 
         # EV is driving to destination
         if action == 0:
@@ -238,7 +247,7 @@ class EVSimEnvironment:
             # Drive towards station
             self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]] = move_towards((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.charger_coords[self.agent_list[self.agent_index]][action - 1][1], self.charger_coords[self.agent_list[self.agent_index]][action - 1][2]), travel_distance)
 
-        return False
+        return False, travel_distance
 
     # Used to log the info for the paths
     def log(self, action, final = False, episode_offset = 0, a_index=None):
@@ -388,7 +397,7 @@ class EVSimEnvironment:
     # Scale negative rewards to fractions
     def reward(self, state, done):
         reward = 0
-        make, model, battery_percentage, distance_to_dest, *charger_distances = state[self.agent_list[self.agent_index]]
+        charge_bool, prev_action, battery_percentage, distance_to_dest, *charger_distances = state[self.agent_list[self.agent_index]]
 
         distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat[self.agent_list[self.agent_index]], self.org_long[self.agent_list[self.agent_index]]), (self.dest_lat[self.agent_list[self.agent_index]], self.dest_long[self.agent_list[self.agent_index]]))
 
@@ -410,7 +419,7 @@ class EVSimEnvironment:
 
         # Big bonus for reaching destination
         if distance_to_dest < 1 and battery_percentage > 0:
-            reward += 1000 * battery_percentage
+            reward += 1000
 
         # Big penalty for running out of battery
         if battery_percentage <= 0:
@@ -446,7 +455,7 @@ class EVSimEnvironment:
             charge_bool = 0
 
         # Update state
-        self.state[index] = (charge_bool, round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
+        self.state[index] = (charge_bool, self.prev_action[index], round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
 
     # Used for creating NNs
     def get_state_action_dimension(self):

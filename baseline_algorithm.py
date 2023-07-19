@@ -13,7 +13,7 @@ def baseline(environment, algorithm='dijkstra', num_of_agents=0):
     paths = []
 
     for i in range(num_of_agents):
-        make, model, battery_percentage, distance_to_dest, *charger_distances = environment.state[i]
+        charge_bool, prev_action, battery_percentage, distance_to_dest, *charger_distances = environment.state[i]
         usage_per_min = environment.ev_info() / 60
 
         # Build graph of possible paths from chargers to each other, the origin, and destination
@@ -91,7 +91,7 @@ def baseline(environment, algorithm='dijkstra', num_of_agents=0):
                 current_path = (current_path + 1) % len(current_path_list)
 
 def build_graph(env, agent_index):
-    usage_per_min = env.ev_info() / 60
+    usage_per_min = env.ev_info() / 12
     start_soc = env.base_soc
     max_soc = env.max_soc
     max_dist_from_start = start_soc / usage_per_min
