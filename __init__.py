@@ -26,32 +26,32 @@ visualize_training = False
 
 seeds = 1 # Used for reproducibility
 num_of_agents = 1
-num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
 max_charge = 100000 # 100kW
 city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 radius = 10
-starting_charge = 2000 # 2%
+starting_charge = 1000 # 0.5%
 
 ############ Hyperparameters ############
 
-num_training_sesssions = 10
+num_training_sesssions = 1
 num_episodes = 30000
-epsilon = 1
+epsilon = 0.8
 discount_factor = 0.999999
-epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
+epsilon_decay = (10 ** (-5 / (2 * num_episodes))) * ((1 / epsilon) ** (5 / (2 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
 batch_size = 1000
 max_num_timesteps = 50 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
-layers = [64, 64, 64, 64, 64, 32]
+layers = [64, 64, 32]
 
 ############ Initialization ############
 
 # Run multiple training sessions with differing origins and destinations
 for session in range(num_training_sesssions):
 
-    seeds += 1
+    seeds += session
 
     if session != 0 and train_model:
         start_from_previous_session = True # Always continue from previous training session when running back-to-back sessions
