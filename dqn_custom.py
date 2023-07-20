@@ -157,7 +157,11 @@ def train_dqn(
         else:
             action_values = q_network(state)  # Greedy action
 
+
+        action_values = torch.sigmoid(action_values)
         distribution = action_values.tolist()
+
+        print(distribution)
 
         next_state, reward, done = simulate(environment, distribution)
         buffer.append(experience(state, distribution, reward, next_state, done))  # Store experience

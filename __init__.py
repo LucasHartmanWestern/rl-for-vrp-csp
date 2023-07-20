@@ -74,14 +74,14 @@ for session in range(num_training_sesssions):
     if train_model:
 
         state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-        action_dimension = num_of_chargers * 6      # 2 attributes for each station
+        action_dimension = num_of_chargers * 3      # attributes for each station
 
         if algorithm == "DQN":
             print(f"Training using Deep-Q Learning - Session {session}")
-            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension, start_from_previous_session, layers)
+            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, start_from_previous_session, layers)
         else:
             print(f"Training using Expected SARSA - Session {session}")
-            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
+            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
 
     if save_data:
         env.write_path_to_csv('outputs/routes.csv')

@@ -22,6 +22,8 @@ def simulate(environment, paths):
     current_path = 0
     current_path_list = [i for i in range(len(paths))]
 
+    simulation_reward = 0
+
     while len(current_path_list) > 0:
 
         done = False
@@ -40,6 +42,8 @@ def simulate(environment, paths):
             else:
                 next_state, reward, done = environment.step(0)
 
+            simulation_reward += reward # Accumulate reward of every path
+
         if done is True:
 
             del current_path_list[current_path]
@@ -50,6 +54,8 @@ def simulate(environment, paths):
         else:
             if len(current_path_list) > 0:
                 current_path = (current_path + 1) % len(current_path_list)
+
+    return simulation_reward
 
 def build_paths(environment, num_of_agents):
     paths = []
