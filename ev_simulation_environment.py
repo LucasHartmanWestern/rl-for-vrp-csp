@@ -388,7 +388,7 @@ class EVSimEnvironment:
     # Scale negative rewards to fractions
     def reward(self, state, done):
         reward = 0
-        make, model, battery_percentage, distance_to_dest, *charger_distances = state[self.agent_list[self.agent_index]]
+        charge_bool, battery_percentage, distance_to_dest, *charger_distances = state[self.agent_list[self.agent_index]]
 
         distance_from_origin, time_from_origin = get_distance_and_time((self.org_lat[self.agent_list[self.agent_index]], self.org_long[self.agent_list[self.agent_index]]), (self.dest_lat[self.agent_list[self.agent_index]], self.dest_long[self.agent_list[self.agent_index]]))
 
@@ -400,21 +400,10 @@ class EVSimEnvironment:
                 max_traffic = charger_traffic
 
         # Reward negatively for high traffic at stations
-        # reward -= 10 * max_traffic
+        reward -= max_traffic
 
         # Decrease reward proportionately to distance remaining distance and battery percentage
-        reward -= min((distance_to_dest / distance_from_origin) * 100, 100)
-
-        # if battery_percentage > 0:
-        #     reward -= min((1 / battery_percentage), 100)
-
-        # Big bonus for reaching destination
-        if distance_to_dest < 1 and battery_percentage > 0:
-            reward += 1000 * battery_percentage
-
-        # Big penalty for running out of battery
-        if battery_percentage <= 0:
-            reward -= 1000
+        reward -= (distance_to_dest / distance_from_origin)
 
         return reward
 
@@ -434,11 +423,9 @@ class EVSimEnvironment:
             station = self.charger_list[charger[0]]
             charger_info.append(get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (station.coord[0], station.coord[1]))[0])
             charger_info.append(station.traffic)
-            charger_info.append(station.peak_traffic)
-            charger_info.append(round(station.charger_per_hour / 1000, 1))
 
         # Recalculate remaining distance to destination
-        distance_to_dest = get_distance_and_time((self.cur_lat[index], self.cur_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
+        total_dist = get_distance_and_time((self.org_lat[index], self.org_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
 
         if self.is_charging[index] is True:
             charge_bool = 1
@@ -446,7 +433,7 @@ class EVSimEnvironment:
             charge_bool = 0
 
         # Update state
-        self.state[index] = (charge_bool, round((self.cur_soc[index] / self.max_soc), 2), distance_to_dest, *charger_info)
+        self.state[index] = (self.num_of_chargers, len(self.org_lat), total_dist, *charger_info)
 
     # Used for creating NNs
     def get_state_action_dimension(self):

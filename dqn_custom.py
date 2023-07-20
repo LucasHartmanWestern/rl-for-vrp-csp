@@ -29,10 +29,10 @@ class QNetwork(nn.Module):
         x = state
         for i in range(len(self.layers) - 1):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return self.layers[-1](x)  # Output layer without activation
+        return torch.relu(self.layers[-1](x))  # Apply ReLU to the output layer to ensure output values are positive
 
 # Define the experience tuple
-experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def initialize(state_dim, action_dim, layers):
     """Initializes the Q and target-Q neural networks
@@ -65,8 +65,8 @@ def compute_loss(experiences, gamma, q_network, target_q_network):
         loss: Integer value used to train the network
     """
 
-    states, actions, rewards, next_states, dones = experiences
-    current_Q = q_network(states).gather(1, actions.unsqueeze(1))  # Q-value from Q-network
+    states, distributions, rewards, next_states, dones = experiences
+    current_Q = q_network(states).gather(1, distributions.unsqueeze(1))  # Q-value from Q-network
     next_Q = target_q_network(next_states).detach().max(1)[0].unsqueeze(1)  # Maximum Q-value from target Q-network
     target_Q = rewards + (gamma * next_Q * (1 - dones))  # Target Q-value
     loss = nn.MSELoss()(current_Q, target_Q)  # Compute MSE loss
@@ -87,13 +87,13 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
     """
 
     # Convert NumPy arrays to PyTorch tensors
-    states, actions, rewards, next_states, dones = experiences
+    states, distributions, rewards, next_states, dones = experiences
     states = torch.tensor(states, dtype=torch.float32)
-    actions = torch.tensor(actions, dtype=torch.int64)
+    distributions = torch.tensor(distributions, dtype=torch.int64)
     rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
     next_states = torch.tensor(next_states, dtype=torch.float32)
     dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(1)
-    experiences = (states, actions, rewards, next_states, dones)
+    experiences = (states, distributions, rewards, next_states, dones)
 
     loss = compute_loss(experiences, gamma, q_network, target_q_network)  # Compute loss
     optimizer.zero_grad()  # Zero out gradients
@@ -107,12 +107,10 @@ def train_dqn(
     num_episodes,
     batch_size,
     buffer_limit,
-    max_num_timesteps,
     state_dim,
     action_dim,
     load_saved=False,
-    layers=[64, 128, 1024, 128, 64],
-    sim=None
+    layers=[64, 128, 1024, 128, 64]
 ):
     """Main training loop
 
@@ -153,29 +151,23 @@ def train_dqn(
             elapsed_time = time.time() - start_time
             print(f"Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Epsilon: {epsilon}")
 
-        for j in range(max_num_timesteps):  # For each timestep
+        state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
+        if np.random.rand() < epsilon:  # Epsilon-greedy action selection
+            action_values = q_network(state) + torch.randn(action_dim) * 0.1  # add noise for exploration
+        else:
+            action_values = q_network(state)  # Greedy action
 
-            # Update visualizer
-            if sim is not None:
-                sim.update_ev_position((environment.cur_lat, environment.cur_long))
+        distribution = action_values.tolist()
 
-            state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
-            if np.random.rand() < epsilon:  # Epsilon-greedy action selection
-                action = np.random.choice(action_dim)  # Random action
-            else:
-                action = q_network(state).argmax().item()  # Greedy action
+        next_state, reward, done = simulate(environment, distribution)
+        buffer.append(experience(state, distribution, reward, next_state, done))  # Store experience
 
-            next_state, reward, done = environment.step(action)  # Execute action
-            buffer.append(experience(state, action, reward, next_state, done))  # Store experience
+        if len(buffer) >= buffer_limit:  # If replay buffer is full enough
+            mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
+            experiences = map(np.stack, zip(*mini_batch))  # Format experiences
+            agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
 
-            if len(buffer) >= buffer_limit:  # If replay buffer is full enough
-                mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
-                experiences = map(np.stack, zip(*mini_batch))  # Format experiences
-                agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
-
-            if done:  # If episode is done
-                break
-            state = next_state  # Update state
+        state = next_state  # Update state
 
         epsilon *= discount_factor  # Decay epsilon
 

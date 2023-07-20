@@ -11,7 +11,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 ############ Algorithm ############
 
-algorithm = "SARSA"
+algorithm = "DQN"
 
 ############ Configuration ############
 
@@ -25,7 +25,7 @@ visualize_training = False
 ############ Environment Settings ############
 
 seeds = 1 # Used for reproducibility
-num_of_agents = 1
+num_of_agents = 20
 num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
@@ -37,14 +37,14 @@ starting_charge = 1000 # 0.5%
 ############ Hyperparameters ############
 
 num_training_sesssions = 1
-num_episodes = 30000
+num_episodes = 10000
 epsilon = 0.8
 discount_factor = 0.999999
-epsilon_decay = (10 ** (-5 / (2 * num_episodes))) * ((1 / epsilon) ** (5 / (2 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
-batch_size = 1000
+epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
+batch_size = 500
 max_num_timesteps = 50 # Amonut of minutes
 buffer_limit = (num_episodes * max_num_timesteps) / 3 + batch_size
-layers = [64, 64, 32]
+layers = [64, 64, 64, 32]
 
 ############ Initialization ############
 
@@ -73,14 +73,15 @@ for session in range(num_training_sesssions):
 
     if train_model:
 
-        state_dimension, action_dimension = env.get_state_action_dimension()
+        state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
+        action_dimension = num_of_chargers * 6      # 2 attributes for each station
 
         if algorithm == "DQN":
             print(f"Training using Deep-Q Learning - Session {session}")
-            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension - 1, start_from_previous_session, layers)
+            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, max_num_timesteps, state_dimension, action_dimension, start_from_previous_session, layers)
         else:
             print(f"Training using Expected SARSA - Session {session}")
-            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
+            train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
 
     if save_data:
         env.write_path_to_csv('outputs/routes.csv')
