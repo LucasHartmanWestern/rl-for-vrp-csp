@@ -138,7 +138,14 @@ def train_dqn(
             ########### REDEFINE WEIGHTS IN GRAPH ###########
 
             for v in range(len(verts)):
-                if verts[v] == 'destination' or verts[v] == 'origin': # Ignore origin and destination
+                if verts[v] == 'origin': # Ignore origin and destination
+                    continue
+
+                if verts[v] == 'destination':
+                    # Update edge weights such that the traffic and distance are given appropriate impact ratings
+                    for edge in edges:
+                        if 'destination' in edges[edge]:
+                            edges[edge][verts[v]] = 0
                     continue
 
                 traffic_mult = distribution[v - 2]
