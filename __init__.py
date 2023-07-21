@@ -24,7 +24,7 @@ visualize_training = False
 ############ Environment Settings ############
 
 seeds = 1 # Used for reproducibility
-num_of_agents = 10
+num_of_agents = 50
 num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
@@ -36,7 +36,7 @@ starting_charge = 1000 # 0.5%
 ############ Hyperparameters ############
 
 num_training_sesssions = 1
-num_episodes = 5000
+num_episodes = 20000
 epsilon = 0.8
 discount_factor = 0.999999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%

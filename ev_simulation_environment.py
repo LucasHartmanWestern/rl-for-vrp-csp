@@ -407,10 +407,10 @@ class EVSimEnvironment:
                 max_traffic = charger_traffic
 
         # Reward negatively for high traffic at stations
-        reward -= max_traffic
+        reward -= (max_traffic / len(self.org_lat)) * 10
 
         # Reward negatively proportionately to distance remaining
-        reward -= (distance_to_dest / distance_from_origin) * 100
+        reward -= (distance_to_dest / distance_from_origin) * 10
 
         return reward
 
