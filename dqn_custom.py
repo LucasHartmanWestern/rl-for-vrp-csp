@@ -47,9 +47,15 @@ def compute_loss(experiences, gamma, q_network, target_q_network):
 
     states, distributions, rewards, next_states, dones = experiences
 
-    current_Q = q_network(states).gather(1, distributions)  # Q-value from Q-network
-    next_Q = target_q_network(next_states).detach().max(1)[0].unsqueeze(1)  # Maximum Q-value from target Q-network
-    target_Q = rewards + (gamma * next_Q * (1 - dones))  # Target Q-value
+    current_Q = q_network(states)
+
+    next_Q_values = target_q_network(next_states).detach()
+    max_next_Q_values = next_Q_values.max(1)[0].unsqueeze(1)
+    target_Q = rewards + (gamma * max_next_Q_values * (1 - dones))
+
+    # Expand target_Q to have the same size as current_Q
+    target_Q = target_Q.expand_as(current_Q)
+
     loss = nn.MSELoss()(current_Q, target_Q)  # Compute MSE loss
     return loss
 
@@ -72,6 +78,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 def train_dqn(
     environment,
     epsilon,
+    epsilon_decay,
     discount_factor,
     num_episodes,
     batch_size,
@@ -113,11 +120,13 @@ def train_dqn(
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
-                action_values = q_network(state) + torch.randn(action_dim) * 0.1  # add noise for exploration
+                action_values = q_network(state) + torch.randn(action_dim) * epsilon  # add noise for exploration
             else:
                 action_values = q_network(state)  # Greedy action
 
             distribution = action_values.tolist()
+            for ir in range(len(distribution)):
+                distribution[ir] = min(1, max(0, distribution[ir]))
             distributions.append(distribution)
 
             ########### GENERATE GRAPH ###########
@@ -183,7 +192,7 @@ def train_dqn(
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
 
-        epsilon *= discount_factor  # Decay epsilon
+        epsilon *= epsilon_decay  # Decay epsilon
 
         if i % 10 == 0:  # Every ten episodes
             target_q_network.load_state_dict(q_network.state_dict())  # Update target network

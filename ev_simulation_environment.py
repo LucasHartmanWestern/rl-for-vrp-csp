@@ -409,8 +409,8 @@ class EVSimEnvironment:
         # Reward negatively for high traffic at stations
         reward -= max_traffic
 
-        # Decrease reward proportionately to distance remaining distance and battery percentage
-        reward -= (distance_to_dest / distance_from_origin)
+        # Reward negatively proportionately to distance remaining
+        reward -= (distance_to_dest / distance_from_origin) * 100
 
         return reward
 

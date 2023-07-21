@@ -40,7 +40,7 @@ num_episodes = 5000
 epsilon = 0.8
 discount_factor = 0.999999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
-batch_size = 250
+batch_size = round(num_episodes / 10)
 max_num_timesteps = 500 # Amonut of minutes
 buffer_limit = num_episodes / 2 + batch_size
 layers = [64, 64, 64, 32]
@@ -74,7 +74,7 @@ for session in range(num_training_sesssions):
 
         if algorithm == "DQN":
             print(f"Training using Deep-Q Learning - Session {session}")
-            train_dqn(env, epsilon, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers)
+            train_dqn(env, epsilon, epsilon_decay, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers)
         else:
             print(f"Training using Expected SARSA - Session {session}")
             train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
