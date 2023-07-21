@@ -84,15 +84,15 @@ class EVSimEnvironment:
 
         self.cur_soc = [cur_soc for route in routes]
         self.max_soc = max_soc
-        self.base_soc = copy.copy(cur_soc) # Used to reset
+        self.base_soc = copy.deepcopy(cur_soc) # Used to reset
 
         self.org_lat = [route[0] for route in routes]
         self.org_long = [route[1] for route in routes]
         self.dest_lat = [route[2] for route in routes]
         self.dest_long = [route[3] for route in routes]
 
-        self.cur_lat = copy.copy(self.org_lat)
-        self.cur_long = copy.copy(self.org_long)
+        self.cur_lat = copy.deepcopy(self.org_lat)
+        self.cur_long = copy.deepcopy(self.org_long)
 
         self.average_reward = []
 
@@ -167,6 +167,8 @@ class EVSimEnvironment:
             state = copy.copy(self.state[self.agent_list[self.agent_index]])
 
             if done:
+                # For debug purposes
+                # print(f'AGENT {self.agent_list[self.agent_index]} DONE - ENV - TIMESTEP {self.step_num[self.agent_list[self.agent_index]]}')
                 del self.agent_list[self.agent_index]
 
                 if len(self.agent_list) != 0:
@@ -188,17 +190,6 @@ class EVSimEnvironment:
         # Find how far station is away from current coordinates in minutes
         time_to_station = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (station.coord[0], station.coord[1]))[1] / 60
 
-        # Consume battery while driving
-        if self.is_charging[self.agent_list[self.agent_index]] is not True or self.prev_charging[self.agent_list[self.agent_index]] != charger_id:
-            self.cur_soc[self.agent_list[self.agent_index]] -= self.usage_per_hour / (60)
-
-        # Increase battery while charging
-        else:
-            self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 60
-            # Cap SoC at max
-            if self.cur_soc[self.agent_list[self.agent_index]] > self.max_soc:
-                self.cur_soc[self.agent_list[self.agent_index]] = self.max_soc
-
         # Start charging if within range of charging station
         if action != 0 and time_to_station <= 0.01:
             self.is_charging[self.agent_list[self.agent_index]] = True
@@ -207,6 +198,17 @@ class EVSimEnvironment:
         else:
             self.is_charging[self.agent_list[self.agent_index]] = False
             self.prev_charging[self.agent_list[self.agent_index]] = None
+
+        # Consume battery while driving
+        if self.is_charging[self.agent_list[self.agent_index]] is not True:
+            self.cur_soc[self.agent_list[self.agent_index]] -= self.usage_per_hour / (60)
+
+        # Increase battery while charging
+        else:
+            self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 60
+            # Cap SoC at max
+            if self.cur_soc[self.agent_list[self.agent_index]] > self.max_soc:
+                self.cur_soc[self.agent_list[self.agent_index]] = self.max_soc
 
 
     # Simulates traffic updates at chargers
@@ -226,6 +228,11 @@ class EVSimEnvironment:
 
         # EV has reached destination or ran out of battery before reaching destination
         if time_to_destination < 1 or self.cur_soc[self.agent_list[self.agent_index]] <= 0 or self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
+            # For debug purposes
+            if self.cur_soc[self.agent_list[self.agent_index]] <= 0:
+                print(f'AGENT {self.agent_list[self.agent_index]} - NO BATTERY')
+            elif self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
+                print(f'AGENT {self.agent_list[self.agent_index]} - OUT OF TIMESTEPS')
             return True
 
         # EV is driving to destination
@@ -328,8 +335,8 @@ class EVSimEnvironment:
         self.update_traffic()
 
         # Legacy code - not really useful anymore
-        for charger in self.charger_coords[i]:
-            self.used_chargers.append(charger)
+        # for charger in self.charger_coords[i]:
+        #     self.used_chargers.append(charger)
 
     # Reset all states
     def reset(self):

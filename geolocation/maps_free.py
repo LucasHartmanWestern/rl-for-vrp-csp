@@ -74,11 +74,11 @@ def get_distance_and_time(origin, destination):
     # Calculate the distance between origin and destination using geodesic distance
     distance = geodesic(origin, destination).km
 
-    round(distance, 1)
+    round(distance, 3)
 
     # Calculate the travel time based on the distance and average speed
     # Time = distance / speed
-    time = round((distance / average_speed) * 3600, 1)  # time in seconds
+    time = round((distance / average_speed) * 3600, 3)  # time in seconds
 
     return distance, time
 
