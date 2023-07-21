@@ -191,13 +191,11 @@ class EVSimEnvironment:
         time_to_station = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (station.coord[0], station.coord[1]))[1] / 60
 
         # Start charging if within range of charging station
-        if action != 0 and time_to_station <= 0.01:
+        if action != 0 and time_to_station <= 1:
             self.is_charging[self.agent_list[self.agent_index]] = True
-            self.prev_charging[self.agent_list[self.agent_index]] = charger_id
         # Not at a station
         else:
             self.is_charging[self.agent_list[self.agent_index]] = False
-            self.prev_charging[self.agent_list[self.agent_index]] = None
 
         # Consume battery while driving
         if self.is_charging[self.agent_list[self.agent_index]] is not True:
@@ -207,8 +205,7 @@ class EVSimEnvironment:
         else:
             self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 60
             # Cap SoC at max
-            if self.cur_soc[self.agent_list[self.agent_index]] > self.max_soc:
-                self.cur_soc[self.agent_list[self.agent_index]] = self.max_soc
+            self.cur_soc[self.agent_list[self.agent_index]] = min(self.max_soc, self.cur_soc[self.agent_list[self.agent_index]])
 
 
     # Simulates traffic updates at chargers
@@ -230,7 +227,7 @@ class EVSimEnvironment:
         if time_to_destination < 1 or self.cur_soc[self.agent_list[self.agent_index]] <= 0 or self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
             # For debug purposes
             if self.cur_soc[self.agent_list[self.agent_index]] <= 0:
-                print(f'AGENT {self.agent_list[self.agent_index]} - NO BATTERY')
+                print(f'AGENT {self.agent_list[self.agent_index]} - NO BATTERY - IS CHARGING {self.is_charging[self.agent_list[self.agent_index]]}')
             elif self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
                 print(f'AGENT {self.agent_list[self.agent_index]} - OUT OF TIMESTEPS')
             return True
