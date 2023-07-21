@@ -82,7 +82,7 @@ class EVSimEnvironment:
         self.make = make
         self.model = model
 
-        self.cur_soc = [cur_soc for route in routes]
+        self.cur_soc = cur_soc
         self.max_soc = max_soc
         self.base_soc = copy.deepcopy(cur_soc) # Used to reset
 
@@ -366,7 +366,7 @@ class EVSimEnvironment:
         for i in range(len(self.org_lat)):
             self.step_num[i] = 0
             self.episode_reward[i] = 0
-            self.cur_soc[i] = self.base_soc
+            self.cur_soc[i] = self.base_soc[i]
             self.cur_lat[i] = self.org_lat[i]
             self.cur_long[i] = self.org_long[i]
 

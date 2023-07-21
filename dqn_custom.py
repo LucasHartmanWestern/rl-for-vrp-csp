@@ -77,6 +77,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
 def train_dqn(
     environment,
+    seed,
     epsilon,
     epsilon_decay,
     discount_factor,
@@ -92,6 +93,12 @@ def train_dqn(
 ):
     environment.tracking_baseline = False
     q_network, target_q_network = initialize(state_dim, action_dim, layers)  # Initialize networks
+
+    # Set seeds for reproducibility
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
 
     if load_saved:
         # Save the networks at the end of the episode
@@ -199,10 +206,13 @@ def train_dqn(
         for d in range(len(distributions)):
             buffer.append(experience(states[d], distributions[d], rewards[d], states[(d + 1) % max(1, (len(distributions) - 1))], done))  # Store experience
 
+        st = time.time()
         if len(buffer) >= buffer_limit:  # If replay buffer is full enough
             mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
+        et = time.time() - st
+        print(f"Agent Learns: - {int(et // 3600)}h, {int((et % 3600) // 60)}m, {int(et % 60)}s")
 
         epsilon *= epsilon_decay  # Decay epsilon
 
@@ -229,7 +239,7 @@ def train_dqn(
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60
-    start_soc = env.base_soc
+    start_soc = env.base_soc[agent_index]
     max_soc = env.max_soc
     max_dist_from_start = start_soc / usage_per_min
     max_dist_on_full_charge = max_soc / usage_per_min
