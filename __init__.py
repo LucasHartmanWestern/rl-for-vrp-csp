@@ -24,26 +24,31 @@ visualize_training = False
 ############ Environment Settings ############
 
 seeds = 1 # Used for reproducibility
-num_of_agents = 50
-num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+num_of_agents = 100
+num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 make = 0 # Not currently used
 model = 0 # Not currently used
 max_charge = 100000 # 100kW
 city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
 radius = 20
+min_distance = 15
 starting_charge = 5000 # 5%
 
 ############ Hyperparameters ############
 
 num_training_sesssions = 1
-num_episodes = 20000
+num_episodes = 1
 epsilon = 0.9
 discount_factor = 0.999999
 epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
-batch_size = round(num_episodes / 10)
+batch_size = max(round(num_episodes / 10), 1)
 max_num_timesteps = 500 # Amonut of minutes
-buffer_limit = num_episodes / 2 + batch_size
+buffer_limit = max(num_episodes, 2) / 2 + batch_size
 layers = [128, 64, 64, 64, 32]
+
+############ HPP Settings ############
+
+fixed_attributes = [1, 0] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
 
 ############ Initialization ############
 
@@ -63,7 +68,7 @@ for session in range(num_training_sesssions):
         starting_charge = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
 
     # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
-    routes = [get_org_dest_coords((city_lat, city_long), radius, seeds + i) for i in range(num_of_agents)]
+    routes = [get_org_dest_coords((city_lat, city_long), radius, min_distance, seeds + i) for i in range(num_of_agents)]
 
     env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
 
@@ -74,7 +79,7 @@ for session in range(num_training_sesssions):
 
         if algorithm == "DQN":
             print(f"Training using Deep-Q Learning - Session {session}")
-            train_dqn(env, epsilon, epsilon_decay, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers)
+            train_dqn(env, epsilon, epsilon_decay, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes)
         else:
             print(f"Training using Expected SARSA - Session {session}")
             train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
@@ -101,7 +106,7 @@ for session in range(num_training_sesssions):
                     for agent_num, agent_group in episode_group.groupby('Agent Num'):
                         route_datasets.append(agent_group)
 
-        if train_model or start_from_previous_session:
+        if (train_model or start_from_previous_session) and num_episodes > 1:
             generate_average_reward_plot(algorithm, reward_data, session)
 
         if num_episodes == 1 and num_of_agents > 1:

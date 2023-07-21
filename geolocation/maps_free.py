@@ -104,7 +104,17 @@ def move_towards(origin, destination, travel_time):
 
     return round(new_location.latitude, 4), round(new_location.longitude, 4)
 
-def get_org_dest_coords(center, km, seed):
+def get_distance(lat1, lon1, lat2, lon2):
+    radius = 6371  # km
+    dlat = math.radians(lat2-lat1)
+    dlon = math.radians(lon2-lon1)
+    a = math.sin(dlat/2) * math.sin(dlat/2) + math.cos(math.radians(lat1)) \
+        * math.cos(math.radians(lat2)) * math.sin(dlon/2) * math.sin(dlon/2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    distance = radius * c
+    return distance
+
+def get_org_dest_coords(center, km, min_distance, seed):
     lat, long = center
     km_in_degrees = km / 111.11  # Approximation of km to degrees
 
@@ -121,15 +131,22 @@ def get_org_dest_coords(center, km, seed):
     org_lat = round(lat + org_radius * math.sin(org_angle), 4)
     org_long = round(long + org_radius * math.cos(org_angle), 4)
 
-    # Random angle in radians for destination point
-    dest_angle = random.uniform(0, 2 * math.pi)
+    dest_lat, dest_long = None, None
 
-    # Random radius for destination point, at least half the maximum radius
-    dest_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+    while True:
+        # Random angle in radians for destination point
+        dest_angle = random.uniform(0, 2 * math.pi)
 
-    # Calculate coordinates of destination point inside the circle
-    dest_lat = round(lat + dest_radius * math.sin(dest_angle), 4)
-    dest_long = round(long + dest_radius * math.cos(dest_angle), 4)
+        # Random radius for destination point, at least half the maximum radius
+        dest_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+
+        # Calculate coordinates of destination point inside the circle
+        dest_lat = round(lat + dest_radius * math.sin(dest_angle), 4)
+        dest_long = round(long + dest_radius * math.cos(dest_angle), 4)
+
+        # Check if the distance between origin and destination is at least the minimum distance
+        if get_distance(org_lat, org_long, dest_lat, dest_long) >= min_distance:
+            break
 
     return org_lat, org_long, dest_lat, dest_long
 

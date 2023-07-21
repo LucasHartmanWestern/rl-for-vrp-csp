@@ -87,7 +87,8 @@ def train_dqn(
     action_dim,
     num_of_agents,
     load_saved=False,
-    layers=[64, 128, 1024, 128, 64]
+    layers=[64, 128, 1024, 128, 64],
+    fixed_attributes=None
 ):
     environment.tracking_baseline = False
     q_network, target_q_network = initialize(state_dim, action_dim, layers)  # Initialize networks
@@ -148,8 +149,12 @@ def train_dqn(
                             edges[edge][verts[v]] = 0
                     continue
 
-                traffic_mult = distribution[v - 2]
-                distance_mult = 1 - distribution[v - 2]
+                if fixed_attributes is None:
+                    traffic_mult = distribution[v - 2]
+                    distance_mult = 1 - distribution[v - 2]
+                else:
+                    traffic_mult = fixed_attributes[0]
+                    distance_mult = fixed_attributes[1]
 
                 traffic_level = 0
                 charger_id = environment.charger_coords[j][verts[v] - 1][0]
