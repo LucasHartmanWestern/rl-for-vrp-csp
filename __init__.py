@@ -33,9 +33,9 @@ def train_rl_vrp_csp(thread_num):
     model = 0 # Not currently used
     max_charge = 100000 # 100kW
     city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
-    radius = 20
-    min_distance = 20
-    starting_charge = [5000 for agent in range(num_of_agents)]
+    radius = 10
+    min_distance = 10
+    starting_charge = [3000 for agent in range(num_of_agents)]
 
     ############ Hyperparameters ############
 
@@ -45,7 +45,7 @@ def train_rl_vrp_csp(thread_num):
     discount_factor = 0.999999
     epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
     batch_size = max(round(num_episodes / 10), 1)
-    max_num_timesteps = 500 # Amonut of minutes
+    max_num_timesteps = 200 # Amonut of minutes
     buffer_limit = max(num_episodes, 2) / 2 + batch_size
     layers = [128, 128, 64, 64, 32]
 
@@ -72,7 +72,7 @@ def train_rl_vrp_csp(thread_num):
             if starting_charge is None:
                 starting_charge[agent] = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
             else:
-                starting_charge[agent] += 1000 * random.randrange(-2, 2)
+                starting_charge[agent] += 1000 * random.randrange(-1, 1)
 
         # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
         routes = [get_org_dest_coords((city_lat, city_long), radius, min_distance, seeds + i) for i in range(num_of_agents)]
