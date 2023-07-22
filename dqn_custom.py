@@ -78,6 +78,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 def train_dqn(
     environment,
     seed,
+    thread_num,
     epsilon,
     epsilon_decay,
     discount_factor,
@@ -102,8 +103,8 @@ def train_dqn(
 
     if load_saved:
         # Save the networks at the end of the episode
-        load_model(q_network, 'saved_networks/q_network.pth')
-        load_model(target_q_network, 'saved_networks/target_q_network.pth')
+        load_model(q_network, f'saved_networks/q_network_{seed}.pth')
+        load_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
     optimizer = optim.Adam(q_network.parameters())  # Initialize optimizer
     buffer = []  # Initialize replay buffer
@@ -206,13 +207,10 @@ def train_dqn(
         for d in range(len(distributions)):
             buffer.append(experience(states[d], distributions[d], rewards[d], states[(d + 1) % max(1, (len(distributions) - 1))], done))  # Store experience
 
-        st = time.time()
         if len(buffer) >= buffer_limit:  # If replay buffer is full enough
             mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
-        et = time.time() - st
-        print(f"Agent Learns: - {int(et // 3600)}h, {int((et % 3600) // 60)}m, {int(et % 60)}s")
 
         epsilon *= epsilon_decay  # Decay epsilon
 
@@ -224,8 +222,8 @@ def train_dqn(
                 os.makedirs('saved_networks')
 
             # Save the networks at the end of training
-            save_model(q_network, 'saved_networks/q_network.pth')
-            save_model(target_q_network, 'saved_networks/target_q_network.pth')
+            save_model(q_network, f'saved_networks/q_network_{seed}.pth')
+            save_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
         # Log every tenth episode
         if i % 10 == 0:
@@ -235,7 +233,7 @@ def train_dqn(
             avg_reward /= len(rewards)
 
             elapsed_time = time.time() - start_time
-            print(f"Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {avg_reward} - Epsilon: {epsilon}")
+            print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {avg_reward} - Epsilon: {epsilon}")
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60
