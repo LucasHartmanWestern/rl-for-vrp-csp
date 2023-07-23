@@ -111,7 +111,7 @@ class EVSimEnvironment:
         with open('data/Ontario_Charger_Dataset.json') as file:
             data = json.load(file)
         charger_data = []
-        for station in data['fuel_stations']:
+        for station in [item for item in data['fuel_stations'] if item['city'] == 'London']:
             charger_id = station['id']
             charger_lat = round(station['latitude'], 4)
             charger_long = round(station['longitude'], 4)
@@ -404,10 +404,10 @@ class EVSimEnvironment:
                 max_traffic = charger_traffic
 
         # Reward negatively for high traffic at stations
-        reward -= (max_traffic / len(self.org_lat)) * 10
+        reward -= (max_traffic / len(self.org_lat))
 
         # Reward negatively proportionately to distance remaining
-        reward -= (distance_to_dest / distance_from_origin) * 10
+        reward -= (distance_to_dest / distance_from_origin)
 
         return reward
 

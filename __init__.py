@@ -33,21 +33,21 @@ def train_rl_vrp_csp(thread_num):
     model = 0 # Not currently used
     max_charge = 100000 # 100kW
     city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
-    radius = 10
-    min_distance = 10
-    starting_charge = [3000 for agent in range(num_of_agents)]
+    radius = 3
+    starting_charge = [2000 for agent in range(num_of_agents)]
 
     ############ Hyperparameters ############
 
     num_training_sesssions = 1
     num_episodes = 5000
+    learning_rate = 0.1
     epsilon = 0.9
     discount_factor = 0.999999
-    epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
-    batch_size = max(round(num_episodes / 10), 1)
+    epsilon_decay = (10 ** (-5 / (5 * num_episodes))) * ((1 / epsilon) ** (5 / (5 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
+    batch_size = max(round(num_episodes / 20), 1)
     max_num_timesteps = 200 # Amonut of minutes
-    buffer_limit = max(num_episodes, 2) / 2 + batch_size
-    layers = [128, 128, 64, 64, 32]
+    buffer_limit = max(num_episodes, 2) / 10
+    layers = [256, 128, 64, 128, 32]
 
     ############ HPP Settings ############
 
@@ -66,6 +66,7 @@ def train_rl_vrp_csp(thread_num):
         if radius is None:
             radius = ((1 / (num_training_sesssions / 14)) * session) + 1
 
+        start_time = time.time()
         for agent in range(num_of_agents):
             random.seed(seeds + agent)
             # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
@@ -73,9 +74,14 @@ def train_rl_vrp_csp(thread_num):
                 starting_charge[agent] = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
             else:
                 starting_charge[agent] += 1000 * random.randrange(-1, 1)
+        elapsed_time = time.time() - start_time
+        print(f"Get Starting Battery: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
-        # Get origin and destination coordinates, scale radius from center from 1-10km as sessions continue
-        routes = [get_org_dest_coords((city_lat, city_long), radius, min_distance, seeds + i) for i in range(num_of_agents)]
+
+        start_time = time.time()
+        routes = [get_org_dest_coords((city_lat, city_long), radius, seeds + i) for i in range(num_of_agents)]
+        elapsed_time = time.time() - start_time
+        print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         start_time = time.time()
         env = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds)
@@ -89,7 +95,7 @@ def train_rl_vrp_csp(thread_num):
 
             if algorithm == "DQN":
                 print(f"Training using Deep-Q Learning - Session {session}")
-                train_dqn(env, seeds, thread_num, epsilon, epsilon_decay, discount_factor, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes)
+                train_dqn(env, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes)
             else:
                 print(f"Training using Expected SARSA - Session {session}")
                 train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
@@ -100,6 +106,10 @@ def train_rl_vrp_csp(thread_num):
             attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
         if save_data:
+            # Add this before you save your model
+            if not os.path.exists('outputs'):
+                os.makedirs('outputs')
+
             env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
             env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
             env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')

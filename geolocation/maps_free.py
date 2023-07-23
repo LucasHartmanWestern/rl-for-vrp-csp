@@ -104,51 +104,36 @@ def move_towards(origin, destination, travel_time):
 
     return round(new_location.latitude, 4), round(new_location.longitude, 4)
 
-def get_distance(lat1, lon1, lat2, lon2):
-    radius = 6371  # km
-    dlat = math.radians(lat2-lat1)
-    dlon = math.radians(lon2-lon1)
-    a = math.sin(dlat/2) * math.sin(dlat/2) + math.cos(math.radians(lat1)) \
-        * math.cos(math.radians(lat2)) * math.sin(dlon/2) * math.sin(dlon/2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    distance = radius * c
-    return distance
-
-def get_org_dest_coords(center, km, min_distance, seed):
+def get_org_dest_coords(center, radius, seed=None):
     lat, long = center
-    km_in_degrees = km / 111.11  # Approximation of km to degrees
+    km_in_degrees = radius / 111.11  # Approximation of km to degrees
 
     # Setting the seed
-    random.seed(seed)
+    if seed is not None:
+        random.seed(seed)
 
     # Random angle in radians for origin point
     org_angle = random.uniform(0, 2 * math.pi)
 
-    # Random radius for origin point, at least half the maximum radius
-    org_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+    # Radius for origin point equals to the maximum radius
+    org_radius = km_in_degrees
 
-    # Calculate coordinates of origin point inside the circle
-    org_lat = round(lat + org_radius * math.sin(org_angle), 4)
-    org_long = round(long + org_radius * math.cos(org_angle), 4)
+    # Calculate coordinates of origin point on the circle's circumference
+    org_lat = lat + org_radius * math.sin(org_angle)
+    org_long = long + org_radius * math.cos(org_angle)
 
-    dest_lat, dest_long = None, None
+    # Angle in radians for destination point
+    dest_angle = (org_angle + math.pi) % (2 * math.pi)  # add π radians (180 degrees) to get the opposite point
 
-    while True:
-        # Random angle in radians for destination point
-        dest_angle = random.uniform(0, 2 * math.pi)
+    # Radius for destination point equals to the maximum radius
+    dest_radius = km_in_degrees
 
-        # Random radius for destination point, at least half the maximum radius
-        dest_radius = random.uniform(km_in_degrees / 2, km_in_degrees)
+    # Calculate coordinates of destination point on the circle's circumference
+    dest_lat = lat + dest_radius * math.sin(dest_angle)
+    dest_long = long + dest_radius * math.cos(dest_angle)
 
-        # Calculate coordinates of destination point inside the circle
-        dest_lat = round(lat + dest_radius * math.sin(dest_angle), 4)
-        dest_long = round(long + dest_radius * math.cos(dest_angle), 4)
+    return round(org_lat, 4), round(org_long, 4), round(dest_lat, 4), round(dest_long, 4)
 
-        # Check if the distance between origin and destination is at least the minimum distance
-        if get_distance(org_lat, org_long, dest_lat, dest_long) >= min_distance:
-            break
-
-    return org_lat, org_long, dest_lat, dest_long
 
 def get_initial_compass_bearing(pointA, pointB):
     """

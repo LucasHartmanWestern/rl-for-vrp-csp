@@ -82,6 +82,7 @@ def train_dqn(
     epsilon,
     epsilon_decay,
     discount_factor,
+    learning_rate,
     num_episodes,
     batch_size,
     buffer_limit,
@@ -106,7 +107,7 @@ def train_dqn(
         load_model(q_network, f'saved_networks/q_network_{seed}.pth')
         load_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
-    optimizer = optim.Adam(q_network.parameters())  # Initialize optimizer
+    optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)  # Initialize optimizer
     buffer = []  # Initialize replay buffer
 
     start_time = time.time()
@@ -129,7 +130,7 @@ def train_dqn(
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
-                action_values = q_network(state) + torch.randn(action_dim) * epsilon  # add noise for exploration
+                action_values = q_network(state) + torch.randn(action_dim) * 0.1  # add noise for exploration
             else:
                 action_values = q_network(state)  # Greedy action
 
@@ -213,6 +214,7 @@ def train_dqn(
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
 
         epsilon *= epsilon_decay  # Decay epsilon
+        epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 10 == 0:  # Every ten episodes
             target_q_network.load_state_dict(q_network.state_dict())  # Update target network
