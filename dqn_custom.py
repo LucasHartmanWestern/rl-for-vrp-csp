@@ -130,7 +130,7 @@ def train_dqn(
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
-                action_values = q_network(state) + torch.randn(action_dim) * 0.1  # add noise for exploration
+                action_values = q_network(state) + torch.randn(action_dim) * epsilon  # add noise for exploration
             else:
                 action_values = q_network(state)  # Greedy action
 
@@ -159,8 +159,8 @@ def train_dqn(
                     continue
 
                 if fixed_attributes is None:
-                    traffic_mult = distribution[v - 2]
-                    distance_mult = 1 - distribution[v - 2]
+                    traffic_mult = 1 - distribution[v - 2]
+                    distance_mult = distribution[v - 2]
                 else:
                     traffic_mult = fixed_attributes[0]
                     distance_mult = fixed_attributes[1]
@@ -209,9 +209,12 @@ def train_dqn(
             buffer.append(experience(states[d], distributions[d], rewards[d], states[(d + 1) % max(1, (len(distributions) - 1))], done))  # Store experience
 
         if len(buffer) >= buffer_limit:  # If replay buffer is full enough
+            st = time.time()
             mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
+            et = time.time() - st
+            print(f'Trained for {int(et % 60)}s')
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
@@ -227,15 +230,23 @@ def train_dqn(
             save_model(q_network, f'saved_networks/q_network_{seed}.pth')
             save_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
-        # Log every tenth episode
-        if i % 10 == 0:
+        # Log every ith episode
+        if i % 1 == 0:
             avg_reward = 0
             for reward in rewards:
                 avg_reward += reward
             avg_reward /= len(rewards)
 
+            avg_ir = 0
+            ir_count = 0
+            for distribution in distributions:
+                for out in distribution:
+                    avg_ir += out
+                    ir_count += 1
+            avg_ir /= ir_count
+
             elapsed_time = time.time() - start_time
-            print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {avg_reward} - Epsilon: {epsilon}")
+            print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60

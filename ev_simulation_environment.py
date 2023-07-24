@@ -67,6 +67,8 @@ class EVSimEnvironment:
 
         self.distances = [get_distance_and_time((route[0], route[1]), (route[2], route[3]))[0] for route in routes]
 
+        self.km_travelled = [0 for route in routes]
+
         self.charger_list = {} # List of ChargingStation objects
 
         self.step_num = [0 for route in routes]
@@ -223,6 +225,13 @@ class EVSimEnvironment:
         # Find how far destination is away from current coordinates in minutes
         time_to_destination = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.dest_lat[self.agent_list[self.agent_index]], self.dest_long[self.agent_list[self.agent_index]]))[1] / 60
 
+        if action == 0:
+            actual_travelled = min(travel_distance, time_to_destination)
+        else:
+            actual_travelled = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.charger_coords[self.agent_list[self.agent_index]][action - 1][1], self.charger_coords[self.agent_list[self.agent_index]][action - 1][2]))[1] / 60
+
+        self.km_travelled[self.agent_list[self.agent_index]] += actual_travelled
+
         # EV has reached destination or ran out of battery before reaching destination
         if time_to_destination < 1 or self.cur_soc[self.agent_list[self.agent_index]] <= 0 or self.step_num[self.agent_list[self.agent_index]] == self.max_num_timesteps:
             # For debug purposes
@@ -282,6 +291,9 @@ class EVSimEnvironment:
 
         # Episode reward (sum of step rewards up to this timestep)
         new_row.append(round(self.episode_reward[index], 2))
+
+        # KM Travelled
+        new_row.append(round(self.km_travelled[index], 2))
 
         # Coordinates (current or destination depending if episode is done)
         if final is not True:
@@ -366,6 +378,7 @@ class EVSimEnvironment:
         for i in range(len(self.org_lat)):
             self.step_num[i] = 0
             self.episode_reward[i] = 0
+            self.km_travelled[i] = 0
             self.cur_soc[i] = self.base_soc[i]
             self.cur_lat[i] = self.org_lat[i]
             self.cur_long[i] = self.org_long[i]
@@ -404,10 +417,12 @@ class EVSimEnvironment:
                 max_traffic = charger_traffic
 
         # Reward negatively for high traffic at stations
-        reward -= (max_traffic / len(self.org_lat))
+        reward -= max_traffic
 
         # Reward negatively proportionately to distance remaining
         reward -= (distance_to_dest / distance_from_origin)
+
+        reward -= self.km_travelled[self.agent_list[self.agent_index]]
 
         return reward
 
@@ -457,6 +472,7 @@ class EVSimEnvironment:
             header_row.append('SoC')
             header_row.append('Is Charging')
             header_row.append('Episode Reward')
+            header_row.append('KM Travelled')
             header_row.append('Latitude')
             header_row.append('Longitude')
             header_row.append('Distance')

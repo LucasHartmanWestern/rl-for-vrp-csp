@@ -21,8 +21,8 @@ def train_rl_vrp_csp(thread_num):
 
     train_model = True
     start_from_previous_session = False
-    save_data = True
-    generate_plots = True
+    save_data = False
+    generate_plots = False
 
     ############ Environment Settings ############
 
@@ -33,21 +33,21 @@ def train_rl_vrp_csp(thread_num):
     model = 0 # Not currently used
     max_charge = 100000 # 100kW
     city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
-    radius = 3
-    starting_charge = [2000 for agent in range(num_of_agents)]
+    radius = 10
+    starting_charge = [4000 for agent in range(num_of_agents)]
 
     ############ Hyperparameters ############
 
     num_training_sesssions = 1
-    num_episodes = 5000
-    learning_rate = 0.1
-    epsilon = 0.9
-    discount_factor = 0.999999
-    epsilon_decay = (10 ** (-5 / (5 * num_episodes))) * ((1 / epsilon) ** (5 / (5 * num_episodes))) # Calculate decay such that by 4/5ths of the way through training, epsilon reaches 10%
-    batch_size = max(round(num_episodes / 20), 1)
+    num_episodes = 100
+    learning_rate = 0.00001
+    epsilon = 0.8
+    discount_factor = 0.9999
+    epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
+    batch_size = max(round(num_episodes / 10), 1)
     max_num_timesteps = 200 # Amonut of minutes
-    buffer_limit = max(num_episodes, 2) / 10
-    layers = [256, 128, 64, 128, 32]
+    buffer_limit = (max(num_episodes, 2) / 10) * num_of_agents
+    layers = [128, 256, 256, 128, 64]
 
     ############ HPP Settings ############
 
@@ -142,14 +142,14 @@ def train_rl_vrp_csp(thread_num):
             generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
 
 if __name__ == '__main__':
-    t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
+    # t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
     # t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
-    # t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
+    t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
 
-    t1.start()
+    # t1.start()
     # t2.start()
-    # t3.start()
+    t3.start()
 
-    t1.join()
+    # t1.join()
     # t2.join()
-    # t3.join()
+    t3.join()
