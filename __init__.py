@@ -20,8 +20,8 @@ def train_rl_vrp_csp(thread_num):
     ############ Configuration ############
 
     train_model = True
-    start_from_previous_session = False
-    save_data = False
+    start_from_previous_session = True
+    save_data = True
     generate_plots = False
 
     ############ Environment Settings ############
@@ -39,14 +39,14 @@ def train_rl_vrp_csp(thread_num):
     ############ Hyperparameters ############
 
     num_training_sesssions = 1
-    num_episodes = 100
+    num_episodes = 1
     learning_rate = 0.00001
     epsilon = 0.8
     discount_factor = 0.9999
-    epsilon_decay = (10 ** (-5 / (4 * num_episodes))) * ((1 / epsilon) ** (5 / (4 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
-    batch_size = max(round(num_episodes / 10), 1)
+    epsilon_decay = (10 ** (-5 / (2 * num_episodes))) * ((1 / epsilon) ** (5 / (2 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
+    batch_size = max(round(num_episodes / 20), 1)
     max_num_timesteps = 200 # Amonut of minutes
-    buffer_limit = (max(num_episodes, 2) / 10) * num_of_agents
+    buffer_limit = (max(num_episodes, 2) / 20) * num_of_agents
     layers = [128, 256, 256, 128, 64]
 
     ############ HPP Settings ############
@@ -88,68 +88,81 @@ def train_rl_vrp_csp(thread_num):
         elapsed_time = time.time() - start_time
         print(f"Initialize Environment: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
-        if train_model:
+        user_input = ""
 
-            state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-            action_dimension = num_of_chargers * 3      # attributes for each station
+        while user_input != 'Done':
+            if train_model:
 
-            if algorithm == "DQN":
-                print(f"Training using Deep-Q Learning - Session {session}")
-                train_dqn(env, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes)
+                if user_input != "":
+                    num_episodes = int(user_input)
+                    start_from_previous_session = True
+                    epsilon = 0.1
+
+                state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
+                action_dimension = num_of_chargers * 3      # attributes for each station
+
+                if algorithm == "DQN":
+                    print(f"Training using Deep-Q Learning - Session {session}")
+                    train_dqn(env, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes)
+                else:
+                    print(f"Training using Expected SARSA - Session {session}")
+                    train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
+
+            if fixed_attributes != [0, 1] and fixed_attributes != [1, 0] and fixed_attributes != [0.5, 0.5]:
+                attr_label = 'learned'
             else:
-                print(f"Training using Expected SARSA - Session {session}")
-                train_sarsa(env, epsilon, discount_factor, num_episodes, epsilon_decay, max_num_timesteps, state_dimension, action_dimension - 1, num_of_agents, start_from_previous_session, seeds, layers)
+                attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-        if fixed_attributes is None:
-            attr_label = 'learned'
-        else:
-            attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
+            if save_data:
+                # Add this before you save your model
+                if not os.path.exists('outputs'):
+                    os.makedirs('outputs')
 
-        if save_data:
-            # Add this before you save your model
-            if not os.path.exists('outputs'):
-                os.makedirs('outputs')
+                env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
 
-            env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+            if generate_plots:
+                route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
 
-        if generate_plots:
-            route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
-            traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}.csv')
+                route_datasets = []
+                if num_of_agents == 1:
+                    for id_value, group in route_data.groupby('Episode Num'):
+                        route_datasets.append(group)
+                else:
+                    for episode_num, episode_group in route_data.groupby('Episode Num'):
+                        if episode_num == route_data['Episode Num'].max():
+                            for agent_num, agent_group in episode_group.groupby('Agent Num'):
+                                route_datasets.append(agent_group)
 
-            route_datasets = []
-            if num_of_agents == 1:
-                for id_value, group in route_data.groupby('Episode Num'):
-                    route_datasets.append(group)
+                if (train_model or start_from_previous_session) and num_episodes > 1:
+                    generate_average_reward_plot(algorithm, reward_data, session)
+
+                if num_episodes == 1 and num_of_agents > 1:
+                    generate_traffic_plot(traffic_data)
+
+                origins = [(route[0], route[1]) for route in routes]
+                destinations = [(route[2], route[3]) for route in routes]
+                generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
+
+            if num_episodes != 1:
+                user_input = input("More Episodes? ")
             else:
-                for episode_num, episode_group in route_data.groupby('Episode Num'):
-                    if episode_num == route_data['Episode Num'].max():
-                        for agent_num, agent_group in episode_group.groupby('Agent Num'):
-                            route_datasets.append(agent_group)
-
-            if (train_model or start_from_previous_session) and num_episodes > 1:
-                generate_average_reward_plot(algorithm, reward_data, session)
-
-            if num_episodes == 1 and num_of_agents > 1:
-                generate_traffic_plot(traffic_data)
-
-            origins = [(route[0], route[1]) for route in routes]
-            destinations = [(route[2], route[3]) for route in routes]
-            generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
+                user_input = 'Done'
 
 if __name__ == '__main__':
-    # t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
-    # t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
+    t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
+    t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
     t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
 
-    # t1.start()
-    # t2.start()
+    t1.start()
+    t2.start()
     t3.start()
 
-    # t1.join()
-    # t2.join()
+    t1.join()
+    t2.join()
     t3.join()
