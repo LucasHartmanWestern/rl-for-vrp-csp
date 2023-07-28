@@ -111,6 +111,8 @@ def train_dqn(
     buffer = []  # Initialize replay buffer
 
     start_time = time.time()
+    best_avg = float('-inf')
+    best_paths = None
 
     for i in range(num_episodes):  # For each episode
 
@@ -200,6 +202,10 @@ def train_dqn(
         #     else:
         #         print(f'GO TO {step[0]} - CHARGE TO {step[1]}')
 
+        if num_episodes == 1 and fixed_attributes is None:
+            if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):
+                paths = np.load(f'outputs/best_paths_{thread_num}.npy').tolist()
+
         ########### GET REWARD ###########
         rewards = simulate(environment, paths)
 
@@ -237,6 +243,11 @@ def train_dqn(
                 avg_reward += reward
             avg_reward /= len(rewards)
 
+            if avg_reward > best_avg:
+                best_avg = avg_reward
+                best_paths = paths
+                print(f'Thread: {thread_num} - New Best: {best_avg}')
+
             avg_ir = 0
             ir_count = 0
             for distribution in distributions:
@@ -247,6 +258,8 @@ def train_dqn(
 
             elapsed_time = time.time() - start_time
             print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+
+    np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths))
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60

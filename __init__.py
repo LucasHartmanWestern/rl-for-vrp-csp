@@ -20,9 +20,9 @@ def train_rl_vrp_csp(thread_num):
     ############ Configuration ############
 
     train_model = True
-    start_from_previous_session = True
+    start_from_previous_session = False
     save_data = True
-    generate_plots = False
+    generate_plots = True
 
     ############ Environment Settings ############
 
@@ -39,14 +39,14 @@ def train_rl_vrp_csp(thread_num):
     ############ Hyperparameters ############
 
     num_training_sesssions = 1
-    num_episodes = 1
-    learning_rate = 0.00001
+    num_episodes = 1000
+    learning_rate = 0.000001
     epsilon = 0.8
     discount_factor = 0.9999
-    epsilon_decay = (10 ** (-5 / (2 * num_episodes))) * ((1 / epsilon) ** (5 / (2 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
-    batch_size = max(round(num_episodes / 20), 1)
+    epsilon_decay = (10 ** (-5 / (1 * num_episodes))) * ((1 / epsilon) ** (5 / (1 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
+    batch_size = max(round(num_episodes / 10), 1)
     max_num_timesteps = 200 # Amonut of minutes
-    buffer_limit = (max(num_episodes, 2) / 20) * num_of_agents
+    buffer_limit = (max(num_episodes, 2) / 10) * num_of_agents
     layers = [128, 256, 256, 128, 64]
 
     ############ HPP Settings ############
