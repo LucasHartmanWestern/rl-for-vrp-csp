@@ -228,7 +228,7 @@ class EVSimEnvironment:
         if action == 0:
             actual_travelled = min(travel_distance, time_to_destination)
         else:
-            actual_travelled = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.charger_coords[self.agent_list[self.agent_index]][action - 1][1], self.charger_coords[self.agent_list[self.agent_index]][action - 1][2]))[1] / 60
+            actual_travelled = min(travel_distance, get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.charger_coords[self.agent_list[self.agent_index]][action - 1][1], self.charger_coords[self.agent_list[self.agent_index]][action - 1][2]))[1] / 60)
 
         self.km_travelled[self.agent_list[self.agent_index]] += actual_travelled
 

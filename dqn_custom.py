@@ -204,7 +204,9 @@ def train_dqn(
 
         if num_episodes == 1 and fixed_attributes is None:
             if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):
-                paths = np.load(f'outputs/best_paths_{thread_num}.npy').tolist()
+                paths = np.load(f'outputs/best_paths_{thread_num}.npy', allow_pickle=True).tolist()
+
+        paths_copy = copy.deepcopy(paths)
 
         ########### GET REWARD ###########
         rewards = simulate(environment, paths)
@@ -245,7 +247,7 @@ def train_dqn(
 
             if avg_reward > best_avg:
                 best_avg = avg_reward
-                best_paths = paths
+                best_paths = paths_copy
                 print(f'Thread: {thread_num} - New Best: {best_avg}')
 
             avg_ir = 0
@@ -259,7 +261,7 @@ def train_dqn(
             elapsed_time = time.time() - start_time
             print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
-    np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths))
+    np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60

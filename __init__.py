@@ -26,22 +26,22 @@ def train_rl_vrp_csp(thread_num):
 
     ############ Environment Settings ############
 
-    seeds = [1000, 2000, 3000][thread_num] # Used for reproducibility
+    seeds = 1000 * thread_num # Used for reproducibility
     num_of_agents = 100
-    num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
     max_charge = 100000 # 100kW
     city_lat, city_long = (42.983612, -81.249725) # Coordinates of city center
-    radius = 10
-    starting_charge = [4000 for agent in range(num_of_agents)]
+    radius = 20
+    starting_charge = [6000 for agent in range(num_of_agents)]
 
     ############ Hyperparameters ############
 
     num_training_sesssions = 1
-    num_episodes = 1000
-    learning_rate = 0.000001
-    epsilon = 0.8
+    num_episodes = 10
+    learning_rate = 0.0001
+    epsilon = 1
     discount_factor = 0.9999
     epsilon_decay = (10 ** (-5 / (1 * num_episodes))) * ((1 / epsilon) ** (5 / (1 * num_episodes))) # Calculate decay such that by 3/5ths of the way through training, epsilon reaches 10%
     batch_size = max(round(num_episodes / 10), 1)
@@ -51,7 +51,7 @@ def train_rl_vrp_csp(thread_num):
 
     ############ HPP Settings ############
 
-    fixed_attributes = None # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
+    fixed_attributes = [0, 1] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
 
     ############ Initialization ############
 
@@ -156,13 +156,13 @@ def train_rl_vrp_csp(thread_num):
 
 if __name__ == '__main__':
     t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
-    t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
-    t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
+    # t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
+    # t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
 
     t1.start()
-    t2.start()
-    t3.start()
+    # t2.start()
+    # t3.start()
 
     t1.join()
-    t2.join()
-    t3.join()
+    # t2.join()
+    # t3.join()
