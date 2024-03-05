@@ -32,7 +32,7 @@ class QNetwork(nn.Module):
         x = state
         for i in range(len(self.layers) - 1):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return torch.sigmoid(self.layers[-1](x))  # Apply ReLU to the output layer to ensure output values are positive
+        return torch.sigmoid(self.layers[-1](x))  # Apply sigmoid to the output layer to ensure output values are between 0 and 1
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -44,11 +44,9 @@ def initialize(state_dim, action_dim, layers):
     return q_network, target_q_network
 
 def compute_loss(experiences, gamma, q_network, target_q_network):
-
     states, distributions, rewards, next_states, dones = experiences
 
     current_Q = q_network(states)
-
     next_Q_values = target_q_network(next_states).detach()
     max_next_Q_values = next_Q_values.max(1)[0].unsqueeze(1)
     target_Q = rewards + (gamma * max_next_Q_values * (1 - dones))
@@ -56,8 +54,10 @@ def compute_loss(experiences, gamma, q_network, target_q_network):
     # Expand target_Q to have the same size as current_Q
     target_Q = target_Q.expand_as(current_Q)
 
-    loss = nn.MSELoss()(current_Q, target_Q)  # Compute MSE loss
+    # Use the Huber loss (SmoothL1Loss)
+    loss = nn.SmoothL1Loss()(current_Q, target_Q)
     return loss
+
 
 def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
@@ -77,6 +77,9 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
 def train_dqn(
     environment,
+    global_weights,
+    aggregation_num,
+    route_index,
     seed,
     thread_num,
     epsilon,
@@ -93,6 +96,8 @@ def train_dqn(
     layers=[64, 128, 1024, 128, 64],
     fixed_attributes=None
 ):
+    avg_rewards = []
+
     environment.tracking_baseline = False
     q_network, target_q_network = initialize(state_dim, action_dim, layers)  # Initialize networks
 
@@ -102,7 +107,10 @@ def train_dqn(
         np.random.seed(seed)
         random.seed(seed)
 
-    if load_saved:
+    if global_weights is not None:
+        q_network.load_state_dict(global_weights)
+        target_q_network.load_state_dict(global_weights)
+    elif load_saved:
         # Save the networks at the end of the episode
         load_model(q_network, f'saved_networks/q_network_{seed}.pth')
         load_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
@@ -222,12 +230,12 @@ def train_dqn(
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
             et = time.time() - st
-            print(f'Trained for {int(et % 60)}s')
+            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
-        if i % 10 == 0:  # Every ten episodes
+        if i % 50 == 0:  # Every 50 episodes
             target_q_network.load_state_dict(q_network.state_dict())  # Update target network
 
             # Add this before you save your model
@@ -244,6 +252,7 @@ def train_dqn(
             for reward in rewards:
                 avg_reward += reward
             avg_reward /= len(rewards)
+            avg_rewards.append((avg_reward, aggregation_num, route_index, seed)) # Track rewards over aggregation steps
 
             if avg_reward > best_avg:
                 best_avg = avg_reward
@@ -262,6 +271,7 @@ def train_dqn(
             print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
+    return (q_network.state_dict(), avg_rewards)
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60

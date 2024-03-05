@@ -39,6 +39,32 @@ def generate_plot(df):
     # Show the plot
     plt.show()
 
+def plot_aggregate_reward_data(data):
+    # Extract unique route indices and aggregation numbers
+    route_indices = sorted(set(item[2] for sublist in data for item in sublist))
+    aggregation_nums = sorted(set(item[1] for sublist in data for item in sublist))
+
+    # Set up the plot
+    plt.figure(figsize=(10, 6))
+
+    # Plot each route index as a separate line
+    for route_index in route_indices:
+        avg_rewards = [item[0] for sublist in data for item in sublist if item[2] == route_index]
+        plt.plot(range(len(avg_rewards)), avg_rewards, label=f'Route Index: {route_index}')
+
+    # Plot vertical lines for each aggregation number
+    for i, agg_num in enumerate(aggregation_nums):
+        plt.axvline(x=i * len(data[0]), color='grey', linestyle='--', label=f'Aggregation {agg_num}' if i == 0 else None)
+
+    # Set title, labels, and legend
+    seed = data[0][0][3]  # Assuming all entries have the same seed
+    plt.title(f'Average Reward for Seed: {seed}')
+    plt.xlabel('Time')
+    plt.ylabel('Average Reward')
+    plt.legend()
+
+    # Show the plot
+    plt.show()
 
 def generate_average_reward_plot(algorithm, df, session_number):
     """Visualize the data using a graph.
