@@ -1,15 +1,11 @@
-import math
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import cupy as cp
 import numpy as np
 from collections import namedtuple
 import random
 import os
-import time
-import copy
-import heapq
 from collections import deque
 from pathfinding import *
 
@@ -147,16 +143,8 @@ def train_dqn(
 
             ########### GENERATE AGENT OUTPUT ###########
 
-            st1 = time.time()
-
             state = environment.state[j]
             states.append(state)
-
-            et1 = time.time() - st1
-            if j == 0: print(f"GET STATE {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
-
-            st1 = time.time()
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
@@ -171,23 +159,13 @@ def train_dqn(
             distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
             distributions.append(distribution.tolist())  # Convert back to list and append
 
-            et1 = time.time() - st1
-            if j == 0: print(f"GET DISTRIBUTION {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
             ########### GENERATE GRAPH ###########
-
-            st1 = time.time()
 
             # Build graph of possible paths from chargers to each other, the origin, and destination
             verts, edges = build_graph(environment, j)
             base_edges = copy.deepcopy(edges)
 
-            et1 = time.time() - st1
-            if j == 0: print(f"GET GRAPH {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
             ########### REDEFINE WEIGHTS IN GRAPH ###########
-
-            st1 = time.time()
 
             for v in range(len(verts)):
                 if verts[v] == 'origin': # Ignore origin and destination
@@ -217,29 +195,14 @@ def train_dqn(
                     if verts[v] in edges[edge]:
                         edges[edge][verts[v]] = distance_mult * edges[edge][verts[v]] + traffic_mult * traffic_level
 
-            et1 = time.time() - st1
-            if j == 0: print(f"REDEFINE WEIGHTS IN GRAPH {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
             ########### SOLVE WEIGHTED GRAPH ###########
-
-            st1 = time.time()
 
             dist, previous = dijkstra((verts, edges), 'origin')
 
-            et1 = time.time() - st1
-            if j == 0: print(f"DIJKSTRAS {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
             ########### GENERATE PATH ###########
-
-            st1 = time.time()
 
             path = build_path(environment, base_edges, dist, previous)
             paths.append(path)
-
-            et1 = time.time() - st1
-            if j == 0: print(f"BUILD PATH {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
-            st1 = time.time()
 
             ########### UPDATE TRAFFIC ###########
             for step in path:
@@ -250,45 +213,21 @@ def train_dqn(
                     else:
                         traffic[charger_id] = 1  # Initialize this charger id with a count of 1
 
-            et1 = time.time() - st1
-            if j == 0: print(f"UPDATE TRAFFIC {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
-        # For debug purposes
-        # for step in paths[0]:
-        #     if step[0] != 'destination':
-        #         charger_id = environment.charger_coords[j][step[0] - 1][0]
-        #         print(f'GO TO {charger_id} - OG {step[0] - 1} - CHARGE TO {step[1]}')
-        #     else:
-        #         print(f'GO TO {step[0]} - CHARGE TO {step[1]}')
-
-
-        st1 = time.time()
-
         if num_episodes == 1 and fixed_attributes is None:
             if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):
                 paths = np.load(f'outputs/best_paths_{thread_num}.npy', allow_pickle=True).tolist()
 
         paths_copy = copy.deepcopy(paths)
 
-        et1 = time.time() - st1
-        print(f"SAVE PATHS {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
-        ########### GET REWARD ###########
-
-        st1 = time.time()
-
-        rewards = simulate(environment, paths)
-
         # Calculate the average values of the output neurons for this episode
         episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
         avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, route_index, seed))
 
-        et1 = time.time() - st1
-        print(f"GET REWARDS {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
+        ########### GET REWARD ###########
+
+        rewards = simulate(environment, paths)
 
         ########### STORE EXPERIENCES ###########
-
-        st1 = time.time()
 
         done = True
         for d in range(len(distributions_unmodified)):
@@ -316,9 +255,6 @@ def train_dqn(
             save_model(q_network, f'saved_networks/q_network_{seed}.pth')
             save_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
-        et1 = time.time() - st1
-        print(f"STORE EXPERIENCES {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s")
-
         # Log every ith episode
         if i % 1 == 0:
             avg_reward = 0
@@ -330,7 +266,7 @@ def train_dqn(
             if avg_reward > best_avg:
                 best_avg = avg_reward
                 best_paths = paths_copy
-                print(f'Thread: {thread_num} - New Best: {best_avg}')
+                print(f'Route Index: {route_index} - New Best: {best_avg}')
 
             avg_ir = 0
             ir_count = 0
@@ -341,52 +277,57 @@ def train_dqn(
             avg_ir /= ir_count
 
             elapsed_time = time.time() - start_time
-            print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+            print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
     return (q_network.state_dict(), avg_rewards, avg_output_values)
 
 def simulate(environment, paths):
-    current_path = 0
-    current_path_list = [i for i in range(len(paths))] # Get list of paths to simulate
+    num_paths = len(paths)
+    current_path_list = cp.arange(num_paths)  # Use CuPy array for path indices
 
-    simulation_reward = np.zeros(len(paths))  # Use NumPy array for rewards
+    simulation_reward = cp.zeros(num_paths)  # Use CuPy array for rewards
 
-    usage_per_min = environment.ev_info() / 60 # Constant
+    usage_per_min = environment.ev_info() / 60  # Constant
 
-    while len(current_path_list) > 0: # Loop until all paths have been simulated
+    while len(current_path_list) > 0:
+        mask = cp.ones(len(current_path_list), dtype=bool)  # Initialize mask to keep all paths
 
-        done = False
+        st1 = time.time()
 
-        # Check if step in path is completed
-        if len(paths[current_path_list[current_path]]) > 1:
-            if environment.is_charging[current_path_list[current_path]] is True and environment.cur_soc[
-                current_path_list[current_path]] > paths[current_path_list[current_path]][1][1] + usage_per_min:
-                del paths[current_path_list[current_path]][0]
+        for i in range(len(current_path_list)):
+            current_path = int(current_path_list[i])  # Convert to int for indexing
 
-        if len(paths[current_path_list[current_path]]) > 0:
+            done = False
 
-            if paths[current_path_list[current_path]][0][0] != 'destination':
-                next_state, reward, done = environment.step(
-                    paths[current_path_list[current_path]][0][0])  # Go to charger and charge until full
-            else:
-                next_state, reward, done = environment.step(0) # Go to destination
+            # Check if step in path is completed
+            if len(paths[current_path]) > 1:
+                if environment.is_charging[current_path] and environment.cur_soc[current_path] > paths[current_path][1][1] + usage_per_min:
+                    del paths[current_path][0]
 
-            simulation_reward[current_path_list[current_path]] += reward # Accumulate reward of every path
+            if len(paths[current_path]) > 0:
+                action = paths[current_path][0][0]  # Go to next stop
+                if action == 'destination':
+                    action = 0  # Go to destination
 
-        if done is True:
-            # For debug purposes
-            # print(f'AGENT {current_path_list[current_path]} DONE - DQN')
-            del current_path_list[current_path]
+                st2 = time.time()
 
-            if len(current_path_list) != 0:
-                current_path = current_path % len(current_path_list)
+                next_state, reward, done = environment.step(action)
 
-        else:
-            if len(current_path_list) > 0:
-                current_path = (current_path + 1) % len(current_path_list)
+                et2 = time.time() - st2
+                #print(f"STEP {int(et2 // 3600)}h, {int((et2 % 3600) // 60)}m, {int(et2 % 60)}s, {int((et2 % 1) * 1000)}ms")
 
-    return simulation_reward.tolist()
+                simulation_reward[current_path] += reward  # Accumulate reward of every path
+
+            if done:
+                mask[i] = False  # Mark path for removal
+
+        et1 = time.time() - st1
+        #print(f"PATH LOOP {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s, {int((et1 % 1) * 1000)}ms")
+
+        current_path_list = current_path_list[mask]  # Remove completed paths using the mask
+
+    return cp.asnumpy(simulation_reward).tolist()  # Convert to NumPy array and then to list
 
 def soft_update(target_network, source_network, tau=0.001):
     for target_param, source_param in zip(target_network.parameters(), source_network.parameters()):

@@ -1,6 +1,5 @@
 import copy
 from geolocation.maps_free import get_distance_and_time
-import time
 
 def build_path(environment, edges, dist, previous):
 

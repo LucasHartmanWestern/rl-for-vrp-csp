@@ -6,14 +6,13 @@ from training_visualizer import Simulation
 import random
 import os
 import time
-import threading
+from multiprocessing import Process, Manager, Barrier
 from frl_custom import aggregate_weights
+import copy
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(thread_num):
-    print(f'INITIALIZE THREAD {thread_num}')
-
     ############ Algorithm ############
 
     algorithm = "DQN" # Currently the only option working
@@ -53,11 +52,11 @@ def train_rl_vrp_csp(thread_num):
 
     num_training_sesssions = 1 # Depreciated
     num_episodes = 250 # Amount of training episodes per session
-    learning_rate = 0.00001 # Rate of change for model parameters
+    learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.999 # Present value of future rewards
-    epsilon_decay = 0.995 # Rate of decrease for training noise
-    batch_size = 50 * num_of_agents # Amount of experiences to use when training
+    epsilon_decay = 0.99 # Rate of decrease for training noise
+    batch_size = 75 * num_of_agents # Amount of experiences to use when training
     max_num_timesteps = 300 # Max amount of minutes per agent episode
     buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
     layers = [64, 64, 64, 128, 64, 64, 64] # Neural network hidden layers
@@ -131,16 +130,26 @@ def train_rl_vrp_csp(thread_num):
                 global_weights = None
 
                 for aggregate_step in range(aggregation_count):
+                    manager = Manager()
+                    local_weights_list = manager.list([None for _ in range(len(envs))])
+                    rewards = manager.list()
+                    output_values = manager.list()
 
-                    local_weights_list = []
+                    # Barrier for synchronization
+                    barrier = Barrier(len(envs))
+
+                    processes = []
                     for ind, env in enumerate(envs):
-                        local_weights, avg_rewards, avg_output_values = train_dqn(env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                              batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
-                              start_from_previous_session, layers, fixed_attributes)
+                        process = Process(target=train_route, args=(
+                        env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
+                        discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
+                        action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
+                        local_weights_list, rewards, output_values, barrier))
+                        processes.append(process)
+                        process.start()
 
-                        rewards.append(avg_rewards)
-                        output_values.append(avg_output_values)
-                        local_weights_list.append(local_weights)
+                    for process in processes:
+                        process.join()
 
                     # Aggregate the weights from all local models
                     global_weights = aggregate_weights(local_weights_list)
@@ -199,15 +208,20 @@ def train_rl_vrp_csp(thread_num):
             else:
                 user_input = 'Done'
 
+def train_route(env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+    # Create a deep copy of the environment for this thread
+    env_copy = copy.deepcopy(env)
+
+    local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+                              batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
+                              start_from_previous_session, layers, fixed_attributes)
+
+    rewards.append(avg_rewards)
+    output_values.append(avg_output_values)
+    local_weights_list[ind] = local_weights
+
+    barrier.wait()  # Wait for all threads to finish before proceeding
+
+
 if __name__ == '__main__':
-    t1 = threading.Thread(target=train_rl_vrp_csp, args=(0,))
-    # t2 = threading.Thread(target=train_rl_vrp_csp, args=(1,))
-    # t3 = threading.Thread(target=train_rl_vrp_csp, args=(2,))
-
-    t1.start()
-    # t2.start()
-    # t3.start()
-
-    t1.join()
-    # t2.join()
-    # t3.join()
+    train_rl_vrp_csp(1)
