@@ -8,6 +8,7 @@ import random
 import os
 from collections import deque
 from pathfinding import *
+import time
 
 # Define the QNetwork architecture
 class QNetwork(nn.Module):
