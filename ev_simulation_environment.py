@@ -178,7 +178,6 @@ class EVSimEnvironment:
             else:
                 self.agent_index = (self.agent_index + 1) % len(self.agent_list) # Go to next agent now
 
-
             return state, reward, done
         else:
             return self.state[0], reward, done
@@ -208,7 +207,6 @@ class EVSimEnvironment:
             self.cur_soc[self.agent_list[self.agent_index]] += station.charge() / 60
             # Cap SoC at max
             self.cur_soc[self.agent_list[self.agent_index]] = min(self.max_soc, self.cur_soc[self.agent_list[self.agent_index]])
-
 
     # Simulates traffic updates at chargers
     def update_traffic(self):
@@ -343,10 +341,6 @@ class EVSimEnvironment:
 
         self.update_traffic()
 
-        # Legacy code - not really useful anymore
-        # for charger in self.charger_coords[i]:
-        #     self.used_chargers.append(charger)
-
     # Reset all states
     def reset(self):
         self.agent_list = [index for index in range(len(self.org_lat))]
@@ -445,11 +439,6 @@ class EVSimEnvironment:
 
         # Recalculate remaining distance to destination
         total_dist = get_distance_and_time((self.org_lat[index], self.org_long[index]), (self.dest_lat[index], self.dest_long[index]))[0]
-
-        if self.is_charging[index] is True:
-            charge_bool = 1
-        else:
-            charge_bool = 0
 
         # Update state
         self.state[index] = (self.num_of_chargers, len(self.org_lat), total_dist, *charger_info)
