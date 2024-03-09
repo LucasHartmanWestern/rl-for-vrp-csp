@@ -1,7 +1,7 @@
 from dqn_custom import train_dqn
 from sarsa_custom import train_sarsa
 from ev_simulation_environment import EVSimEnvironment
-from geolocation.visualize import generate_interactive_plot, read_csv_data, generate_average_reward_plot, generate_charger_only_plot, generate_traffic_plot, plot_aggregate_reward_data
+from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
 from training_visualizer import Simulation
 import random
@@ -18,20 +18,21 @@ def train_rl_vrp_csp(thread_num):
 
     ############ Algorithm ############
 
-    algorithm = "DQN"
+    algorithm = "DQN" # Currently the only option working
 
     ############ Configuration ############
 
-    train_model = True
-    start_from_previous_session = False
-    save_data = False
-    generate_plots = False
-    plot_aggregate_rewards = True
+    train_model = True # Set to false for model evaluation
+    start_from_previous_session = False # Set to true if you want to reuse the models from a previous session
+    save_data = False # Set to true if you want to save simulation results in a csv file
+    generate_plots = False # Set to true if you want to generate plots of the simulation environments
+    plot_aggregate_rewards = True # Set to true if you want to see the rewards across aggregations
+    continue_training = False # Set to true if you want the option to continue training after a full training loop completes
 
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 100
+    num_of_agents = 100 # Num of cars in simulation
     num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
@@ -45,23 +46,23 @@ def train_rl_vrp_csp(thread_num):
               (42.9819404397449, -81.2508736429095) # Central London
     ]
 
-    radius = 10
-    starting_charge = [6000 for agent in range(num_of_agents)]
+    radius = 20 # Max radius of the circle containing the entire trip
+    starting_charge = [6000 for agent in range(num_of_agents)] # 6kw starting charge
 
     ############ Hyperparameters ############
 
-    aggregation_count = 10
+    aggregation_count = 5 # Amount of aggregation steps for federated learning
 
-    num_training_sesssions = 1
-    num_episodes = 500
-    learning_rate = 0.0001
-    epsilon = 1
-    discount_factor = 0.9999
-    epsilon_decay = 0.995
-    batch_size = max(round(num_episodes / 10), 1)
-    max_num_timesteps = 200 # Amonut of minutes
-    buffer_limit = (max(num_episodes, 2) / 10) * num_of_agents
-    layers = [64, 128, 256, 1024, 128, 64]
+    num_training_sesssions = 1 # Depreciated
+    num_episodes = 250 # Amount of training episodes per session
+    learning_rate = 0.00001 # Rate of change for model parameters
+    epsilon = 1 # Introduce noise during training
+    discount_factor = 0.999 # Present value of future rewards
+    epsilon_decay = 0.995 # Rate of decrease for training noise
+    batch_size = 50 * num_of_agents # Amount of experiences to use when training
+    max_num_timesteps = 300 # Max amount of minutes per agent episode
+    buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
+    layers = [64, 64, 64, 128, 64, 64, 64] # Neural network hidden layers
 
     ############ HPP Settings ############
 
@@ -128,17 +129,19 @@ def train_rl_vrp_csp(thread_num):
                 print(f"Training using Deep-Q Learning - Session {session}")
 
                 rewards = [] # Array of [(avg_reward, aggregation_num, route_index, seed)]
+                output_values = [] # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
                 global_weights = None
 
                 for aggregate_step in range(aggregation_count):
 
                     local_weights_list = []
                     for ind, env in enumerate(envs):
-                        local_weights, avg_rewards = train_dqn(env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+                        local_weights, avg_rewards, avg_output_values = train_dqn(env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                               batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
                               start_from_previous_session, layers, fixed_attributes)
 
                         rewards.append(avg_rewards)
+                        output_values.append(avg_output_values)
                         local_weights_list.append(local_weights)
 
                     # Aggregate the weights from all local models
@@ -148,6 +151,7 @@ def train_rl_vrp_csp(thread_num):
 
                 if plot_aggregate_rewards:
                     plot_aggregate_reward_data(rewards)
+                    plot_aggregate_output_values_per_route(output_values)
 
             if fixed_attributes != [0, 1] and fixed_attributes != [1, 0] and fixed_attributes != [0.5, 0.5]:
                 attr_label = 'learned'
@@ -192,7 +196,7 @@ def train_rl_vrp_csp(thread_num):
                     destinations = [(route[2], route[3]) for route in all_routes[index]]
                     generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
 
-            if num_episodes != 1:
+            if num_episodes != 1 and continue_training:
                 user_input = input("More Episodes? ")
             else:
                 user_input = 'Done'

@@ -10,6 +10,7 @@ import os
 import time
 import copy
 import heapq
+from collections import deque
 
 from geolocation.maps_free import get_distance_and_time
 
@@ -18,21 +19,30 @@ class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, layers):
         super(QNetwork, self).__init__()
 
-        # Create a ModuleList to hold the layers
         self.layers = nn.ModuleList()
+        self.batch_norms = nn.ModuleList()  # Add a list for batch normalization layers
         for i, layer_size in enumerate(layers):
             if i == 0:
-                self.layers.append(nn.Linear(state_dim, layer_size))  # First layer
+                self.layers.append(nn.Linear(state_dim, layer_size))
             else:
-                self.layers.append(nn.Linear(layers[i - 1], layer_size))  # Hidden layers
+                self.layers.append(nn.Linear(layers[i - 1], layer_size))
+            self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
 
-        self.layers.append(nn.Linear(layers[-1], action_dim))  # Output layer
+        self.output = nn.Linear(layers[-1], action_dim)  # Output layer
+
+    def forward(self, state):
+        x = state
+        for layer, batch_norm in zip(self.layers, self.batch_norms):
+            x = layer(x)
+            x = batch_norm(x)  # Apply batch normalization
+            x = torch.relu(x)
+        return torch.sigmoid(self.output(x))
 
     def forward(self, state):
         x = state
         for i in range(len(self.layers) - 1):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return torch.sigmoid(self.layers[-1](x))  # Apply sigmoid to the output layer to ensure output values are between 0 and 1
+        return self.layers[-1](x) # Output layer
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -115,12 +125,14 @@ def train_dqn(
         load_model(q_network, f'saved_networks/q_network_{seed}.pth')
         load_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
-    optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)  # Initialize optimizer
-    buffer = []  # Initialize replay buffer
+    optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+    buffer = deque(maxlen=buffer_limit)  # Initialize replay buffer with fixed size
 
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
+
+    avg_output_values = []  # List to store the average values of output neurons for each episode
 
     for i in range(num_episodes):  # For each episode
 
@@ -128,6 +140,7 @@ def train_dqn(
 
         paths = []
         distributions = []
+        distributions_unmodified = []
         states = []
         traffic = {}
 
@@ -140,14 +153,16 @@ def train_dqn(
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if np.random.rand() < epsilon:  # Epsilon-greedy action selection
-                action_values = q_network(state) + torch.randn(action_dim) * epsilon  # add noise for exploration
+                action_values = q_network(state)
+                noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
+                action_values += noise  # Add noise for exploration
             else:
                 action_values = q_network(state)  # Greedy action
 
-            distribution = action_values.tolist()
-            for ir in range(len(distribution)):
-                distribution[ir] = min(1, max(0, distribution[ir]))
-            distributions.append(distribution)
+            distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
+            distributions_unmodified.append(distribution.tolist()) # Track outputs before the sigmoid application
+            distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
+            distributions.append(distribution.tolist())  # Convert back to list and append
 
             ########### GENERATE GRAPH ###########
 
@@ -219,10 +234,14 @@ def train_dqn(
         ########### GET REWARD ###########
         rewards = simulate(environment, paths)
 
+        # Calculate the average values of the output neurons for this episode
+        episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
+        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, route_index, seed))
+
         ########### STORE EXPERIENCES ###########
         done = True
-        for d in range(len(distributions)):
-            buffer.append(experience(states[d], distributions[d], rewards[d], states[(d + 1) % max(1, (len(distributions) - 1))], done))  # Store experience
+        for d in range(len(distributions_unmodified)):
+            buffer.append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
         if len(buffer) >= buffer_limit:  # If replay buffer is full enough
             st = time.time()
@@ -235,8 +254,8 @@ def train_dqn(
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
-        if i % 50 == 0:  # Every 50 episodes
-            target_q_network.load_state_dict(q_network.state_dict())  # Update target network
+        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
+            soft_update(target_q_network, q_network)
 
             # Add this before you save your model
             if not os.path.exists('saved_networks'):
@@ -271,7 +290,7 @@ def train_dqn(
             print(f"Thread: {thread_num} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
-    return (q_network.state_dict(), avg_rewards)
+    return (q_network.state_dict(), avg_rewards, avg_output_values)
 
 def build_graph(env, agent_index):
     usage_per_min = env.ev_info() / 60
@@ -383,7 +402,7 @@ def simulate(environment, paths):
     current_path = 0
     current_path_list = [i for i in range(len(paths))]
 
-    simulation_reward = [0 for i in range(len(paths))]
+    simulation_reward = np.zeros(len(paths))  # Use NumPy array for rewards
 
     usage_per_min = environment.ev_info() / 60
 
@@ -419,7 +438,11 @@ def simulate(environment, paths):
             if len(current_path_list) > 0:
                 current_path = (current_path + 1) % len(current_path_list)
 
-    return simulation_reward
+    return simulation_reward.tolist()
+
+def soft_update(target_network, source_network, tau=0.001):
+    for target_param, source_param in zip(target_network.parameters(), source_network.parameters()):
+        target_param.data.copy_(tau * source_param.data + (1 - tau) * target_param.data)
 
 def save_model(network, filename):
     torch.save(network.state_dict(), filename)

@@ -18,6 +18,7 @@ def aggregate_weights(local_weights_list):
 
     # Take the average
     for key in aggregated_weights.keys():
+        aggregated_weights[key] = aggregated_weights[key].float()  # Convert to float tensor
         aggregated_weights[key] /= len(local_weights_list)
 
     return aggregated_weights

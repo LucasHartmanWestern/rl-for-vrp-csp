@@ -39,6 +39,39 @@ def generate_plot(df):
     # Show the plot
     plt.show()
 
+def plot_aggregate_output_values_per_route(data):
+    # Extract unique route indices and aggregation numbers
+    route_indices = sorted(set(item[3] for sublist in data for item in sublist))
+    aggregation_nums = sorted(set(item[2] for sublist in data for item in sublist))
+    num_neurons = len(data[0][0][0])  # Assuming all entries have the same number of neurons
+    max_episodes = max(item[1] for sublist in data for item in sublist)  # Maximum number of episodes
+
+    # Set up the plot for each route index
+    for route_index in route_indices:
+        plt.figure(figsize=(10, 6))
+
+        # Plot each neuron as a separate line
+        for neuron_index in range(num_neurons):
+            # Calculate the time parameter for each data point
+            time_and_values = [(item[1] + item[2] * max_episodes, item[0][neuron_index]) for sublist in data for item in sublist if item[3] == route_index]
+            time, avg_output_values = zip(*sorted(time_and_values, key=lambda x: x[0]))
+            plt.plot(time, avg_output_values, label=f'Neuron {neuron_index + 1}')
+
+        # Plot vertical lines for each aggregation number
+        for agg_num in aggregation_nums:
+            plt.axvline(x=agg_num * max_episodes, color='grey', linestyle='--', label=f'Aggregation {agg_num}')
+
+        # Set title, labels, and legend
+        seed = data[0][0][4]  # Assuming all entries have the same seed
+        plt.title(f'Average Output Values for Route Index: {route_index}, Seed: {seed}')
+        plt.xlabel('Time')
+        plt.ylabel('Average Output Value')
+        plt.legend()
+
+        # Show the plot
+        plt.show()
+
+
 def plot_aggregate_reward_data(data):
     # Extract unique route indices and aggregation numbers
     route_indices = sorted(set(item[2] for sublist in data for item in sublist))
