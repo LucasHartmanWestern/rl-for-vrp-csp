@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import cupy as cp
 import numpy as np
 from collections import namedtuple
 import random
@@ -285,16 +284,14 @@ def train_dqn(
 
 def simulate(environment, paths):
     num_paths = len(paths)
-    current_path_list = cp.arange(num_paths)  # Use CuPy array for path indices
+    current_path_list = np.arange(num_paths)  # Use NumPy array for path indices
 
-    simulation_reward = cp.zeros(num_paths)  # Use CuPy array for rewards
+    simulation_reward = np.zeros(num_paths)  # Use NumPy array for rewards
 
     usage_per_min = environment.ev_info() / 60  # Constant
 
     while len(current_path_list) > 0:
-        mask = cp.ones(len(current_path_list), dtype=bool)  # Initialize mask to keep all paths
-
-        st1 = time.time()
+        mask = np.ones(len(current_path_list), dtype=bool)  # Initialize mask to keep all paths
 
         for i in range(len(current_path_list)):
             current_path = int(current_path_list[i])  # Convert to int for indexing
@@ -311,24 +308,16 @@ def simulate(environment, paths):
                 if action == 'destination':
                     action = 0  # Go to destination
 
-                st2 = time.time()
-
                 next_state, reward, done = environment.step(action)
-
-                et2 = time.time() - st2
-                #print(f"STEP {int(et2 // 3600)}h, {int((et2 % 3600) // 60)}m, {int(et2 % 60)}s, {int((et2 % 1) * 1000)}ms")
 
                 simulation_reward[current_path] += reward  # Accumulate reward of every path
 
             if done:
                 mask[i] = False  # Mark path for removal
 
-        et1 = time.time() - st1
-        #print(f"PATH LOOP {int(et1 // 3600)}h, {int((et1 % 3600) // 60)}m, {int(et1 % 60)}s, {int((et1 % 1) * 1000)}ms")
-
         current_path_list = current_path_list[mask]  # Remove completed paths using the mask
 
-    return cp.asnumpy(simulation_reward).tolist()  # Convert to NumPy array and then to list
+    return simulation_reward.tolist()  # Convert to list
 
 def soft_update(target_network, source_network, tau=0.001):
     for target_param, source_param in zip(target_network.parameters(), source_network.parameters()):

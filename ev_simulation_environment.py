@@ -218,7 +218,7 @@ class EVSimEnvironment:
         # Find out how far EV can travel given current charge
         usage_per_hour = self.ev_info()
         max_distance = self.cur_soc[self.agent_list[self.agent_index]] / (usage_per_hour / 60)
-        travel_distance = min(max_distance, 1)
+        travel_distance = min(max_distance, 2)
 
         # Find how far destination is away from current coordinates in minutes
         time_to_destination = get_distance_and_time((self.cur_lat[self.agent_list[self.agent_index]], self.cur_long[self.agent_list[self.agent_index]]), (self.dest_lat[self.agent_list[self.agent_index]], self.dest_long[self.agent_list[self.agent_index]]))[1] / 60
@@ -414,9 +414,9 @@ class EVSimEnvironment:
         reward -= max_traffic
 
         # Reward negatively proportionately to distance remaining
-        reward -= (distance_to_dest / distance_from_origin)
+        reward -= 5 * (distance_to_dest / distance_from_origin)
 
-        reward -= self.km_travelled[self.agent_list[self.agent_index]]
+        reward -= 5 * self.km_travelled[self.agent_list[self.agent_index]]
 
         return reward
 

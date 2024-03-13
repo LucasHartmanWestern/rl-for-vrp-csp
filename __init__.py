@@ -10,6 +10,7 @@ from multiprocessing import Process, Manager, Barrier
 from frl_custom import aggregate_weights
 import copy
 
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(thread_num):
@@ -54,17 +55,17 @@ def train_rl_vrp_csp(thread_num):
     num_episodes = 250 # Amount of training episodes per session
     learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
-    discount_factor = 0.999 # Present value of future rewards
+    discount_factor = 0.9999 # Present value of future rewards
     epsilon_decay = 0.99 # Rate of decrease for training noise
     batch_size = 75 * num_of_agents # Amount of experiences to use when training
     max_num_timesteps = 300 # Max amount of minutes per agent episode
     buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
-    layers = [64, 64, 64, 128, 64, 64, 64] # Neural network hidden layers
+    layers = [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
 
     ############ HPP Settings ############
 
     # Determine if agent or baseline is used
-    # fixed_attributes = [0, 1] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
+    # fixed_attributes = [0.5, 0.5] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
     fixed_attributes = None # Determine impact ratings through training
 
     ############ Initialization ############
@@ -90,7 +91,6 @@ def train_rl_vrp_csp(thread_num):
                 starting_charge[agent] += 1000 * random.randrange(-1, 1)
         elapsed_time = time.time() - start_time
         print(f"Get Starting Battery: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
-
 
         start_time = time.time()
 
@@ -125,15 +125,15 @@ def train_rl_vrp_csp(thread_num):
 
                 print(f"Training using Deep-Q Learning - Session {session}")
 
-                rewards = [] # Array of [(avg_reward, aggregation_num, route_index, seed)]
-                output_values = [] # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
+                rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
+                output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
                 global_weights = None
 
                 for aggregate_step in range(aggregation_count):
                     manager = Manager()
                     local_weights_list = manager.list([None for _ in range(len(envs))])
-                    rewards = manager.list()
-                    output_values = manager.list()
+                    process_rewards = manager.list()
+                    process_output_values = manager.list()
 
                     # Barrier for synchronization
                     barrier = Barrier(len(envs))
@@ -141,10 +141,10 @@ def train_rl_vrp_csp(thread_num):
                     processes = []
                     for ind, env in enumerate(envs):
                         process = Process(target=train_route, args=(
-                        env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
-                        discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
-                        action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
-                        local_weights_list, rewards, output_values, barrier))
+                            env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
+                            discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
+                            action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
+                            local_weights_list, process_rewards, process_output_values, barrier))
                         processes.append(process)
                         process.start()
 
@@ -154,8 +154,13 @@ def train_rl_vrp_csp(thread_num):
                     # Aggregate the weights from all local models
                     global_weights = aggregate_weights(local_weights_list)
 
+                    # Extend the main lists with the contents of the process lists
+                    rewards.extend(process_rewards)
+                    output_values.extend(process_output_values)
+
                     print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n")
 
+                # Plot the aggregated data
                 if plot_aggregate_rewards:
                     plot_aggregate_reward_data(rewards)
                     plot_aggregate_output_values_per_route(output_values)
