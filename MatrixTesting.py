@@ -16,115 +16,177 @@ T = np.array([[43.02120034946083, -81.28349087468504],
               [42.9819404397449, -81.2508736429095],
               ])
 
-# Destinations (Mx2)
-D = np.array([[42.97520298007788, -81.3206637664334],
+# Battery percentage (Nx2)
+B = np.array([0.20, 0.15, 0.11, 0.06, 0.21])
+
+# Destinations (Mx2) (note M > N and the first N entries are the destinations of the Tokens)
+D = np.array([[42.96477210152778, -81.20994279529941],
+              [42.986248881938806, -81.17904374824452],
+              [43.006964980419085, -81.33422562900907],
+              [43.00432877393533, -81.16393754746214],
+              [43.03294439058604, -81.26350114352788],
+              [42.97520298007788, -81.3206637664334],
               [42.95950149646455, -81.2600673019313],
               [43.01217983061826, -81.27053864527043]
               ])
 
-# Actions (NxMxK)
-A = np.array([[[0, 1, 0],
-              [1, 0, 0],
-              [0, 1, 0],
-              [0, 0, 1],
-              [1, 0, 0]],
-              [[0, 1, 0],
-              [1, 0, 0],
-              [0, 1, 0],
-              [0, 0, 1],
-              [1, 0, 0]],
-              [[0, 0, 0],
-              [1, 0, 0],
-              [0, 0, 0],
-              [1, 0, 0],
-              [0, 0, 1]],
-              [[0, 0, 0],
-              [0, 1, 0],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 1]],
-              [[0, 0, 1],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 1]],
-              [[0, 0, 1],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 1]],
-              [[0, 0, 1],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 0],
-              [0, 0, 1]],
+# Traffic level (Mx2)
+Tr = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+
+# Actions for step k (NxM)
+A = np.zeros((T.shape[0], D.shape[0]))
+
+# Target battery level
+Tar = np.array([[0.4, 0, 0],
+                [0.5, 0, 0],
+                [0.3, 0.4, 0],
+                [0.2, 0, 0],
+                [0.4, 0, 0]
+                ])
+
+# Stops NxP (P is the number of stops that are required for the route with the most stops)
+S = np.array([[6, 1, 0],
+              [7, 2, 0],
+              [7, 8, 3],
+              [7, 4, 0],
+              [6, 5, 0]
               ])
 
 # Step size (fixed distance)
 step_size = 0.01
 
-def move_tokens_gpu(T, D, A, step_size, iterations):
-    # Convert inputs to CuPy arrays
-    T = cp.asarray(T)
-    D = cp.asarray(D)
-    A = cp.asarray(A)
+# Rate of battery increase
+increase_rate = 0.1
 
-    # Calculate the direction vectors for all iterations
-    direction_vectors = (A.reshape((-1, A.shape[-1])) @ D).reshape((iterations, -1, 2)) - T[None, :, :]
+# Rate of battery decrease
+decrease_rate = 0.1
 
-    # Normalize the direction vectors in-place
-    norms = cp.linalg.norm(direction_vectors, axis=2, keepdims=True)
-    norms[norms == 0] = 1  # Avoid division by zero
-    direction_vectors /= norms
+def update_actions(stops, target_battery_level, battery, destinations, token_locations):
+    """
+    Update the actions matrix based on the stops, target battery level, and current battery levels.
+    """
+    # Initialize the actions matrix with zeros
+    actions = np.zeros((stops.shape[0], destinations.shape[0]))
 
-    # Apply the action mask to ensure tokens with [0, 0, 0] actions don't move
-    action_mask = cp.any(A.reshape((iterations, -1, A.shape[-1])), axis=2, keepdims=True)
-    direction_vectors *= action_mask
+    # Iterate through each token
+    for i in range(stops.shape[0]):
+        # Find the index of the next non-zero stop
+        next_stop_index = np.where(stops[i] > 0)[0][0]
+        next_stop = stops[i, next_stop_index]
 
-    # Calculate the movements for all iterations
-    movements = step_size * direction_vectors
+        # Check if the token has reached its destination
+        if np.allclose(token_locations[i], destinations[next_stop]):
+            # Check if the battery level is sufficient
+            if battery[i] >= target_battery_level[i, next_stop_index]:
+                # Move to the next destination
+                stops[i, next_stop_index] = 0  # Mark the current stop as visited
+                actions[i, next_stop] = 0  # Stop moving to the current destination
+                if next_stop_index + 1 < stops.shape[1]:
+                    next_stop = stops[i, next_stop_index + 1]
+                    actions[i, next_stop] = 1  # Start moving to the next destination
+            else:
+                # Continue charging at the current stop
+                actions[i, next_stop] = 1
+        else:
+            # Continue moving towards the next stop
+            actions[i, next_stop] = 1
 
-    # Cumulative sum of movements to get positions
-    positions = cp.cumsum(movements, axis=0) + T[None, :, :]
+    return actions
 
-    # Convert the result back to a NumPy array if needed
-    positions = cp.asnumpy(positions)
+def move_tokens(actions, destinations, token_locations, step_size):
+    """
+    Move the tokens towards their destinations based on the actions matrix.
+    """
+    for i in range(actions.shape[0]):
+        for j in range(actions.shape[1]):
+            if actions[i, j] == 1:
+                direction = destinations[j] - token_locations[i]
+                distance = np.linalg.norm(direction)
+                if distance > step_size:
+                    token_locations[i] += direction / distance * step_size
+                else:
+                    token_locations[i] = destinations[j]
+    return token_locations
 
-    return positions
+def update_traffic(actions, traffic):
+    """
+    Update the traffic levels at the charging stations.
+    """
+    for i in range(actions.shape[1]):
+        traffic[i] = np.sum(actions[:, i])
+    return traffic
 
-def visualize_movements(T, D, positions):
-    fig, ax = plt.subplots()
+def update_battery(actions, destinations, token_locations, battery, charging_rate, discharge_rate):
+    """
+    Update the battery levels of the tokens.
+    """
+    for i in range(actions.shape[0]):
+        if np.any(actions[i] == 1):
+            battery[i] -= discharge_rate
+        else:
+            # Find the index of the charging station the token is currently at
+            current_station = np.argmax(actions[i])
+            if np.allclose(token_locations[i], destinations[current_station]):
+                battery[i] += charging_rate
+    return battery
 
-    # Define a list of colors for the destinations
-    destination_colors = ['red', 'green', 'blue', 'orange', 'purple']
+def simulate(tokens, battery, destinations, traffic, target_battery_level, stops, step_size, k_steps):
+    """
+    Run the simulation for k steps.
+    """
+    token_coordinates = np.zeros((k_steps, tokens.shape[0], tokens.shape[1]))
+    traffic_levels = np.zeros((k_steps, traffic.shape[0]))
 
-    # Plot the destinations as boxes with different colors and add them to the legend
-    for i, dest in enumerate(D):
-        color = destination_colors[i % len(destination_colors)]  # Cycle through colors if there are more destinations than colors
-        rect = patches.Rectangle((dest[0] - 0.001, dest[1] - 0.001), 0.002, 0.002, linewidth=1, edgecolor=color,
-                                 facecolor='none', label=f'Destination {i + 1}')
-        ax.add_patch(rect)
+    for k in range(k_steps):
+        actions = update_actions(stops, target_battery_level, battery, destinations, tokens)
+        tokens = move_tokens(actions, destinations, tokens, step_size)
+        traffic = update_traffic(actions, traffic)
+        battery = update_battery(actions, destinations, tokens, battery, charging_rate=0.01, discharge_rate=0.01)
 
-    # Plot the tokens as connected line segments with dots for each timestep
-    for i in range(len(positions[0])):
-        x_coords = [pos[i][0] for pos in positions]
-        y_coords = [pos[i][1] for pos in positions]
-        ax.plot(x_coords, y_coords, marker='o', label=f'Token {i + 1}')
+        token_coordinates[k] = tokens
+        traffic_levels[k] = traffic
 
-    plt.xlabel('Latitude')
-    plt.ylabel('Longitude')
-    plt.title('Token Movements')
-    plt.grid(True)
+    return token_coordinates, traffic_levels
+
+def plot_token_paths(token_coords, destinations, stops):
+    """
+    Plot the paths of the tokens with charging stations, start points, and end points.
+    """
+    num_tokens = token_coords.shape[1]
+    num_destinations = destinations.shape[0]
+
+    # Plot the charging stations
+    for i in range(num_destinations):
+        plt.scatter(destinations[i, 0], destinations[i, 1], marker='s', s=100, label=f'Station {i + 1}')
+
+    # Plot the paths of the tokens
+    for i in range(num_tokens):
+        plt.plot(token_coords[:, i, 0], token_coords[:, i, 1], marker='o', label=f'Token {i + 1}')
+        # Mark the start point with a triangle
+        plt.scatter(token_coords[0, i, 0], token_coords[0, i, 1], marker='^', s=100, color='black')
+        # Mark the end point with a star
+        plt.scatter(destinations[stops[i, 0], 0], destinations[stops[i, 0], 1], marker='*', s=100, color='black')
+
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title('Token Paths and Charging Stations')
     plt.legend()
     plt.show()
 
+
 if __name__ == '__main__':
 
-    start_time = time.time()
-    positions = move_tokens_gpu(T, D, A, step_size, A.shape[0])
-    end_time = time.time()
+    token_cords, traffic_levels = simulate(T, B, D, Tr, Tar, S, step_size, 25)
 
-    duration = (end_time - start_time) * 1000  # Convert seconds to milliseconds
-    print(f"The function took {duration:.10f} milliseconds to run.")
+    plot_token_paths(token_cords, D, S)
 
-    visualize_movements(T, D, positions)
+    print(traffic_levels)
+
+    # start_time = time.time()
+    # positions = move_tokens_gpu(T, D, A, step_size, A.shape[0])
+    # end_time = time.time()
+    #
+    # duration = (end_time - start_time) * 1000  # Convert seconds to milliseconds
+    # print(f"The function took {duration:.10f} milliseconds to run.")
+    #
+    # visualize_movements(T, D, positions)
