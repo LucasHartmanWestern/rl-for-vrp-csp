@@ -10,7 +10,6 @@ from multiprocessing import Process, Manager, Barrier
 from frl_custom import aggregate_weights
 import copy
 
-
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(thread_num):
@@ -24,14 +23,14 @@ def train_rl_vrp_csp(thread_num):
     start_from_previous_session = False # Set to true if you want to reuse the models from a previous session
     save_data = False # Set to true if you want to save simulation results in a csv file
     generate_plots = False # Set to true if you want to generate plots of the simulation environments
-    plot_aggregate_rewards = True # Set to true if you want to see the rewards across aggregations
+    save_aggregate_rewards = True # Set to true if you want to save the rewards across aggregations
     continue_training = False # Set to true if you want the option to continue training after a full training loop completes
 
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 100 # Num of cars in simulation
-    num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_agents = 150 # Num of cars in simulation
+    num_of_chargers = 7 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
     max_charge = 100000 # 100kW
@@ -49,10 +48,10 @@ def train_rl_vrp_csp(thread_num):
 
     ############ Hyperparameters ############
 
-    aggregation_count = 5 # Amount of aggregation steps for federated learning
+    aggregation_count = 10 # Amount of aggregation steps for federated learning
 
     num_training_sesssions = 1 # Depreciated
-    num_episodes = 250 # Amount of training episodes per session
+    num_episodes = 700 # Amount of training episodes per session
     learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards
@@ -161,9 +160,15 @@ def train_rl_vrp_csp(thread_num):
                     print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n")
 
                 # Plot the aggregated data
-                if plot_aggregate_rewards:
-                    plot_aggregate_reward_data(rewards)
-                    plot_aggregate_output_values_per_route(output_values)
+                if save_aggregate_rewards:
+                    save_to_csv(rewards, 'outputs/rewards.csv')
+                    save_to_csv(output_values, 'outputs/output_values.csv')
+
+                    loaded_rewards = load_from_csv('outputs/rewards.csv')
+                    loaded_output_values = load_from_csv('outputs/output_values.csv')
+
+                    plot_aggregate_reward_data(loaded_rewards)
+                    plot_aggregate_output_values_per_route(loaded_output_values)
 
             if fixed_attributes != [0, 1] and fixed_attributes != [1, 0] and fixed_attributes != [0.5, 0.5]:
                 attr_label = 'learned'

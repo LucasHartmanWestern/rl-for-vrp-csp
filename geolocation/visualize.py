@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import csv
+import ast
 
 def read_excel_data(file_path, sheet_name):
     """Retrieve the data from the excel file and parse it as needed"""
@@ -299,3 +301,26 @@ def generate_charger_only_plot(chargers, origin, destination):
     )
 
     fig.show()
+
+def save_to_csv(data, filename):
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for row in data:
+            writer.writerow(row)
+
+def load_from_csv(filename):
+    data = []
+    with open(filename, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            converted_row = []
+            for item in row:
+                try:
+                    # Attempt to parse the item as a Python literal (e.g., list, int, float)
+                    converted_item = ast.literal_eval(item)
+                    converted_row.append(converted_item)
+                except (ValueError, SyntaxError):
+                    # Keep as string if conversion fails
+                    converted_row.append(item)
+            data.append(tuple(converted_row))
+    return data
