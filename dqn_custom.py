@@ -8,6 +8,7 @@ import os
 from collections import deque
 from pathfinding import *
 import time
+from MatrixEnvironment import simulate_matrix_env, visualize_simulation, visualize_stats
 
 # Define the QNetwork architecture
 class QNetwork(nn.Module):
@@ -139,6 +140,8 @@ def train_dqn(
         states = []
         traffic = {}
 
+        time_start_paths = time.time()
+
         for j in range(num_of_agents): # For each agent
 
             ########### GENERATE AGENT OUTPUT ###########
@@ -223,6 +226,10 @@ def train_dqn(
         episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
         avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, route_index, seed))
 
+        time_end_paths = time.time() - time_start_paths
+
+        print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
+
         ########### GET REWARD ###########
 
         rewards = simulate(environment, paths)
@@ -283,41 +290,68 @@ def train_dqn(
     return (q_network.state_dict(), avg_rewards, avg_output_values)
 
 def simulate(environment, paths):
-    num_paths = len(paths)
-    current_path_list = np.arange(num_paths)  # Use NumPy array for path indices
 
-    simulation_reward = np.zeros(num_paths)  # Use NumPy array for rewards
+    # Parameters to tweak
+    decrease_rate = 15600 / 60
+    increase_rate = 12500 / 60
+    step_size = 0.01 # 60km per hour / 60 minutes per hour = 1 km per minute
+    max_sim_steps = 500
 
-    usage_per_min = environment.ev_info() / 60  # Constant
+    t1 = time.time()
 
-    while len(current_path_list) > 0:
-        mask = np.ones(len(current_path_list), dtype=bool)  # Initialize mask to keep all paths
+    # Get formatted data
+    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(environment, paths)
 
-        for i in range(len(current_path_list)):
-            current_path = int(current_path_list[i])  # Convert to int for indexing
+    el1 = time.time() - t1
+    t2 = time.time()
 
-            done = False
+    # Run simulation
+    path_results, traffic, battery_levels, distances = simulate_matrix_env(
+        tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, max_sim_steps)
 
-            # Check if step in path is completed
-            if len(paths[current_path]) > 1:
-                if environment.is_charging[current_path] and environment.cur_soc[current_path] > paths[current_path][1][1] + usage_per_min:
-                    del paths[current_path][0]
+    el2 = time.time() - t2
 
-            if len(paths[current_path]) > 0:
-                action = paths[current_path][0][0]  # Go to next stop
-                if action == 'destination':
-                    action = 0  # Go to destination
+    print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
 
-                next_state, reward, done = environment.step(action)
+    # Calculate reward as -(distance * 100 + peak traffic)
+    simulation_reward = -(distances[-1] * 100 + np.max(traffic))
 
-                simulation_reward[current_path] += reward  # Accumulate reward of every path
+    return simulation_reward
 
-            if done:
-                mask[i] = False  # Mark path for removal
+def format_data(environment, paths):
 
-        current_path_list = current_path_list[mask]  # Remove completed paths using the mask
+    tokens = np.array([environment.org_lat, environment.org_long]).T
+    destinations = np.array([environment.dest_lat, environment.dest_long]).T
 
-    return simulation_reward.tolist()  # Convert to list
+    capacity = np.ones(destinations.shape[0]) * 10
+
+    stops = np.zeros((destinations.shape[0], max(len(path) for path in paths)))
+    target_battery_level = np.zeros_like(stops)
+
+    counter = destinations.shape[0] + 1
+
+    charging_stations = []
+
+    starting_battery_level = [environment.cur_soc[environment.agent_list[i]] for i, _ in enumerate(paths)]
+
+    for agent_index, path in enumerate(paths):
+        for step_index, step in enumerate(path):
+            if step[0] == 'destination':
+                stops[agent_index][step_index] = agent_index + 1
+            else:
+                stop = [environment.charger_coords[environment.agent_list[agent_index]][step[0] - 1][1], environment.charger_coords[environment.agent_list[agent_index]][step[0] - 1][2]]
+                charging_stations.append(stop)
+                stops[agent_index][step_index] = counter
+                counter += 1
+            target_battery_level[agent_index][step_index] = step[1]
+
+    destinations = np.vstack((destinations, np.array(charging_stations)))
+
+    actions = np.zeros((tokens.shape[0], destinations.shape[0]))
+    move = np.ones(tokens.shape[0])
+    traffic = np.zeros(destinations.shape[0])
+
+    return tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic
 
 def soft_update(target_network, source_network, tau=0.001):
     for target_param, source_param in zip(target_network.parameters(), source_network.parameters()):

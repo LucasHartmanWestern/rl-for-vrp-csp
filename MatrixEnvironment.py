@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import matplotlib
-import time
 import warnings
 warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
 
@@ -61,10 +59,10 @@ S = np.array([[1, 0, 0],
 step_size = 0.001
 
 # Rate of battery increase
-increase_rate = 0.01
+ir = 0.01
 
 # Rate of battery decrease
-decrease_rate = 0.001
+dr = 0.001
 
 def get_actions(actions, stops):
 
@@ -202,7 +200,7 @@ def update_stops(stops, ready_to_leave):
 
     return updated_stops
 
-def simulate(tokens, battery, destinations, actions, moving, traffic_level, capacity, target_battery_level, stops, step_size, k_steps):
+def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
 
     # Pre-process capacity array
     capacity = np.concatenate((np.zeros(tokens.shape[0]), capacity))
@@ -325,7 +323,7 @@ def visualize_stats(data, title, measure):
 if __name__ == '__main__':
 
     # Run simulation
-    paths, traffic, battery_levels, distances = simulate(T, B, D, A, Mov, Tr, Cap, Tar, S, step_size, 500)
+    paths, traffic, battery_levels, distances = simulate_matrix_env(T, B, D, A, Mov, Tr, Cap, Tar, S, step_size, ir, dr, 500)
 
     # Show the paths of each car
     visualize_simulation(paths, D)
