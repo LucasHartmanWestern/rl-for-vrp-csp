@@ -146,6 +146,8 @@ def train_dqn(
 
             ########### GENERATE AGENT OUTPUT ###########
 
+            t1 = time.time()
+
             state = environment.state[j]
             states.append(state)
 
@@ -157,16 +159,23 @@ def train_dqn(
             else:
                 action_values = q_network(state)  # Greedy action
 
+            t2 = time.time()
+
             distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
             distributions_unmodified.append(distribution.tolist()) # Track outputs before the sigmoid application
             distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
             distributions.append(distribution.tolist())  # Convert back to list and append
 
+            t3 = time.time()
+
             ########### GENERATE GRAPH ###########
 
             # Build graph of possible paths from chargers to each other, the origin, and destination
             verts, edges = build_graph(environment, j)
+
             base_edges = copy.deepcopy(edges)
+
+            t4 = time.time()
 
             ########### REDEFINE WEIGHTS IN GRAPH ###########
 
@@ -198,14 +207,20 @@ def train_dqn(
                     if verts[v] in edges[edge]:
                         edges[edge][verts[v]] = distance_mult * edges[edge][verts[v]] + traffic_mult * traffic_level
 
+            t5 = time.time()
+
             ########### SOLVE WEIGHTED GRAPH ###########
 
             dist, previous = dijkstra((verts, edges), 'origin')
+
+            t6 = time.time()
 
             ########### GENERATE PATH ###########
 
             path = build_path(environment, base_edges, dist, previous)
             paths.append(path)
+
+            t7 = time.time()
 
             ########### UPDATE TRAFFIC ###########
             for step in path:
@@ -215,6 +230,19 @@ def train_dqn(
                         traffic[charger_id] += 1
                     else:
                         traffic[charger_id] = 1  # Initialize this charger id with a count of 1
+
+            t8 = time.time()
+
+            if j == 0 and False:
+                print(f"Get actions - {int((t2 - t1) // 3600)}h, {int(((t2 - t1) % 3600) // 60)}m, {int((t2 - t1) % 60)}s, {int(((t2 - t1) % 1) * 1000)}ms")
+                print(f"Get distributions - {int((t3 - t2) // 3600)}h, {int(((t3 - t2) % 3600) // 60)}m, {int((t3 - t2) % 60)}s, {int(((t3 - t2) % 1) * 1000)}ms")
+                print(f"Build graph - {int((t4 - t3) // 3600)}h, {int(((t4 - t3) % 3600) // 60)}m, {int((t4 - t3) % 60)}s, {int(((t4 - t3) % 1) * 1000)}ms")
+                print(f"Redefine weights - {int((t5 - t4) // 3600)}h, {int(((t5 - t4) % 3600) // 60)}m, {int((t5 - t4) % 60)}s, {int(((t5 - t4) % 1) * 1000)}ms")
+                print(f"Solve graph - {int((t6 - t5) // 3600)}h, {int(((t6 - t5) % 3600) // 60)}m, {int((t6 - t5) % 60)}s, {int(((t6 - t5) % 1) * 1000)}ms")
+                print(f"Build path - {int((t7 - t6) // 3600)}h, {int(((t7 - t6) % 3600) // 60)}m, {int((t7 - t6) % 60)}s, {int(((t7 - t6) % 1) * 1000)}ms")
+                print(f"Update traffic - {int((t8 - t7) // 3600)}h, {int(((t8 - t7) % 3600) // 60)}m, {int((t8 - t7) % 60)}s, {int(((t8 - t7) % 1) * 1000)}ms")
+
+
 
         if num_episodes == 1 and fixed_attributes is None:
             if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):

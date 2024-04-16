@@ -29,7 +29,7 @@ def train_rl_vrp_csp(thread_num):
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 150 # Num of cars in simulation
+    num_of_agents = 250 # Num of cars in simulation
     num_of_chargers = 10 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
@@ -51,7 +51,7 @@ def train_rl_vrp_csp(thread_num):
     aggregation_count = 10 # Amount of aggregation steps for federated learning
 
     num_training_sesssions = 1 # Depreciated
-    num_episodes = 700 # Amount of training episodes per session
+    num_episodes = 500 # Amount of training episodes per session
     learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards

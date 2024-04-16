@@ -1,5 +1,6 @@
 import copy
 from geolocation.maps_free import get_distance_and_time
+import numpy as np
 
 def build_path(environment, edges, dist, previous):
 
@@ -33,55 +34,74 @@ def build_path(environment, edges, dist, previous):
 
 def build_graph(env, agent_index):
 
+    # Usage rates
     usage_per_min = env.ev_info() / 60
     start_soc = env.base_soc[agent_index]
     max_soc = env.max_soc
     max_dist_from_start = start_soc / usage_per_min
     max_dist_on_full_charge = max_soc / usage_per_min
 
+    # Initialize lists
     vertices = ['origin', 'destination']
-    edges = {'origin': {}, 'destination': {}}
+    stations = []
 
-    # Distance in minutes from destination to origin
-    org_to_dest_time = get_distance_and_time((env.dest_lat[agent_index], env.dest_long[agent_index]), (env.org_lat[agent_index], env.org_long[agent_index]))[1] / 60
-    if org_to_dest_time < max_dist_from_start:
-        edges['origin']['destination'] = org_to_dest_time
-        edges['destination']['origin'] = org_to_dest_time
+    # Get origin/destination info
+    origin_coords = (env.org_lat[agent_index], env.org_long[agent_index])  # Example coordinates
+    destination_coords = (env.dest_lat[agent_index], env.dest_long[agent_index])  # Example coordinates
+    stations.insert(0, ('origin', origin_coords[0], origin_coords[1]))
+    stations.append(('destination', destination_coords[0], destination_coords[1]))
 
     # Loop through all chargers
     for i in range(len(env.charger_coords[agent_index])):
         vertices.append(i + 1) # Track charger ID
-        edges[i + 1] = {} # Add station to edges
-
         charger = env.charger_coords[agent_index][i]
+        stations.append(charger)
 
-        # Distance in minutes from charger to origin
-        time_to_charger = get_distance_and_time((charger[1], charger[2]), (env.org_lat[agent_index], env.org_long[agent_index]))[1] / 60
+    # Number of locations including origin and destination
+    n = len(stations)
 
-        # If you can make it to charger from origin, log it in the graph
-        if time_to_charger < max_dist_from_start:
-            edges['origin'][i + 1] = time_to_charger
-            edges[i + 1]['origin'] = time_to_charger
+    # Create the adjacency list from the distance matrix
+    edges = {}
+    for i in range(n):
 
-        # Distance in minutes from destination to origin
-        charger_to_dest_time = get_distance_and_time((charger[1], charger[2]), (env.dest_lat[agent_index], env.dest_long[agent_index]))[1] / 60
-        if charger_to_dest_time < max_dist_on_full_charge:
-            edges[i + 1]['destination'] = charger_to_dest_time
-            edges['destination'][i + 1] = charger_to_dest_time
+        if i == 0:
+            org_key = 'origin'
+        elif i == 1:
+            org_key = 'destination'
+        else:
+            org_key = (i - 1)
 
-        # Populate graph of individual charger
-        for j in range(len(env.charger_coords[agent_index])):
-            if i != j: # Ignore self reference
-                other_charger = env.charger_coords[agent_index][j]
+        edges[org_key] = {}
 
-                # Distance in minutes
-                time_to_other_charger = get_distance_and_time((charger[1], charger[2]), (other_charger[1], other_charger[2]))[1] / 60
+        for j in range(n):
+            if i != j:
+                if j == 0:
+                    dest_key = 'origin'
+                elif j == 1:
+                    dest_key = 'destination'
+                else:
+                    dest_key = (j - 1)
 
-                # If you can make it from one charger to another on full charge, log it
-                if time_to_other_charger < max_dist_on_full_charge:
-                    edges[i + 1][j + 1] = time_to_other_charger
+                # Get distance
+                dist = haversine(stations[i][1], stations[i][2], stations[j][1], stations[j][2])
+
+                # Only add if possible to travel edge
+                if i == 0 and dist <= max_dist_from_start:
+                    edges[org_key][dest_key] = dist
+                elif i > 0 and dist <= max_dist_on_full_charge:
+                    edges[org_key][dest_key] = dist
 
     return vertices, edges
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in kilometers
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+    distance = R * c
+    return distance
 
 def dijkstra(graph, source):
 
