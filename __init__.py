@@ -9,10 +9,11 @@ import time
 from multiprocessing import Process, Manager, Barrier
 from frl_custom import aggregate_weights
 import copy
+from datetime import datetime
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-def train_rl_vrp_csp(thread_num):
+def train_rl_vrp_csp(thread_num, date):
     ############ Algorithm ############
 
     algorithm = "DQN" # Currently the only option working
@@ -140,7 +141,7 @@ def train_rl_vrp_csp(thread_num):
                     processes = []
                     for ind, env in enumerate(envs):
                         process = Process(target=train_route, args=(
-                            env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
+                            env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
                             discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
                             action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
                             local_weights_list, process_rewards, process_output_values, barrier))
@@ -157,7 +158,8 @@ def train_rl_vrp_csp(thread_num):
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
 
-                    print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n")
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n", file=file)
 
                 # Plot the aggregated data
                 if save_aggregate_rewards:
@@ -218,11 +220,11 @@ def train_rl_vrp_csp(thread_num):
             else:
                 user_input = 'Done'
 
-def train_route(env, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+def train_route(env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
     # Create a deep copy of the environment for this thread
     env_copy = copy.deepcopy(env)
 
-    local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+    local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                               batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
                               start_from_previous_session, layers, fixed_attributes)
 
@@ -234,4 +236,8 @@ def train_route(env, global_weights, aggregate_step, ind, seeds, thread_num, eps
 
 
 if __name__ == '__main__':
-    train_rl_vrp_csp(1)
+
+    current_datetime = datetime.now()
+    date = current_datetime.strftime('%Y-%m-%d_%H-%M')
+
+    train_rl_vrp_csp(1, date)

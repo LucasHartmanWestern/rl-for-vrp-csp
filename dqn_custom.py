@@ -83,6 +83,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
 def train_dqn(
     environment,
+    date,
     global_weights,
     aggregation_num,
     route_index,
@@ -312,7 +313,10 @@ def train_dqn(
             avg_ir /= ir_count
 
             elapsed_time = time.time() - start_time
-            print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+
+            # Open the file in write mode (use 'a' for append mode)
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
 
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
     return (q_network.state_dict(), avg_rewards, avg_output_values)
