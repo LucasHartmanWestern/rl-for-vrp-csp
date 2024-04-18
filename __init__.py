@@ -170,6 +170,8 @@ def train_rl_vrp_csp(thread_num, date):
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
                         print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n", file=file)
 
+                    print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n",)
+
                 # Plot the aggregated data
                 if save_aggregate_rewards:
                     save_to_csv(rewards, 'outputs/rewards.csv')
@@ -230,18 +232,25 @@ def train_rl_vrp_csp(thread_num, date):
                 user_input = 'Done'
 
 def train_route(env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
-    # Create a deep copy of the environment for this thread
-    env_copy = copy.deepcopy(env)
+    try:
+        # Create a deep copy of the environment for this thread
+        env_copy = copy.deepcopy(env)
 
-    local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                              batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
-                              start_from_previous_session, layers, fixed_attributes)
+        local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+                                  batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
+                                  start_from_previous_session, layers, fixed_attributes)
 
-    rewards.append(avg_rewards)
-    output_values.append(avg_output_values)
-    local_weights_list[ind] = local_weights
+        rewards.append(avg_rewards)
+        output_values.append(avg_output_values)
+        local_weights_list[ind] = local_weights
 
-    barrier.wait()  # Wait for all threads to finish before proceeding
+        print(f"Thread {ind} waiting")
+
+        barrier.wait()  # Wait for all threads to finish before proceeding
+
+    except Exception as e:
+        print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
+        raise
 
 
 if __name__ == '__main__':
