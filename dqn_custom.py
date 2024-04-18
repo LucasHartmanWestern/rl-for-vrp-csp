@@ -257,7 +257,7 @@ def train_dqn(
 
         time_end_paths = time.time() - time_start_paths
 
-        print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
+        # print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
 
         ########### GET REWARD ###########
 
@@ -275,7 +275,7 @@ def train_dqn(
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
             et = time.time() - st
-            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
+            # print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
@@ -343,7 +343,7 @@ def simulate(environment, paths):
 
     el2 = time.time() - t2
 
-    print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
+    # print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
 
     # Calculate reward as -(distance * 100 + peak traffic)
     simulation_reward = -(distances[-1] * 100 + np.max(traffic))
