@@ -6,10 +6,12 @@ from training_visualizer import Simulation
 import random
 import os
 import time
-from multiprocessing import Process, Manager, Barrier
+import torch.multiprocessing as mp
 from frl_custom import aggregate_weights
 import copy
 from datetime import datetime
+
+mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
@@ -52,7 +54,7 @@ def train_rl_vrp_csp(thread_num, date):
     aggregation_count = 5 # Amount of aggregation steps for federated learning
 
     num_training_sesssions = 1 # Depreciated
-    num_episodes = 100 # Amount of training episodes per session
+    num_episodes = 25 # Amount of training episodes per session
     learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards
@@ -133,19 +135,19 @@ def train_rl_vrp_csp(thread_num, date):
 
                     print("Get Manager")
                     
-                    manager = Manager()
+                    manager = mp.Manager()
                     local_weights_list = manager.list([None for _ in range(len(envs))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
 
                     # Barrier for synchronization
-                    barrier = Barrier(len(envs))
+                    barrier = mp.Barrier(len(envs))
 
                     print("Get Processes")
                     
                     processes = []
                     for ind, env in enumerate(envs):
-                        process = Process(target=train_route, args=(
+                        process = mp.Process(target=train_route, args=(
                             env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
                             discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
                             action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
