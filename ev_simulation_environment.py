@@ -18,6 +18,37 @@ from charging_station import ChargingStation
 #  - Considering the load placed on each charging station relative to the traffic at the station
 #  - Simulating the travel from an origin to destination
 
+# Used to get the coordinates of the chargers from the API dataset
+def get_charger_data():
+    # From JSON file
+    with open('data/Ontario_Charger_Dataset.json') as file:
+        data = json.load(file)
+    charger_data = []
+    for station in [item for item in data['fuel_stations'] if item['city'] == 'London']:
+        charger_id = station['id']
+        charger_lat = round(station['latitude'], 5)
+        charger_long = round(station['longitude'], 5)
+        charger_data.append([charger_id, charger_lat, charger_long])
+    charger_info = pd.DataFrame(charger_data, columns=['id', 'latitude', 'longitude'])
+
+    return charger_info
+
+# Get list of charger coordinates relative to where the origin, destination, and midpoint are
+def get_charger_list(chargers, org_lat, org_long, dest_lat, dest_long, num_of_chargers):
+    list_of_chargers = [(i, lat, long) for i, (lat, long) in enumerate(chargers)]
+
+    # Calculate the midway point between origin and destination
+    midway_lat = (org_lat + dest_lat) / 2
+    midway_long = (org_long + dest_long) / 2
+
+    # Get list of chargers around origin, destination, and midway point
+    org_chargers = get_closest_chargers(org_lat, org_long, num_of_chargers, list_of_chargers)
+    dest_chargers = get_closest_chargers(dest_lat, dest_long, num_of_chargers, list_of_chargers)
+    midway_chargers = get_closest_chargers(midway_lat, midway_long, num_of_chargers, list_of_chargers)
+
+    # Combine and append lists
+    return org_chargers + dest_chargers + midway_chargers
+
 class EVSimEnvironment:
     def __init__(
             self,
@@ -105,23 +136,6 @@ class EVSimEnvironment:
 
         for a in range(len(self.org_lat)):
             self.update_state(a)
-
-    # Used to get the coordinates of the chargers from the API dataset
-    def get_charger_data(self):
-
-        # From JSON file
-        with open('data/Ontario_Charger_Dataset.json') as file:
-            data = json.load(file)
-        charger_data = []
-        for station in [item for item in data['fuel_stations'] if item['city'] == 'London']:
-            charger_id = station['id']
-            charger_lat = round(station['latitude'], 4)
-            charger_long = round(station['longitude'], 4)
-            charger_data.append([charger_id, charger_lat, charger_long])
-        self.charger_info = pd.DataFrame(charger_data, columns=['id', 'latitude', 'longitude'])
-
-        self.charger_lat = self.charger_info.iloc[:, 1].tolist()  # Extract values from the 3rd column
-        self.charger_long = self.charger_info.iloc[:, 2].tolist()  # Extract values from the 4th column
 
     # Step function of sim environment
     def step(self, action):
@@ -315,31 +329,6 @@ class EVSimEnvironment:
         if self.tracking_baseline is not True:
             self.current_path.append(new_row)
         self.visited_list.append(new_row)
-
-    # Get list of charger coordinates relative to where the origin, destination, and midpoint are
-    def get_charger_list(self):
-        list_of_chargers = list(zip(self.charger_lat, self.charger_long))
-        list_of_chargers = [(i, val1, val2) for i, (val1, val2) in enumerate(list_of_chargers)]
-
-        # Calculate the midway point between origin and destination
-        for i in range(len(self.org_lat)):
-            midway_lat = (self.org_lat[i] + self.dest_lat[i]) / 2
-            midway_long = (self.org_long[i] + self.dest_long[i]) / 2
-
-            # Get list of chargers around origin, destination, and midway point
-            org_chargers = get_closest_chargers(self.org_lat[i], self.org_long[i], self.num_of_chargers, list_of_chargers)
-            dest_chargers = get_closest_chargers(self.dest_lat[i], self.dest_long[i], self.num_of_chargers, list_of_chargers)
-            midway_chargers = get_closest_chargers(midway_lat, midway_long, self.num_of_chargers, list_of_chargers)
-
-            # Combine and append lists
-            self.charger_coords.append(org_chargers + dest_chargers + midway_chargers)
-
-            # Create list of ChargingStation objects
-            for charger in self.charger_coords[i]:
-                if charger[0] not in self.charger_list:
-                    self.charger_list[charger[0]] = ChargingStation(charger[0], (charger[1], charger[2]), len(self.is_charging))
-
-        self.update_traffic()
 
     # Reset all states
     def reset(self):

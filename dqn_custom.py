@@ -9,6 +9,7 @@ from collections import deque
 from pathfinding import *
 import time
 from MatrixEnvironment import simulate_matrix_env, visualize_simulation, visualize_stats
+from pathfinding import haversine
 
 # Define the QNetwork architecture
 class QNetwork(nn.Module):
@@ -82,7 +83,8 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
     optimizer.step()  # Update weights
 
 def train_dqn(
-    environment,
+    chargers,
+    routes,
     date,
     global_weights,
     aggregation_num,
@@ -105,8 +107,11 @@ def train_dqn(
 ):
     avg_rewards = []
 
-    environment.tracking_baseline = False
-    q_network, target_q_network = initialize(state_dim, action_dim, layers)  # Initialize networks
+    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
+
+    state_dimension = unique_chargers.shape[0] * 2 + 3
+
+    q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -133,23 +138,28 @@ def train_dqn(
 
     for i in range(num_episodes):  # For each episode
 
-        environment.reset()  # Reset environment
-
         paths = []
         distributions = []
         distributions_unmodified = []
         states = []
-        traffic = {}
+        traffic = np.zeros(shape=unique_chargers.shape[0])
 
         time_start_paths = time.time()
 
         for j in range(num_of_agents): # For each agent
 
+            # Get distances from origin to each charging station
+            org_lat, org_long, dest_lat, dest_long = routes[j]
+            dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in unique_chargers])
+            route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
+
             ########### GENERATE AGENT OUTPUT ###########
 
             t1 = time.time()
 
-            state = environment.state[j]
+            # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
+            state = np.hstack((np.vstack((traffic, dists)).reshape(-1), np.array([unique_chargers.shape[0]]), np.array([route_dist]), np.array([num_of_agents])))
+
             states.append(state)
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
