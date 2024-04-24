@@ -96,6 +96,9 @@ def train_rl_vrp_csp(thread_num, date):
         elapsed_time = time.time() - start_time
         ev_info = np.vstack((starting_charge, max_charge, usage_per_min))
 
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+
         print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         start_time = time.time()
@@ -105,6 +108,10 @@ def train_rl_vrp_csp(thread_num, date):
             all_routes[index] = [get_org_dest_coords((city_lat, city_long), radius, seeds + i + index) for i in range(num_of_agents)]
 
         elapsed_time = time.time() - start_time
+
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+
         print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         start_time = time.time()
@@ -119,6 +126,9 @@ def train_rl_vrp_csp(thread_num, date):
                 chargers[route_id][agent_id] = charger_list
 
         elapsed_time = time.time() - start_time
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         user_input = ""
@@ -133,6 +143,9 @@ def train_rl_vrp_csp(thread_num, date):
 
                 state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
                 action_dimension = num_of_chargers * 3      # attributes for each station
+
+                with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                    print(f"Training using Deep-Q Learning - Session {session}", file)
 
                 print(f"Training using Deep-Q Learning - Session {session}")
 
