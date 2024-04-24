@@ -30,17 +30,9 @@ class QNetwork(nn.Module):
 
     def forward(self, state):
         x = state
-        for layer, batch_norm in zip(self.layers, self.batch_norms):
-            x = layer(x)
-            x = batch_norm(x)  # Apply batch normalization
-            x = torch.relu(x)
-        return torch.sigmoid(self.output(x))
-
-    def forward(self, state):
-        x = state
         for i in range(len(self.layers) - 1):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return self.layers[-1](x) # Output layer
+        return self.output(x) # Output layer
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -100,8 +92,6 @@ def train_dqn(
     num_episodes,
     batch_size,
     buffer_limit,
-    state_dim,
-    action_dim,
     num_of_agents,
     load_saved=False,
     layers=[64, 128, 1024, 128, 64],
@@ -112,8 +102,9 @@ def train_dqn(
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
     state_dimension = unique_chargers.shape[0] * 2 + 3
+    action_dimension = unique_chargers.shape[0]
 
-    q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
+    q_network, target_q_network = initialize(state_dimension, action_dimension, layers)  # Initialize networks
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -193,7 +184,7 @@ def train_dqn(
 
             ########### REDEFINE WEIGHTS IN GRAPH ###########
 
-            for v in range(len(graph) - 2):
+            for v in range(len(distribution)):
                 # Get multipliers from neural network
                 if fixed_attributes is None:
                     traffic_mult = 1 - distribution[v]

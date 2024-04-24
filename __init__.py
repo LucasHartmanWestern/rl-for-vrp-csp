@@ -33,8 +33,8 @@ def train_rl_vrp_csp(thread_num, date):
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 500 # Num of cars in simulation
-    num_of_chargers = 10 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_agents = 25 # Num of cars in simulation
+    num_of_chargers = 1 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
 
@@ -61,9 +61,9 @@ def train_rl_vrp_csp(thread_num, date):
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards
     epsilon_decay = 0.99 # Rate of decrease for training noise
-    batch_size = 75 * num_of_agents # Amount of experiences to use when training
+    batch_size = num_of_agents # Amount of experiences to use when training
     max_num_timesteps = 300 # Max amount of minutes per agent episode
-    buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
+    buffer_limit = batch_size # Start training after this many experiences are accumulated
     layers = [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
 
     ############ HPP Settings ############
@@ -141,9 +141,6 @@ def train_rl_vrp_csp(thread_num, date):
                     start_from_previous_session = True
                     epsilon = 0.1
 
-                state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-                action_dimension = num_of_chargers * 3      # attributes for each station
-
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
                     print(f"Training using Deep-Q Learning - Session {session}", file=file)
 
@@ -171,9 +168,8 @@ def train_rl_vrp_csp(thread_num, date):
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
                             charger_list, ev_info, all_routes[ind], date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
-                            discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
-                            action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
-                            local_weights_list, process_rewards, process_output_values, barrier))
+                            discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, start_from_previous_session, layers,
+                            fixed_attributes, local_weights_list, process_rewards, process_output_values, barrier))
                         processes.append(process)
                         process.start()
 
@@ -257,14 +253,13 @@ def train_rl_vrp_csp(thread_num, date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, ev_info, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+def train_route(chargers, ev_info, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
         local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                                  batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
-                                  start_from_previous_session, layers, fixed_attributes)
+                                  batch_size, buffer_limit, num_of_agents, start_from_previous_session, layers, fixed_attributes)
 
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
