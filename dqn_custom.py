@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import copy
 from collections import namedtuple
 import random
 import os
@@ -84,7 +85,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
 def train_dqn(
     chargers,
-    starting_charge,
+    ev_info,
     routes,
     date,
     global_weights,
@@ -140,6 +141,7 @@ def train_dqn(
     for i in range(num_episodes):  # For each episode
 
         paths = []
+        charges_needed = []
         distributions = []
         distributions_unmodified = []
         states = []
@@ -147,6 +149,7 @@ def train_dqn(
 
         time_start_paths = time.time()
 
+        # Build path for each EV
         for j in range(num_of_agents): # For each agent
 
             # Get distances from origin to each charging station
@@ -183,65 +186,41 @@ def train_dqn(
             ########### GENERATE GRAPH ###########
 
             # Build graph of possible paths from chargers to each other, the origin, and destination
-            verts, edges = build_graph(starting_charge, unique_chargers, org_lat, org_long, dest_lat, dest_long)
-
-            base_edges = copy.deepcopy(edges)
+            graph = build_graph(j, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long)
+            charges_needed.append(copy.deepcopy(graph))
 
             t4 = time.time()
 
             ########### REDEFINE WEIGHTS IN GRAPH ###########
 
-            for v in range(len(verts)):
-                if verts[v] == 'origin': # Ignore origin and destination
-                    continue
-
-                if verts[v] == 'destination':
-                    # Update edge weights such that the traffic and distance are given appropriate impact ratings
-                    for edge in edges:
-                        if 'destination' in edges[edge]:
-                            edges[edge][verts[v]] = 0
-                    continue
-
+            for v in range(len(graph) - 2):
+                # Get multipliers from neural network
                 if fixed_attributes is None:
-                    traffic_mult = 1 - distribution[v - 2]
-                    distance_mult = distribution[v - 2]
+                    traffic_mult = 1 - distribution[v]
+                    distance_mult = distribution[v]
                 else:
                     traffic_mult = fixed_attributes[0]
                     distance_mult = fixed_attributes[1]
 
-                traffic_level = 0
-                charger_id = environment.charger_coords[j][verts[v] - 1][0]
-                if charger_id in traffic:
-                    traffic_level = traffic[charger_id]
+                # Distance * distance_mult + Traffic * traffic_mult
+                graph[:, v] = graph[:, v] * distance_mult + traffic[v] * traffic_mult
 
-                # Update edge weights such that the traffic and distance are given appropriate impact ratings
-                for edge in edges:
-                    if verts[v] in edges[edge]:
-                        edges[edge][verts[v]] = distance_mult * edges[edge][verts[v]] + traffic_mult * traffic_level
+            # Set last column to zero so long as it's not infinity for every row except the last 2
+            mask = (graph[:-2, -1] != np.inf)
+            graph[:-2, -1][mask] = 0
 
             t5 = time.time()
 
             ########### SOLVE WEIGHTED GRAPH ###########
 
-            dist, previous = dijkstra((verts, edges), 'origin')
-
-            t6 = time.time()
-
-            ########### GENERATE PATH ###########
-
-            path = build_path(environment, base_edges, dist, previous)
+            path = dijkstra(graph)
             paths.append(path)
 
             t7 = time.time()
 
             ########### UPDATE TRAFFIC ###########
             for step in path:
-                if step[0] != 'destination':
-                    charger_id = environment.charger_coords[j][step[0] - 1][0]
-                    if charger_id in traffic:
-                        traffic[charger_id] += 1
-                    else:
-                        traffic[charger_id] = 1  # Initialize this charger id with a count of 1
+                traffic[step] += 1
 
             t8 = time.time()
 
@@ -250,11 +229,8 @@ def train_dqn(
                 print(f"Get distributions - {int((t3 - t2) // 3600)}h, {int(((t3 - t2) % 3600) // 60)}m, {int((t3 - t2) % 60)}s, {int(((t3 - t2) % 1) * 1000)}ms")
                 print(f"Build graph - {int((t4 - t3) // 3600)}h, {int(((t4 - t3) % 3600) // 60)}m, {int((t4 - t3) % 60)}s, {int(((t4 - t3) % 1) * 1000)}ms")
                 print(f"Redefine weights - {int((t5 - t4) // 3600)}h, {int(((t5 - t4) % 3600) // 60)}m, {int((t5 - t4) % 60)}s, {int(((t5 - t4) % 1) * 1000)}ms")
-                print(f"Solve graph - {int((t6 - t5) // 3600)}h, {int(((t6 - t5) % 3600) // 60)}m, {int((t6 - t5) % 60)}s, {int(((t6 - t5) % 1) * 1000)}ms")
-                print(f"Build path - {int((t7 - t6) // 3600)}h, {int(((t7 - t6) % 3600) // 60)}m, {int((t7 - t6) % 60)}s, {int(((t7 - t6) % 1) * 1000)}ms")
+                print(f"Solve graph and build path - {int((t7 - t5) // 3600)}h, {int(((t7 - t5) % 3600) // 60)}m, {int((t7 - t5) % 60)}s, {int(((t7 - t5) % 1) * 1000)}ms")
                 print(f"Update traffic - {int((t8 - t7) // 3600)}h, {int(((t8 - t7) % 3600) // 60)}m, {int((t8 - t7) % 60)}s, {int(((t8 - t7) % 1) * 1000)}ms")
-
-
 
         if num_episodes == 1 and fixed_attributes is None:
             if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):
@@ -272,7 +248,7 @@ def train_dqn(
 
         ########### GET REWARD ###########
 
-        rewards = simulate(environment, paths)
+        rewards = simulate(paths, routes, ev_info, unique_chargers, charges_needed)
 
         ########### STORE EXPERIENCES ###########
 
@@ -334,10 +310,12 @@ def train_dqn(
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
     return (q_network.state_dict(), avg_rewards, avg_output_values)
 
-def simulate(environment, paths):
+def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed):
+
+    usage_per_hour_list = ev_info[2] # 15600
 
     # Parameters to tweak
-    decrease_rate = 15600 / 60
+    decrease_rate = usage_per_hour_list[0] / 60
     increase_rate = 12500 / 60
     step_size = 0.01 # 60km per hour / 60 minutes per hour = 1 km per minute
     max_sim_steps = 500
@@ -345,7 +323,7 @@ def simulate(environment, paths):
     t1 = time.time()
 
     # Get formatted data
-    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(environment, paths)
+    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed)
 
     el1 = time.time() - t1
     t2 = time.time()
@@ -363,32 +341,45 @@ def simulate(environment, paths):
 
     return simulation_reward
 
-def format_data(environment, paths):
+def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed):
 
-    tokens = np.array([environment.org_lat, environment.org_long]).T
-    destinations = np.array([environment.dest_lat, environment.dest_long]).T
+    starting_battery_level = ev_info[0]  # 5000-7000
+
+    tokens = np.array([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
+
+    destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
 
     capacity = np.ones(destinations.shape[0]) * 10
 
-    stops = np.zeros((destinations.shape[0], max(len(path) for path in paths)))
+    stops = np.zeros((destinations.shape[0], max(len(path) for path in paths) + 1))
     target_battery_level = np.zeros_like(stops)
 
-    counter = destinations.shape[0] + 1
-
     charging_stations = []
-
-    starting_battery_level = [environment.cur_soc[environment.agent_list[i]] for i, _ in enumerate(paths)]
+    station_ids = []
 
     for agent_index, path in enumerate(paths):
-        for step_index, step in enumerate(path):
-            if step[0] == 'destination':
+        prev_step = charge_needed[agent_index].shape[0] - 2
+
+        for step_index in range(len(stops[agent_index])):
+            if step_index == len(stops[agent_index]) - 1: # Go to final destination
                 stops[agent_index][step_index] = agent_index + 1
-            else:
-                stop = [environment.charger_coords[environment.agent_list[agent_index]][step[0] - 1][1], environment.charger_coords[environment.agent_list[agent_index]][step[0] - 1][2]]
+                target_battery_level[agent_index][step_index] = charge_needed[agent_index][prev_step][-1]
+            else: # Go to stop
+
+                # Check if charger already exists in list
+                charger_id = unique_chargers[path[step_index]][0]
+                try:
+                    station_index = station_ids.index(charger_id)
+                    station_index = station_index + destinations.shape[0] + 1
+                except ValueError: # Station not in list so create new station
+                    station_ids.append(charger_id)
+                    station_index = len(station_ids) + destinations.shape[0]
+
+                stop = [unique_chargers[path[step_index]][1], unique_chargers[path[step_index]][2]] # Lat and long of charging station
                 charging_stations.append(stop)
-                stops[agent_index][step_index] = counter
-                counter += 1
-            target_battery_level[agent_index][step_index] = step[1]
+                stops[agent_index][step_index] = station_index
+                target_battery_level[agent_index][step_index] = charge_needed[agent_index][prev_step][path[step_index]]
+                prev_step = path[step_index]
 
     destinations = np.vstack((destinations, np.array(charging_stations)))
 

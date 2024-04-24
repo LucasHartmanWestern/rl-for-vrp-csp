@@ -1,5 +1,5 @@
 from dqn_custom import train_dqn
-from ev_simulation_environment import EVSimEnvironment, get_charger_data, get_charger_list
+from ev_simulation_environment import get_charger_data, get_charger_list
 from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
 from training_visualizer import Simulation
@@ -33,31 +33,30 @@ def train_rl_vrp_csp(thread_num, date):
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 25 # Num of cars in simulation
-    num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_agents = 500 # Num of cars in simulation
+    num_of_chargers = 10 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
-    max_charge = 100000 # 100kW
 
     # Coordinates of city regions in London
     coords = [(43.02120034946083, -81.28349087468504), # North London
-              # (43.004969336049854, -81.18631870502043), # East London
-              # (42.95923445066671, -81.26016049362336), # South London
-              # (42.98111190139387, -81.30953935839466), # West London
-              # (42.9819404397449, -81.2508736429095) # Central London
+              (43.004969336049854, -81.18631870502043), # East London
+              (42.95923445066671, -81.26016049362336), # South London
+              (42.98111190139387, -81.30953935839466), # West London
+              (42.9819404397449, -81.2508736429095) # Central London
     ]
 
     radius = 20 # Max radius of the circle containing the entire trip
-    starting_charge = [6000 for agent in range(num_of_agents)] # 6kw starting charge
-    usage_per_min = [15600 for agent in range(num_of_agents)] # Average usage per hour of Tesla
-
+    starting_charge = np.array([6000 for agent in range(num_of_agents)]) # 6kw starting charge
+    usage_per_min = np.array([15600 for agent in range(num_of_agents)]) # Average usage per hour of Tesla
+    max_charge = np.array([100000 for agent in range(num_of_agents)]) # 100kW
 
     ############ Hyperparameters ############
 
     aggregation_count = 5 # Amount of aggregation steps for federated learning
 
     num_training_sesssions = 1 # Depreciated
-    num_episodes = 25 # Amount of training episodes per session
+    num_episodes = 500 # Amount of training episodes per session
     learning_rate = 0.0001 # Rate of change for model parameters
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards
@@ -95,7 +94,9 @@ def train_rl_vrp_csp(thread_num, date):
             else:
                 starting_charge[agent] += 1000 * random.randrange(-1, 1)
         elapsed_time = time.time() - start_time
-        print(f"Get Starting Battery: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+        ev_info = np.vstack((starting_charge, max_charge, usage_per_min))
+
+        print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         start_time = time.time()
 
@@ -156,7 +157,7 @@ def train_rl_vrp_csp(thread_num, date):
                     processes = []
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
-                            charger_list, starting_charge, all_routes[ind], date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
+                            charger_list, ev_info, all_routes[ind], date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
                             discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
                             action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
                             local_weights_list, process_rewards, process_output_values, barrier))
@@ -243,12 +244,12 @@ def train_rl_vrp_csp(thread_num, date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, starting_charge, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+def train_route(chargers, ev_info, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, starting_charge, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+        local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                                   batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
                                   start_from_previous_session, layers, fixed_attributes)
 
