@@ -80,6 +80,7 @@ def train_dqn(
     ev_info,
     routes,
     date,
+    action_dim,
     global_weights,
     aggregation_num,
     route_index,
@@ -102,9 +103,8 @@ def train_dqn(
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
     state_dimension = unique_chargers.shape[0] * 2 + 3
-    action_dimension = unique_chargers.shape[0]
 
-    q_network, target_q_network = initialize(state_dimension, action_dimension, layers)  # Initialize networks
+    q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -184,7 +184,7 @@ def train_dqn(
 
             ########### REDEFINE WEIGHTS IN GRAPH ###########
 
-            for v in range(len(distribution)):
+            for v in range(graph.shape[0] - 2):
                 # Get multipliers from neural network
                 if fixed_attributes is None:
                     traffic_mult = 1 - distribution[v]
