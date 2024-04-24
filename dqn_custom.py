@@ -253,7 +253,11 @@ def train_dqn(
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
             et = time.time() - st
-            # print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
+
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
+
+            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold

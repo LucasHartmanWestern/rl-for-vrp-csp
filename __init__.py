@@ -33,8 +33,8 @@ def train_rl_vrp_csp(thread_num, date):
     ############ Environment Settings ############
 
     seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 25 # Num of cars in simulation
-    num_of_chargers = 1 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_agents = 250 # Num of cars in simulation
+    num_of_chargers = 10 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make = 0 # Not currently used
     model = 0 # Not currently used
 
@@ -61,9 +61,9 @@ def train_rl_vrp_csp(thread_num, date):
     epsilon = 1 # Introduce noise during training
     discount_factor = 0.9999 # Present value of future rewards
     epsilon_decay = 0.99 # Rate of decrease for training noise
-    batch_size = num_of_agents # Amount of experiences to use when training
+    batch_size = 75 * num_of_agents # Amount of experiences to use when training
     max_num_timesteps = 300 # Max amount of minutes per agent episode
-    buffer_limit = batch_size # Start training after this many experiences are accumulated
+    buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
     layers = [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
 
     ############ HPP Settings ############
