@@ -49,6 +49,8 @@ def train_rl_vrp_csp(thread_num, date):
 
     radius = 20 # Max radius of the circle containing the entire trip
     starting_charge = [6000 for agent in range(num_of_agents)] # 6kw starting charge
+    usage_per_min = [15600 for agent in range(num_of_agents)] # Average usage per hour of Tesla
+
 
     ############ Hyperparameters ############
 
@@ -142,19 +144,19 @@ def train_rl_vrp_csp(thread_num, date):
                     print("Get Manager")
 
                     manager = mp.Manager()
-                    local_weights_list = manager.list([None for _ in range(len(envs))])
+                    local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
 
                     # Barrier for synchronization
-                    barrier = mp.Barrier(len(envs))
+                    barrier = mp.Barrier(len(chargers))
 
                     print("Get Processes")
 
                     processes = []
-                    for ind, env in enumerate(envs):
+                    for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
-                            env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
+                            charger_list, starting_charge, all_routes[ind], date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
                             discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
                             action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
                             local_weights_list, process_rewards, process_output_values, barrier))
@@ -241,12 +243,12 @@ def train_rl_vrp_csp(thread_num, date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+def train_route(chargers, starting_charge, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+        local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, starting_charge, routes, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                                   batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
                                   start_from_previous_session, layers, fixed_attributes)
 

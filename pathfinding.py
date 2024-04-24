@@ -32,7 +32,7 @@ def build_path(environment, edges, dist, previous):
 
     return path
 
-def build_graph(env, agent_index):
+def build_graph(starting_charge, unique_chargers, org_lat, org_long, dest_lat, dest_long):
 
     # Usage rates
     usage_per_min = env.ev_info() / 60

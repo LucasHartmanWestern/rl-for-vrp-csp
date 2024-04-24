@@ -84,6 +84,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
 def train_dqn(
     chargers,
+    starting_charge,
     routes,
     date,
     global_weights,
@@ -182,7 +183,7 @@ def train_dqn(
             ########### GENERATE GRAPH ###########
 
             # Build graph of possible paths from chargers to each other, the origin, and destination
-            verts, edges = build_graph(environment, j)
+            verts, edges = build_graph(starting_charge, unique_chargers, org_lat, org_long, dest_lat, dest_long)
 
             base_edges = copy.deepcopy(edges)
 
