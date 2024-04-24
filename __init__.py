@@ -97,7 +97,7 @@ def train_rl_vrp_csp(thread_num, date):
         ev_info = np.vstack((starting_charge, max_charge, usage_per_min))
 
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+            print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
         print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
@@ -110,7 +110,7 @@ def train_rl_vrp_csp(thread_num, date):
         elapsed_time = time.time() - start_time
 
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+            print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
         print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
@@ -127,7 +127,7 @@ def train_rl_vrp_csp(thread_num, date):
 
         elapsed_time = time.time() - start_time
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file)
+            print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
@@ -145,7 +145,7 @@ def train_rl_vrp_csp(thread_num, date):
                 action_dimension = num_of_chargers * 3      # attributes for each station
 
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"Training using Deep-Q Learning - Session {session}", file)
+                    print(f"Training using Deep-Q Learning - Session {session}", file=file)
 
                 print(f"Training using Deep-Q Learning - Session {session}")
 
