@@ -177,7 +177,7 @@ def address_to_coordinates(address):
     location = geolocator.geocode(address)
     return (location.latitude, location.longitude)
 
-def get_closest_chargers(current_lat, current_long, return_num, charger_list):
+def get_closest_chargers(current_lat, current_long, return_num, charger_list, existing_list=None):
     """Returns a list of chargering stations which are closest to the current coordinates
 
     Args:
@@ -202,10 +202,26 @@ def get_closest_chargers(current_lat, current_long, return_num, charger_list):
 
     # Get the closest charging stations up to the desired return_num
     closest_chargers = []
-    for i in range(min(return_num, len(distances_and_times))):
-        charger_id = distances_and_times[i][0]
-        charger_lat = charger_list[charger_id][1]
-        charger_long = charger_list[charger_id][2]
-        closest_chargers.append((charger_id, charger_lat, charger_long))
+
+    if existing_list is None:
+        for i in range(min(return_num, len(distances_and_times))):
+            charger_id = distances_and_times[i][0]
+            charger_lat = charger_list[charger_id][1]
+            charger_long = charger_list[charger_id][2]
+            closest_chargers.append((charger_id, charger_lat, charger_long))
+
+    else: # Need more chargers because there was duplicates
+        counter = 0
+        i = return_num - 1
+        while counter + len(existing_list) < return_num * 3:
+            i += 1
+            charger_id = distances_and_times[i][0]
+            charger_lat = charger_list[charger_id][1]
+            charger_long = charger_list[charger_id][2]
+            if (charger_id, charger_lat, charger_long) in existing_list:
+                continue
+            else:
+                closest_chargers.append((charger_id, charger_lat, charger_long))
+                counter += 1
 
     return closest_chargers

@@ -46,8 +46,15 @@ def get_charger_list(chargers, org_lat, org_long, dest_lat, dest_long, num_of_ch
     dest_chargers = get_closest_chargers(dest_lat, dest_long, num_of_chargers, list_of_chargers)
     midway_chargers = get_closest_chargers(midway_lat, midway_long, num_of_chargers, list_of_chargers)
 
+    # Combine list
+    combined_list = org_chargers + dest_chargers + midway_chargers
+
+    # Remove duplicates and pad list so that there's always num_of_chargers * 3
+    unique_list = list(set(combined_list))
+    padding_chargers = get_closest_chargers(midway_lat, midway_long, num_of_chargers, list_of_chargers, unique_list)
+
     # Combine and append lists
-    return org_chargers + dest_chargers + midway_chargers
+    return unique_list + padding_chargers
 
 class EVSimEnvironment:
     def __init__(

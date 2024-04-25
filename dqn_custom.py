@@ -94,6 +94,7 @@ def train_dqn(
     batch_size,
     buffer_limit,
     num_of_agents,
+    num_of_charges,
     load_saved=False,
     layers=[64, 128, 1024, 128, 64],
     fixed_attributes=None
@@ -102,7 +103,7 @@ def train_dqn(
 
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = unique_chargers.shape[0] * 2 + 3
+    state_dimension = (num_of_charges * 3 * 2) + 3
 
     q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
@@ -133,19 +134,26 @@ def train_dqn(
 
         paths = []
         charges_needed = []
+        local_paths = []
         distributions = []
         distributions_unmodified = []
         states = []
-        traffic = np.zeros(shape=unique_chargers.shape[0])
+        traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
+
+        traffic[:, 0] = unique_chargers['id']
 
         time_start_paths = time.time()
 
         # Build path for each EV
         for j in range(num_of_agents): # For each agent
 
+            agents_chargers = chargers[j, :, 0]
+            agents_unique_chargers = [charger for charger in unique_chargers if charger[0] in agents_chargers]
+            agents_unique_traffic = np.array([[t[0], t[1]] for t in traffic if t[0] in agents_chargers])
+
             # Get distances from origin to each charging station
             org_lat, org_long, dest_lat, dest_long = routes[j]
-            dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in unique_chargers])
+            dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agents_unique_chargers])
             route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
             ########### GENERATE AGENT OUTPUT ###########
@@ -153,7 +161,7 @@ def train_dqn(
             t1 = time.time()
 
             # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-            state = np.hstack((np.vstack((traffic, dists)).reshape(-1), np.array([unique_chargers.shape[0]]), np.array([route_dist]), np.array([num_of_agents])))
+            state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents])))
 
             states.append(state)
 
@@ -177,7 +185,7 @@ def train_dqn(
             ########### GENERATE GRAPH ###########
 
             # Build graph of possible paths from chargers to each other, the origin, and destination
-            graph = build_graph(j, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long)
+            graph = build_graph(j, ev_info, agents_unique_chargers, org_lat, org_long, dest_lat, dest_long)
             charges_needed.append(copy.deepcopy(graph))
 
             t4 = time.time()
@@ -194,7 +202,7 @@ def train_dqn(
                     distance_mult = fixed_attributes[1]
 
                 # Distance * distance_mult + Traffic * traffic_mult
-                graph[:, v] = graph[:, v] * distance_mult + traffic[v] * traffic_mult
+                graph[:, v] = graph[:, v] * distance_mult + agents_unique_traffic[v, 1] * traffic_mult
 
             # Set last column to zero so long as it's not infinity for every row except the last 2
             mask = (graph[:-2, -1] != np.inf)
@@ -205,13 +213,20 @@ def train_dqn(
             ########### SOLVE WEIGHTED GRAPH ###########
 
             path = dijkstra(graph)
-            paths.append(path)
+
+            local_paths.append(copy.deepcopy(path))
+
+            # Get stop ids from global list instead of only local to agent
+            stop_ids = np.array([agents_unique_traffic[step, 0] for step in path])
+            global_paths = np.where(np.isin(traffic[:, 0], stop_ids))[0]
+
+            paths.append(global_paths)
 
             t7 = time.time()
 
             ########### UPDATE TRAFFIC ###########
-            for step in path:
-                traffic[step] += 1
+            for step in global_paths:
+                traffic[step, 1] += 1
 
             t8 = time.time()
 
@@ -239,7 +254,7 @@ def train_dqn(
 
         ########### GET REWARD ###########
 
-        rewards = simulate(paths, routes, ev_info, unique_chargers, charges_needed)
+        rewards = simulate(paths, routes, ev_info, unique_chargers, charges_needed, local_paths)
 
         ########### STORE EXPERIENCES ###########
 
@@ -305,7 +320,7 @@ def train_dqn(
     np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
     return (q_network.state_dict(), avg_rewards, avg_output_values)
 
-def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed):
+def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
     usage_per_hour_list = ev_info[2] # 15600
 
@@ -318,7 +333,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed):
     t1 = time.time()
 
     # Get formatted data
-    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed)
+    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths)
 
     el1 = time.time() - t1
     t2 = time.time()
@@ -336,7 +351,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed):
 
     return simulation_reward
 
-def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed):
+def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
     starting_battery_level = ev_info[0]  # 5000-7000
 
@@ -353,12 +368,14 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed):
     station_ids = []
 
     for agent_index, path in enumerate(paths):
+
         prev_step = charge_needed[agent_index].shape[0] - 2
 
         for step_index in range(len(stops[agent_index])):
+
             if step_index == len(stops[agent_index]) - 1: # Go to final destination
                 stops[agent_index][step_index] = agent_index + 1
-                target_battery_level[agent_index][step_index] = charge_needed[agent_index][prev_step][-1]
+                target_battery_level[agent_index, step_index] = charge_needed[agent_index][prev_step, -1]
             else: # Go to stop
 
                 # Check if charger already exists in list
@@ -373,8 +390,9 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed):
                 stop = [unique_chargers[path[step_index]][1], unique_chargers[path[step_index]][2]] # Lat and long of charging station
                 charging_stations.append(stop)
                 stops[agent_index][step_index] = station_index
-                target_battery_level[agent_index][step_index] = charge_needed[agent_index][prev_step][path[step_index]]
-                prev_step = path[step_index]
+
+                target_battery_level[agent_index][step_index] = charge_needed[agent_index][prev_step][local_paths[agent_index][step_index]]
+                prev_step = local_paths[step_index]
 
     destinations = np.vstack((destinations, np.array(charging_stations)))
 
