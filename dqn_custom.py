@@ -89,20 +89,22 @@ def train_dqn(
     route_index,
     seed,
     thread_num,
-    epsilon,
-    epsilon_decay,
-    discount_factor,
-    learning_rate,
-    num_episodes,
-    batch_size,
-    buffer_limit,
+    nn_c,
     state_dim,
     action_dim,
     num_of_agents,
     load_saved=False,
-    layers=[64, 128, 1024, 128, 64],
     fixed_attributes=None
 ):
+    epsilon = nn_c['epsilon']
+    epsilon_decay  = nn_c['epsilon_decay']
+    discount_factor= nn_c['discount_factor']
+    learning_rate  = nn_c['learning_rate']
+    num_episodes   = nn_c['num_episodes']
+    batch_size     = nn_c['batch_size']*num_of_agents
+    buffer_limit   = int(batch_size)
+    layers         = nn_c['layers']
+
     avg_rewards = []
 
     environment.tracking_baseline = False
@@ -191,7 +193,7 @@ def train_dqn(
                             edges[edge][verts[v]] = 0
                     continue
 
-                if fixed_attributes is None:
+                if not fixed_attributes:
                     traffic_mult = 1 - distribution[v - 2]
                     distance_mult = distribution[v - 2]
                 else:

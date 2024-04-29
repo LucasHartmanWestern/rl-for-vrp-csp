@@ -3,6 +3,7 @@ from ev_simulation_environment import EVSimEnvironment
 from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
 from training_visualizer import Simulation
+from _helpers import load_config_file as load_config
 import random
 import os
 import time
@@ -16,10 +17,6 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(thread_num, date):
-    ############ Algorithm ############
-
-    algorithm = "DQN" # Currently the only option working
-
     ############ Configuration ############
 
     train_model = True # Set to false for model evaluation
@@ -29,66 +26,33 @@ def train_rl_vrp_csp(thread_num, date):
     save_aggregate_rewards = True # Set to true if you want to save the rewards across aggregations
     continue_training = False # Set to true if you want the option to continue training after a full training loop completes
 
-    ############ Environment Settings ############
-
-    seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 75 # Num of cars in simulation
-    num_of_chargers = 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
-    make = 0 # Not currently used
-    model = 0 # Not currently used
-    max_charge = 100000 # 100kW
-
-    # Coordinates of city regions in London
-    coords = [(43.02120034946083, -81.28349087468504), # North London
-              (43.004969336049854, -81.18631870502043), # East London
-              (42.95923445066671, -81.26016049362336), # South London
-              (42.98111190139387, -81.30953935839466), # West London
-              (42.9819404397449, -81.2508736429095) # Central London
-    ]
-
-    radius = 20 # Max radius of the circle containing the entire trip
-    starting_charge = [6000 for agent in range(num_of_agents)] # 6kw starting charge
-
-    ############ Hyperparameters ############
-
-    aggregation_count = 5 # Amount of aggregation steps for federated learning
-
-    num_training_sesssions = 1 # Depreciated
-    num_episodes = 25 # Amount of training episodes per session
-    learning_rate = 0.0001 # Rate of change for model parameters
-    epsilon = 1 # Introduce noise during training
-    discount_factor = 0.9999 # Present value of future rewards
-    epsilon_decay = 0.99 # Rate of decrease for training noise
-    batch_size = 75 * num_of_agents # Amount of experiences to use when training
-    max_num_timesteps = 300 # Max amount of minutes per agent episode
-    buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
-    layers = [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
-
-    ############ HPP Settings ############
-
-    # Determine if agent or baseline is used
-    # fixed_attributes = [0.5, 0.5] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
-    fixed_attributes = None # Determine impact ratings through training
 
     ############ Initialization ############
-
+    config_fname = 'configs/nnParameters.yaml'
+    c = load_config(config_fname)
+    env_c = c['environment_settings']
+    nn_c  = c['nn_hyperparameters']
+    hpp_c = c['hpp_config']
+    
+    seeds = env_c['seeds'] * thread_num
+    starting_charge = [env_c['starting_charge'] for agent in range(env_c['num_of_agents'])]
     # Run multiple training sessions with differing origins and destinations
-    for session in range(num_training_sesssions):
+    for session in range(nn_c['num_training_sesssions']):
 
         seeds += session
 
         if session != 0 and train_model:
             start_from_previous_session = True # Always continue from previous training session when running back-to-back sessions
 
-        if radius is None:
-            radius = ((1 / (num_training_sesssions / 14)) * session) + 1
+        if env_c['radius'] is None:
+            env_c['radius'] = ((1 / (nn_c['num_training_sesssions'] / 14)) * session) + 1
 
         start_time = time.time()
-        for agent in range(num_of_agents):
+        for agent in range(env_c['num_of_agents']):
             random.seed(seeds + agent)
             # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
             if starting_charge is None:
-                starting_charge[agent] = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
+                starting_charge[agent] = random.randrange(500, int(1000 * (((1 / (nn_c['num_training_sesssions'] / 24)) * session) + 1)), 100)
             else:
                 starting_charge[agent] += 1000 * random.randrange(-1, 1)
         elapsed_time = time.time() - start_time
@@ -96,9 +60,10 @@ def train_rl_vrp_csp(thread_num, date):
 
         start_time = time.time()
 
-        all_routes = [None for route in coords]
-        for index, (city_lat, city_long) in enumerate(coords):
-            all_routes[index] = [get_org_dest_coords((city_lat, city_long), radius, seeds + i + index) for i in range(num_of_agents)]
+        all_routes = [None for route in env_c['coords']]
+
+        for index, (city_lat, city_long) in enumerate(env_c['coords']):
+            all_routes[index] = [get_org_dest_coords((city_lat, city_long), env_c['radius'], seeds + i + index) for i in range(env_c['num_of_agents'])]
 
         elapsed_time = time.time() - start_time
         print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
@@ -107,7 +72,7 @@ def train_rl_vrp_csp(thread_num, date):
 
         envs = [None for route in all_routes]
         for index,  routes in enumerate(all_routes):
-            envs[index] = EVSimEnvironment(max_num_timesteps, num_episodes, num_of_chargers, make, model, starting_charge, max_charge, routes, seeds + index)
+            envs[index] = EVSimEnvironment(nn_c['max_num_timesteps'], nn_c['num_episodes'], env_c['num_of_chargers'], env_c['make'], env_c['model'], starting_charge, env_c['max_charge'], routes, seeds + index)
 
         elapsed_time = time.time() - start_time
         print(f"Initialize Environment: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
@@ -118,12 +83,12 @@ def train_rl_vrp_csp(thread_num, date):
             if train_model:
 
                 if user_input != "":
-                    num_episodes = int(user_input)
+                    nn_c['num_episodes'] = int(user_input)
                     start_from_previous_session = True
-                    epsilon = 0.1
+                    nn_c['epsilon'] = 0.1
 
-                state_dimension = num_of_chargers * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-                action_dimension = num_of_chargers * 3      # attributes for each station
+                state_dimension = env_c['num_of_chargers'] * 6 + 3   # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
+                action_dimension = env_c['num_of_chargers'] * 3      # attributes for each station
 
                 print(f"Training using Deep-Q Learning - Session {session}")
 
@@ -131,7 +96,7 @@ def train_rl_vrp_csp(thread_num, date):
                 output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
                 global_weights = None
 
-                for aggregate_step in range(aggregation_count):
+                for aggregate_step in range(nn_c['aggregation_count']):
 
                     print("Get Manager")
                     
@@ -148,9 +113,8 @@ def train_rl_vrp_csp(thread_num, date):
                     processes = []
                     for ind, env in enumerate(envs):
                         process = mp.Process(target=train_route, args=(
-                            env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
-                            discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension,
-                            action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes,
+                            env, date, global_weights, aggregate_step, ind, seeds, thread_num, nn_c, env_c['num_of_agents'], state_dimension,
+                            action_dimension, start_from_previous_session, hpp_c['fixed_attributes'],
                             local_weights_list, process_rewards, process_output_values, barrier))
                         processes.append(process)
                         process.start()
@@ -185,10 +149,10 @@ def train_rl_vrp_csp(thread_num, date):
                     plot_aggregate_reward_data(loaded_rewards)
                     plot_aggregate_output_values_per_route(loaded_output_values)
 
-            if fixed_attributes != [0, 1] and fixed_attributes != [1, 0] and fixed_attributes != [0.5, 0.5]:
+            if hpp_c['fixed_attributes'] != [0, 1] and hpp_c['fixed_attributes'] != [1, 0] and hpp_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
             else:
-                attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
+                attr_label = '{}_{}'.format(fixed_attributes[0],fixed_attributes[1])
 
             if save_data:
                 # Add this before you save your model
@@ -196,20 +160,22 @@ def train_rl_vrp_csp(thread_num, date):
                     os.makedirs('outputs')
 
                 for index, env in enumerate(envs):
-                    env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+                    out_fname = '{}_{}_{}_{}_{}'.format(env_c['num_of_agents'],nn_c['num_episodes'],seeds,attr_label,index)
+                    env.write_path_to_csv(f'outputs/routes_{out_fname}.csv')
+                    env.write_chargers_to_csv(f'outputs/chargers_{out_fname}.csv')
+                    env.write_reward_graph_to_csv(f'outputs/rewards_{out_fname}.csv')
+                    env.write_charger_traffic_to_csv(f'outputs/traffic_{out_fname}.csv')
 
             if generate_plots:
                 for index, env in enumerate(envs):
-                    route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+                    out_fname = '{}_{}_{}_{}_{}'.format(env_c['num_of_agents'],nn_c['num_episodes'],seeds,attr_label,index)
+                    route_data = read_csv_data(f'outputs/routes_{out_fname}.csv')
+                    charger_data = read_csv_data(f'outputs/chargers_{out_fname}.csv')
+                    reward_data = read_csv_data(f'outputs/rewards_{out_fname}.csv')
+                    traffic_data = read_csv_data(f'outputs/traffic_{out_fname}.csv')
 
                     route_datasets = []
-                    if num_of_agents == 1:
+                    if env_c['num_of_agents'] == 1:
                         for id_value, group in route_data.groupby('Episode Num'):
                             route_datasets.append(group)
                     else:
@@ -218,29 +184,30 @@ def train_rl_vrp_csp(thread_num, date):
                                 for agent_num, agent_group in episode_group.groupby('Agent Num'):
                                     route_datasets.append(agent_group)
 
-                    if (train_model or start_from_previous_session) and num_episodes > 1:
-                        generate_average_reward_plot(algorithm, reward_data, session)
+                    if (train_model or start_from_previous_session) and nn_c['num_episodes'] > 1:
+                        generate_average_reward_plot(c['algorithm'], reward_data, session)
 
-                    if num_episodes == 1 and num_of_agents > 1:
+                    if nn_c['num_episodes'] == 1 and env_c['num_of_agents'] > 1:
                         generate_traffic_plot(traffic_data)
 
                     origins = [(route[0], route[1]) for route in all_routes[index]]
                     destinations = [(route[2], route[3]) for route in all_routes[index]]
-                    generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
+                    generate_interactive_plot(c['algorithm'], session, route_datasets, charger_data, origins, destinations)
 
-            if num_episodes != 1 and continue_training:
+            if nn_c['num_episodes'] != 1 and continue_training:
                 user_input = input("More Episodes? ")
             else:
                 user_input = 'Done'
 
-def train_route(env, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents, start_from_previous_session, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier):
+
+def train_route(env, date, global_weights, aggregate_step, ind, seeds, thread_num, nn_c, num_of_agents, state_dimension, action_dimension, start_from_previous_session, fixed_attributes, local_weights_list, rewards, output_values, barrier):
     try:
         # Create a deep copy of the environment for this thread
         env_copy = copy.deepcopy(env)
-
-        local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, date, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                                  batch_size, buffer_limit, state_dimension, action_dimension, num_of_agents,
-                                  start_from_previous_session, layers, fixed_attributes)
+        
+        local_weights, avg_rewards, avg_output_values = train_dqn(env_copy, date, global_weights, aggregate_step, ind, seeds,\
+                                                                  thread_num, nn_c, state_dimension, action_dimension, num_of_agents,\
+                                                                  start_from_previous_session, fixed_attributes)
 
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
