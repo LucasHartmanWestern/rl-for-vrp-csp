@@ -5,12 +5,12 @@
 nn_hyperparameters:
     aggregation_count: 5 # Amount of aggregation steps for federated learning
     num_training_sesssions: 1 # Depreciated
-    num_episodes: 25 # Amount of training episodes per session
+    num_episodes: 250 # Amount of training episodes per session
     learning_rate: 0.0001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.9999 # Present value of future rewards
     epsilon_decay: 0.99 # Rate of decrease for training noise
-    batch_size: 75  # Amount of experiences to use when training
+    batch_size: 75 # Amount of experiences to use when training
     max_num_timesteps: 300 # Max amount of minutes per agent episode
-    # buffer_limit: int(batch_size) # Start training after this many experiences are accumulated #changed to be implemented in code
-    layers: [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
+    layers: [512, 256, 128, 128, 128, 64, 64] # Neural network hidden layers
+    action_dim: 3

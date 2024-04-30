@@ -8,6 +8,7 @@ def aggregate_weights(local_weights_list):
     Returns:
         A state_dict representing the aggregated weights.
     """
+
     # Initialize the aggregated weights with the structure of the first model's weights
     aggregated_weights = {key: torch.zeros_like(value) for key, value in local_weights_list[0].items()}
 
