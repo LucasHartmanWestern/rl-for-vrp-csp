@@ -194,7 +194,7 @@ def train_dqn(
 
             for v in range(graph.shape[0] - 2):
                 # Get multipliers from neural network
-                if fixed_attributes is None:
+                if not fixed_attributes:
                     traffic_mult = 1 - distribution[v]
                     distance_mult = distribution[v]
                 else:

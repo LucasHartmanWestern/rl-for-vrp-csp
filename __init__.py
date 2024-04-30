@@ -3,6 +3,7 @@ from ev_simulation_environment import get_charger_data, get_charger_list
 from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
 from training_visualizer import Simulation
+from _helpers import load_config_file as load_config
 import random
 import os
 import time
@@ -30,70 +31,41 @@ def train_rl_vrp_csp(thread_num, date):
     save_aggregate_rewards = True # Set to true if you want to save the rewards across aggregations
     continue_training = False # Set to true if you want the option to continue training after a full training loop completes
 
-    ############ Environment Settings ############
-
-    seeds = 1000 * thread_num # Used for reproducibility
-    num_of_agents = 100 # Num of cars in simulation
-    num_of_chargers = 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
-    make = 0 # Not currently used
-    model = 0 # Not currently used
-
-    # Coordinates of city regions in London
-    coords = [(43.02120034946083, -81.28349087468504), # North London
-              (43.004969336049854, -81.18631870502043), # East London
-              (42.95923445066671, -81.26016049362336), # South London
-              (42.98111190139387, -81.30953935839466), # West London
-              (42.9819404397449, -81.2508736429095) # Central London
-    ]
-
-    radius = 20 # Max radius of the circle containing the entire trip
-    starting_charge = np.array([6000 for agent in range(num_of_agents)]) # 6kw starting charge
-    usage_per_min = np.array([15600 for agent in range(num_of_agents)]) # Average usage per hour of Tesla
-    max_charge = np.array([100000 for agent in range(num_of_agents)]) # 100kW
-
-    ############ Hyperparameters ############
-
-    aggregation_count = 5 # Amount of aggregation steps for federated learning
-
-    action_dim = num_of_chargers * 3
-    num_training_sesssions = 1 # Depreciated
-    num_episodes = 25 # Amount of training episodes per session
-    learning_rate = 0.0001 # Rate of change for model parameters
-    epsilon = 1 # Introduce noise during training
-    discount_factor = 0.9999 # Present value of future rewards
-    epsilon_decay = 0.99 # Rate of decrease for training noise
-    batch_size = 75 * num_of_agents # Amount of experiences to use when training
-    max_num_timesteps = 300 # Max amount of minutes per agent episode
-    buffer_limit = int(batch_size) # Start training after this many experiences are accumulated
-    layers = [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
-
-    ############ HPP Settings ############
-
-    # Determine if agent or baseline is used
-    # fixed_attributes = [0.5, 0.5] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
-    fixed_attributes = None # Determine impact ratings through training
-
     ############ Initialization ############
 
+    config_fname = 'configs/nnParameters.yaml'
+    c = load_config(config_fname)
+    env_c = c['environment_settings']
+    nn_c  = c['nn_hyperparameters']
+    hpp_c = c['hpp_config']
+
+    seeds = env_c['seeds'] * thread_num
+    starting_charge = [env_c['starting_charge'] for agent in range(env_c['num_of_agents'])]
+    usage_per_min = np.array([env_c['usage_per_min'] for agent in range(env_c['num_of_agents'])])
+    max_charge = np.array([env_c['max_charge'] for agent in range(env_c['num_of_agents'])])
+
+    batch_size = int(nn_c['batch_size'] * env_c['num_of_agents'])
+    buffer_limit = int(batch_size)
+
+    action_dim = nn_c['action_dim'] * env_c['num_of_chargers']
+
     # Run multiple training sessions with differing origins and destinations
-    for session in range(num_training_sesssions):
+    for session in range(nn_c['num_training_sesssions']):
 
         seeds += session
 
         if session != 0 and train_model:
             start_from_previous_session = True # Always continue from previous training session when running back-to-back sessions
 
-        if radius is None:
-            radius = ((1 / (num_training_sesssions / 14)) * session) + 1
+        if env_c['radius'] is None:
+            env_c['radius'] = ((1 / (nn_c['num_training_sesssions'] / 14)) * session) + 1
 
         start_time = time.time()
-        for agent in range(num_of_agents):
+        for agent in range(env_c['num_of_agents']):
             random.seed(seeds + agent)
             # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
-            if starting_charge is None:
-                starting_charge[agent] = random.randrange(500, int(1000 * (((1 / (num_training_sesssions / 24)) * session) + 1)), 100)
-            else:
-                starting_charge[agent] += 1000 * random.randrange(-1, 1)
+            starting_charge[agent] += 1000 * random.randrange(-1, 1)
+
         elapsed_time = time.time() - start_time
         ev_info = np.vstack((starting_charge, max_charge, usage_per_min))
 
@@ -104,9 +76,9 @@ def train_rl_vrp_csp(thread_num, date):
 
         start_time = time.time()
 
-        all_routes = [None for route in coords]
-        for index, (city_lat, city_long) in enumerate(coords):
-            all_routes[index] = [get_org_dest_coords((city_lat, city_long), radius, seeds + i + index) for i in range(num_of_agents)]
+        all_routes = [None for route in env_c['coords']]
+        for index, (city_lat, city_long) in enumerate(env_c['coords']):
+            all_routes[index] = [get_org_dest_coords((city_lat, city_long), env_c['radius'], seeds + i + index) for i in range(env_c['num_of_agents'])]
 
         elapsed_time = time.time() - start_time
 
@@ -117,13 +89,13 @@ def train_rl_vrp_csp(thread_num, date):
 
         start_time = time.time()
 
-        chargers = np.zeros(shape=[len(all_routes), num_of_agents, num_of_chargers * 3, 3])
+        chargers = np.zeros(shape=[len(all_routes), env_c['num_of_agents'], env_c['num_of_chargers'] * 3, 3])
 
         for route_id,  route in enumerate(all_routes):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
                 data = get_charger_data()
                 charger_info = np.c_[data['latitude'].to_list(), data['longitude'].to_list()]
-                charger_list = get_charger_list(charger_info, org_lat, org_long, dest_lat, dest_long, num_of_chargers)
+                charger_list = get_charger_list(charger_info, org_lat, org_long, dest_lat, dest_long, env_c['num_of_chargers'])
                 chargers[route_id][agent_id] = charger_list
 
         elapsed_time = time.time() - start_time
@@ -138,9 +110,9 @@ def train_rl_vrp_csp(thread_num, date):
             if train_model:
 
                 if user_input != "":
-                    num_episodes = int(user_input)
+                    nn_c['num_episodes'] = int(user_input)
                     start_from_previous_session = True
-                    epsilon = 0.1
+                    nn_c['epsilon'] = 0.1
 
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
                     print(f"Training using Deep-Q Learning - Session {session}", file=file)
@@ -151,7 +123,7 @@ def train_rl_vrp_csp(thread_num, date):
                 output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
                 global_weights = None
 
-                for aggregate_step in range(aggregation_count):
+                for aggregate_step in range(nn_c['aggregation_count']):
 
                     print("Get Manager")
 
@@ -168,9 +140,11 @@ def train_rl_vrp_csp(thread_num, date):
                     processes = []
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
-                            charger_list, ev_info, all_routes[ind], date, action_dim, global_weights, aggregate_step, ind, seeds, thread_num, epsilon, epsilon_decay,
-                            discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, start_from_previous_session, layers,
-                            fixed_attributes, local_weights_list, process_rewards, process_output_values, barrier))
+                            charger_list, ev_info, all_routes[ind], date, action_dim, global_weights, aggregate_step,
+                            ind, seeds, thread_num, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
+                            nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
+                            env_c['num_of_agents'], env_c['num_of_chargers'], start_from_previous_session, nn_c['layers'],
+                            hpp_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier))
                         processes.append(process)
                         process.start()
 
@@ -204,9 +178,10 @@ def train_rl_vrp_csp(thread_num, date):
                     plot_aggregate_reward_data(loaded_rewards)
                     plot_aggregate_output_values_per_route(loaded_output_values)
 
-            if fixed_attributes != [0, 1] and fixed_attributes != [1, 0] and fixed_attributes != [0.5, 0.5]:
+            if hpp_c['fixed_attributes'] != [0, 1] and hpp_c['fixed_attributes'] != [1, 0] and hpp_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
             else:
+                fixed_attributes = hpp_c['fixed_attributes']
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
             if save_data:
@@ -223,6 +198,9 @@ def train_rl_vrp_csp(thread_num, date):
                 #     env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
 
             if generate_plots:
+                num_of_agents = env_c['num_of_agents']
+                num_episodes = nn_c['num_episodes']
+
                 for index, env in enumerate(chargers):
                     route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                     charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
@@ -230,7 +208,7 @@ def train_rl_vrp_csp(thread_num, date):
                     traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
 
                     route_datasets = []
-                    if num_of_agents == 1:
+                    if env_c['num_of_agents'] == 1:
                         for id_value, group in route_data.groupby('Episode Num'):
                             route_datasets.append(group)
                     else:
@@ -249,7 +227,7 @@ def train_rl_vrp_csp(thread_num, date):
                     destinations = [(route[2], route[3]) for route in all_routes[index]]
                     generate_interactive_plot(algorithm, session, route_datasets, charger_data, origins, destinations)
 
-            if num_episodes != 1 and continue_training:
+            if nn_c['num_episodes'] != 1 and continue_training:
                 user_input = input("More Episodes? ")
             else:
                 user_input = 'Done'

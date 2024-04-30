@@ -8,11 +8,10 @@ algorithm : DQN # Currently the only option working
 ############ Environment Settings ############
 environment_settings:
     seeds: 1000 # Used for reproducibility
-    num_of_agents: 75 # Num of cars in simulation
+    num_of_agents: 25 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make: 0 # Not currently used
     model: 0 # Not currently used
-    max_charge: 100000 # 100kW
 
     # Coordinates of city regions in London
     coords: 
@@ -24,20 +23,8 @@ environment_settings:
     
     radius: 20 # Max radius of the circle containing the entire trip
     starting_charge: 6000 # 6kw starting charge
-
-############ Hyperparameters ############
-# nn_hyperparameters:
-#     aggregation_count: 5 # Amount of aggregation steps for federated learning
-#     num_training_sesssions: 1 # Depreciated
-#     num_episodes: 25 # Amount of training episodes per session
-#     learning_rate: 0.0001 # Rate of change for model parameters
-#     epsilon: 1 # Introduce noise during training
-#     discount_factor: 0.9999 # Present value of future rewards
-#     epsilon_decay: 0.99 # Rate of decrease for training noise
-#     batch_size: 75 * num_of_agents # Amount of experiences to use when training
-#     max_num_timesteps: 300 # Max amount of minutes per agent episode
-#     buffer_limit: int(batch_size) # Start training after this many experiences are accumulated
-#     layers: [512, 256, 128, 128, 128, 64, 64, 64, 64] # Neural network hidden layers
+    usage_per_min: 15600 # Average usage per hour of Tesla
+    max_charge: 100000 # 100kW
 
 ############ HPP Settings ############
 hpp_config:
