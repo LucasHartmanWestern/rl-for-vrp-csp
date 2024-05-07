@@ -1,5 +1,6 @@
 import math
 import random
+import numpy as np
 
 from geopy.geocoders import Nominatim
 from geopy import Point
@@ -104,35 +105,63 @@ def move_towards(origin, destination, travel_time):
 
     return round(new_location.latitude, 4), round(new_location.longitude, 4)
 
-def get_org_dest_coords(center, radius, seed=None):
+# def get_org_dest_coords_old_v(center, radius, seed=None):
+#     lat, long = center
+#     km_in_degrees = radius / 111.11  # Approximation of km to degrees
+
+#     # Setting the seed
+#     if seed is not None:
+#         random.seed(seed)
+
+#     # Random angle in radians for origin point
+#     org_angle = random.uniform(0, 2 * math.pi)
+#     print(f'HERE org_angle: {org_angle}')
+
+#     # Radius for origin point equals to the maximum radius
+#     org_radius = km_in_degrees
+
+#     # Calculate coordinates of origin point on the circle's circumference
+#     org_lat = lat + org_radius * math.sin(org_angle)
+#     org_long = long + org_radius * math.cos(org_angle)
+
+#     # Angle in radians for destination point
+#     dest_angle = (org_angle + math.pi) % (2 * math.pi)  # add π radians (180 degrees) to get the opposite point
+
+#     # Radius for destination point equals to the maximum radius
+#     dest_radius = km_in_degrees
+
+#     # Calculate coordinates of destination point on the circle's circumference
+#     dest_lat = lat + dest_radius * math.sin(dest_angle)
+#     dest_long = long + dest_radius * math.cos(dest_angle)
+
+#     return round(org_lat, 4), round(org_long, 4), round(dest_lat, 4), round(dest_long, 4)
+
+def get_org_dest_coords(center, radius, org_angle):
     lat, long = center
     km_in_degrees = radius / 111.11  # Approximation of km to degrees
-
-    # Setting the seed
-    if seed is not None:
-        random.seed(seed)
-
-    # Random angle in radians for origin point
-    org_angle = random.uniform(0, 2 * math.pi)
 
     # Radius for origin point equals to the maximum radius
     org_radius = km_in_degrees
 
     # Calculate coordinates of origin point on the circle's circumference
-    org_lat = lat + org_radius * math.sin(org_angle)
-    org_long = long + org_radius * math.cos(org_angle)
+    org_lat = lat + org_radius * np.sin(org_angle)
+    org_long = long + org_radius * np.cos(org_angle)
 
     # Angle in radians for destination point
-    dest_angle = (org_angle + math.pi) % (2 * math.pi)  # add π radians (180 degrees) to get the opposite point
+    dest_angle = (org_angle + np.pi) % (2 * np.pi)  # add π radians (180 degrees) to get the opposite point
 
     # Radius for destination point equals to the maximum radius
     dest_radius = km_in_degrees
 
     # Calculate coordinates of destination point on the circle's circumference
-    dest_lat = lat + dest_radius * math.sin(dest_angle)
-    dest_long = long + dest_radius * math.cos(dest_angle)
+    dest_lat = lat + dest_radius * np.sin(dest_angle)
+    dest_long = long + dest_radius * np.cos(dest_angle)
 
-    return round(org_lat, 4), round(org_long, 4), round(dest_lat, 4), round(dest_long, 4)
+    # Generating an array of origin coordinates and dest cordinates
+    # Rounded to 4 decimals for grid discretization
+    orig_dest_coord = np.round(np.array([org_lat, org_long, dest_lat, dest_long]), decimals=4)
+
+    return orig_dest_coord.transpose()
 
 
 def get_initial_compass_bearing(pointA, pointB):

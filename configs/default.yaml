@@ -7,8 +7,8 @@ algorithm : DQN # Currently the only option working
 
 ############ Environment Settings ############
 environment_settings:
-    seeds: 1000 # Used for reproducibility
-    num_of_agents: 25 # Num of cars in simulation
+    seeds: [1234, 10225566, 555] # Used for reproducibility
+    num_of_agents: 25 #25 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     make: 0 # Not currently used
     model: 0 # Not currently used
