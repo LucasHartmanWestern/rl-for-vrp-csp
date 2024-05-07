@@ -12,6 +12,7 @@ import time
 from MatrixEnvironment import simulate_matrix_env, visualize_simulation, visualize_stats
 from pathfinding import haversine
 
+
 # Define the QNetwork architecture
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, layers):
@@ -21,19 +22,22 @@ class QNetwork(nn.Module):
         self.batch_norms = nn.ModuleList()  # Add a list for batch normalization layers
         for i, layer_size in enumerate(layers):
             if i == 0:
-                self.layers.append(nn.Linear(state_dim, layer_size))
+                linear_layer = nn.Linear(state_dim, layer_size)
             else:
-                self.layers.append(nn.Linear(layers[i - 1], layer_size))
+                linear_layer = nn.Linear(layers[i - 1], layer_size)
+            
+            # self.init_weights(linear_layer)  # Initialize weights and biases
+            self.layers.append(linear_layer)
             self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
-
+            
         self.output = nn.Linear(layers[-1], action_dim)  # Output layer
-
+        
     def forward(self, state):
         x = state
         for i in range(len(self.layers) - 1):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
         return self.output(x) # Output layer
-
+    
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
@@ -85,7 +89,6 @@ def train_dqn(
     aggregation_num,
     route_index,
     seed,
-    thread_num,
     epsilon,
     epsilon_decay,
     discount_factor,
@@ -95,31 +98,32 @@ def train_dqn(
     buffer_limit,
     num_of_agents,
     num_of_charges,
-    load_saved=False,
     layers=[64, 128, 1024, 128, 64],
-    fixed_attributes=None
+    fixed_attributes=None,
+    verbose=False
 ):
     avg_rewards = []
 
+    # Moved up here, because otherwise it won't initialize correctly the q NNs
+    # Set seeds for reproducibility
+    if seed is not None:
+        torch.manual_seed(seed)
+        random.seed(seed)
+        dqn_rng = np.random.default_rng(seed)
+        
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
     state_dimension = (num_of_charges * 3 * 2) + 3
 
     q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
-    # Set seeds for reproducibility
-    if seed is not None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
+
+
+    random_threshold = dqn_rng.random((num_episodes,num_of_agents))
 
     if global_weights is not None:
         q_network.load_state_dict(global_weights)
         target_q_network.load_state_dict(global_weights)
-    elif load_saved:
-        # Save the networks at the end of the episode
-        load_model(q_network, f'saved_networks/q_network_{seed}.pth')
-        load_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
 
     optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
     buffer = deque(maxlen=buffer_limit)  # Initialize replay buffer with fixed size
@@ -166,7 +170,7 @@ def train_dqn(
             states.append(state)
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
-            if np.random.rand() < epsilon:  # Epsilon-greedy action selection
+            if random_threshold[i,j] < epsilon:  # Epsilon-greedy action selection
                 action_values = q_network(state)
                 noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
                 action_values += noise  # Add noise for exploration
@@ -238,9 +242,10 @@ def train_dqn(
                 print(f"Solve graph and build path - {int((t7 - t5) // 3600)}h, {int(((t7 - t5) % 3600) // 60)}m, {int((t7 - t5) % 60)}s, {int(((t7 - t5) % 1) * 1000)}ms")
                 print(f"Update traffic - {int((t8 - t7) // 3600)}h, {int(((t8 - t7) % 3600) // 60)}m, {int((t8 - t7) % 60)}s, {int(((t8 - t7) % 1) * 1000)}ms")
 
+
         if num_episodes == 1 and fixed_attributes is None:
-            if os.path.isfile(f'outputs/best_paths_{thread_num}.npy'):
-                paths = np.load(f'outputs/best_paths_{thread_num}.npy', allow_pickle=True).tolist()
+            if os.path.isfile(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy'):
+                paths = np.load(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy', allow_pickle=True).tolist()
 
         paths_copy = copy.deepcopy(paths)
 
@@ -264,15 +269,21 @@ def train_dqn(
 
         if len(buffer) >= buffer_limit:  # If replay buffer is full enough
             st = time.time()
-            mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
+            # if route_index == 0:
+            #     print(f'Here in line 265 buffer {buffer[0,2]}')
+            # mini_batch = dqn_rng.choice(buffer, size=batch_size)  # Sample a mini-batch
+            # mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
+            mini_batch = dqn_rng.choice(np.array(list(buffer),dtype=object), batch_size, replace=False)
+            # print(f'for ind {route_index} mini batch {mini_batch}')
             experiences = map(np.stack, zip(*mini_batch))  # Format experiences
             agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
             et = time.time() - st
 
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
+            if verbose:
+                with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                    print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
 
-            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
+                print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
@@ -299,7 +310,8 @@ def train_dqn(
             if avg_reward > best_avg:
                 best_avg = avg_reward
                 best_paths = paths_copy
-                print(f'Route Index: {route_index} - New Best: {best_avg}')
+                if verbose:
+                    print(f'Route Index: {route_index} - New Best: {best_avg}')
 
             avg_ir = 0
             ir_count = 0
@@ -312,12 +324,13 @@ def train_dqn(
             elapsed_time = time.time() - start_time
 
             # Open the file in write mode (use 'a' for append mode)
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
+            if verbose:
+                with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                    print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
 
-            print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+                print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
-    np.save(f'outputs/best_paths_{thread_num}.npy', np.array(best_paths, dtype=object))
+    np.save(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
     return (q_network.state_dict(), avg_rewards, avg_output_values)
 
 def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
@@ -409,5 +422,3 @@ def soft_update(target_network, source_network, tau=0.001):
 def save_model(network, filename):
     torch.save(network.state_dict(), filename)
 
-def load_model(network, filename):
-    network.load_state_dict(torch.load(filename))
