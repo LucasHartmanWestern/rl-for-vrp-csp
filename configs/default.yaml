@@ -31,3 +31,4 @@ hpp_config:
     # Determine if agent or baseline is used
     # fixed_attributes = [0.5, 0.5] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
     fixed_attributes: [] # Determine impact ratings through training
+    verbose: True
