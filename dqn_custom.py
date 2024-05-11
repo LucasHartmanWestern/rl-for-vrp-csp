@@ -89,6 +89,7 @@ def train_dqn(
     aggregation_num,
     zone_index,
     seed,
+    main_seed,
     epsilon,
     epsilon_decay,
     discount_factor,
@@ -258,14 +259,14 @@ def train_dqn(
 
 
         if num_episodes == 1 and fixed_attributes is None:
-            if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy'):
-                paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', allow_pickle=True).tolist()
+            if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
+                paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy', allow_pickle=True).tolist()
 
         paths_copy = copy.deepcopy(paths)
 
         # Calculate the average values of the output neurons for this episode
         episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, seed))
+        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
 
         time_end_paths = time.time() - time_start_paths
 
@@ -315,8 +316,8 @@ def train_dqn(
                     os.makedirs('saved_networks')
 
                 # Save the networks at the end of training
-                save_model(q_networks[agent_ind], f'saved_networks/q_network_{seed}_{agent_ind}.pth')
-                save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{seed}_{agent_ind}.pth')
+                save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
+                save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
         # Log every ith episode
         if i % 1 == 0:
@@ -324,7 +325,7 @@ def train_dqn(
             for reward in rewards:
                 avg_reward += reward
             avg_reward /= len(rewards)
-            avg_rewards.append((avg_reward, aggregation_num, zone_index, seed)) # Track rewards over aggregation steps
+            avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) # Track rewards over aggregation steps
 
             if avg_reward > best_avg:
                 best_avg = avg_reward

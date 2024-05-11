@@ -8,8 +8,8 @@ algorithm : DQN # Currently the only option working
 ############ Environment Settings ############
 environment_settings:
     seeds: [1234, 10225566, 555] # Used for reproducibility
-    num_of_agents: 250 # Num of cars in simulation
-    num_of_chargers: 5 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    num_of_agents: 50 # Num of cars in simulation
+    num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 
     # Coordinates of city regions in London
     coords: 

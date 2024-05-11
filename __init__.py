@@ -144,8 +144,6 @@ def train_rl_vrp_csp(date):
 
                 for aggregate_step in range(nn_c['aggregation_count']):
 
-                    print("Get Manager")
-
                     manager = mp.Manager()
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
@@ -154,8 +152,6 @@ def train_rl_vrp_csp(date):
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
 
-                    print("Get Processes")
-                    
                     # Creating output directory
                     folder = 'outputs/best_paths/'
                     if not os.path.exists(folder):
@@ -165,7 +161,7 @@ def train_rl_vrp_csp(date):
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
                             charger_list, ev_info[ind], all_routes[ind], date, action_dim, global_weights, aggregate_step,
-                            ind, chargers_seeds[ind], nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
+                            ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
                             hpp_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier, hpp_c['verbose']))
@@ -258,12 +254,12 @@ def train_rl_vrp_csp(date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose):
+def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose):
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+        local_weights_per_agent, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                                   batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose)
 
         rewards.append(avg_rewards)
