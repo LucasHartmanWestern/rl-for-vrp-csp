@@ -4,16 +4,18 @@
 ############ Hyperparameters ############
 nn_hyperparameters:
     aggregation_count: 5 # Amount of aggregation steps for federated learning
-    num_episodes: 50 # Amount of training episodes per session
-    learning_rate: 0.0001 # Rate of change for model parameters
+    num_episodes: 1000 # Amount of training episodes per session
+    learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.9999 # Present value of future rewards
     epsilon_decay: 0.99 # Rate of decrease for training noise
-    batch_size: 25 # Amount of experiences to use when training
-    buffer_limit: 100 # Max number of experiences to store in a buffer
+    batch_size: 100 # Amount of experiences to use when training
+    buffer_limit: 250 # Max number of experiences to store in a buffer
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
-    action_dim: 3
-    city_multiplier: 0.15
-    zone_multiplier: 0.35
-    model_multiplier: 0.50
+    action_dim: 3 # Multiplied by the number of chargers to represent how many output neurons there are for each NN
+
+    # Multipliers to control aggregation
+    city_multiplier: 0.15 # Importance of city-wide average
+    zone_multiplier: 0.35 # Importance of zone-wide average
+    model_multiplier: 0.50 # Importance of model-wide average
