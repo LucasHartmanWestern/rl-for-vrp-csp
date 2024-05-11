@@ -14,5 +14,6 @@ nn_hyperparameters:
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
     action_dim: 3
-    zone_multiplier: 0.25
-    model_multiplier: 0.75
+    city_multiplier: 0.15
+    zone_multiplier: 0.35
+    model_multiplier: 0.50

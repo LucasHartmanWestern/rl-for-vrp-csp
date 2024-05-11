@@ -1,6 +1,6 @@
 import torch
 
-def get_global_weights(zone_weights, ev_info, zone_multiplier, model_multiplier):
+def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier):
     max_model_index = 0
 
     for info in ev_info:
@@ -10,6 +10,8 @@ def get_global_weights(zone_weights, ev_info, zone_multiplier, model_multiplier)
 
     # Get aggregated weights for each zone
     zone_aggregates = [aggregate_weights(weights) for weights in zone_weights]
+
+    city_weights = []
 
     # Get aggregated weights for each model
     model_aggregates = []
@@ -21,10 +23,13 @@ def get_global_weights(zone_weights, ev_info, zone_multiplier, model_multiplier)
             model_indices = ev_info[zone_ind]['model_indices']
 
             for nn_ind, w in enumerate(weights):
+                city_weights.append(w)
                 if model_indices[nn_ind] == model_index:
                     model_weights.append(w)
 
         model_aggregates.append(aggregate_weights(model_weights))
+
+    city_aggregates = aggregate_weights(city_weights)
 
     # ZxM matrix of weights where Z is the number of zones and M is the number of models
     global_weights = [[{} for _ in range(len(model_aggregates))] for _ in range(len(zone_aggregates))]
@@ -36,7 +41,7 @@ def get_global_weights(zone_weights, ev_info, zone_multiplier, model_multiplier)
             for key in zone_aggregates[z].keys():
                 # Create each entry of global weights by doing a weighted average of the zone and model
                 # (0.75 x Zone Weight z) + (0.25 x Model Weight m) = Entry (z, n) of global_weights
-                combined_weights[key] = zone_multiplier * zone_aggregates[z][key] + model_multiplier * model_aggregates[m][key]
+                combined_weights[key] = city_multiplier * city_aggregates[key] + zone_multiplier * zone_aggregates[z][key] + model_multiplier * model_aggregates[m][key]
             global_weights[z][m] = combined_weights
 
     return global_weights

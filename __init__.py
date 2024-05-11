@@ -180,7 +180,7 @@ def train_rl_vrp_csp(date):
                     print("Join Weights")
 
                     # Aggregate the weights from all local models
-                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['zone_multiplier'], nn_c['model_multiplier'])
+                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['city_multiplier'], nn_c['zone_multiplier'], nn_c['model_multiplier'])
 
                     # Extend the main lists with the contents of the process lists
                     sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -189,9 +189,9 @@ def train_rl_vrp_csp(date):
                     output_values.extend(process_output_values)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                        print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n", file=file)
+                        print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n", file=file)
 
-                    print(f"\n\n############ Aggregation Step {aggregate_step} ############\n\n",)
+                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n",)
 
                 # Plot the aggregated data
                 if save_aggregate_rewards:
