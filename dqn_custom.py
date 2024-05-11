@@ -87,8 +87,9 @@ def train_dqn(
     action_dim,
     global_weights,
     aggregation_num,
-    route_index,
+    zone_index,
     seed,
+    main_seed,
     epsilon,
     epsilon_decay,
     discount_factor,
@@ -115,18 +116,32 @@ def train_dqn(
 
     state_dimension = (num_of_charges * 3 * 2) + 3
 
-    q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
+    model_indices = ev_info['model_indices']
 
+    q_networks = []
+    target_q_networks = []
+    optimizers = []
 
+    # Assign unique NN for each agent
+    for agent_ind in range(num_of_agents):
+        q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
-    random_threshold = dqn_rng.random((num_episodes,num_of_agents))
+        if global_weights is not None:
+            #print(f"Loading Weights for Zone {zone_index} Model {model_indices[agent_ind]} - Zones: {len(global_weights)} and Models {len(global_weights[zone_index])}")
 
-    if global_weights is not None:
-        q_network.load_state_dict(global_weights)
-        target_q_network.load_state_dict(global_weights)
+            q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+            target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
-    optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
-    buffer = deque(maxlen=buffer_limit)  # Initialize replay buffer with fixed size
+        optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+
+        # Store individual networks
+        q_networks.append(q_network)
+        target_q_networks.append(target_q_network)
+        optimizers.append(optimizer)
+
+    random_threshold = dqn_rng.random((num_episodes, num_of_agents))
+
+    buffers = [deque(maxlen=buffer_limit) for _ in range(num_of_agents)]  # Initialize replay buffer with fixed size
 
     start_time = time.time()
     best_avg = float('-inf')
@@ -171,11 +186,11 @@ def train_dqn(
 
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
             if random_threshold[i,j] < epsilon:  # Epsilon-greedy action selection
-                action_values = q_network(state)
+                action_values = q_networks[j](state)
                 noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
                 action_values += noise  # Add noise for exploration
             else:
-                action_values = q_network(state)  # Greedy action
+                action_values = q_networks[j](state)  # Greedy action
 
             t2 = time.time()
 
@@ -244,14 +259,14 @@ def train_dqn(
 
 
         if num_episodes == 1 and fixed_attributes is None:
-            if os.path.isfile(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy'):
-                paths = np.load(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy', allow_pickle=True).tolist()
+            if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
+                paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy', allow_pickle=True).tolist()
 
         paths_copy = copy.deepcopy(paths)
 
         # Calculate the average values of the output neurons for this episode
         episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, route_index, seed))
+        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
 
         time_end_paths = time.time() - time_start_paths
 
@@ -265,39 +280,44 @@ def train_dqn(
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffer.append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+            buffers[d].append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
-        if len(buffer) >= buffer_limit:  # If replay buffer is full enough
-            st = time.time()
-            # if route_index == 0:
-            #     print(f'Here in line 265 buffer {buffer[0,2]}')
-            # mini_batch = dqn_rng.choice(buffer, size=batch_size)  # Sample a mini-batch
-            # mini_batch = random.sample(buffer, batch_size)  # Sample a mini-batch
-            mini_batch = dqn_rng.choice(np.array(list(buffer),dtype=object), batch_size, replace=False)
-            # print(f'for ind {route_index} mini batch {mini_batch}')
-            experiences = map(np.stack, zip(*mini_batch))  # Format experiences
-            agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer)  # Update networks
-            et = time.time() - st
+        st = time.time()
 
-            if verbose:
-                with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
+        trained = False
 
-                print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
+        for agent_ind in range(num_of_agents):
+
+            if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
+
+                trained = True
+
+                mini_batch = dqn_rng.choice(np.array(buffers[agent_ind], dtype=object), batch_size, replace=False)
+                experiences = map(np.stack, zip(*mini_batch))  # Format experiences
+                agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind])  # Update networks
+
+        et = time.time() - st
+
+        if verbose and trained:
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
+
+            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
-            soft_update(target_q_network, q_network)
+            for agent_ind in range(num_of_agents):
+                soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
 
-            # Add this before you save your model
-            if not os.path.exists('saved_networks'):
-                os.makedirs('saved_networks')
+                # Add this before you save your model
+                if not os.path.exists('saved_networks'):
+                    os.makedirs('saved_networks')
 
-            # Save the networks at the end of training
-            save_model(q_network, f'saved_networks/q_network_{seed}.pth')
-            save_model(target_q_network, f'saved_networks/target_q_network_{seed}.pth')
+                # Save the networks at the end of training
+                save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
+                save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
         # Log every ith episode
         if i % 1 == 0:
@@ -305,13 +325,13 @@ def train_dqn(
             for reward in rewards:
                 avg_reward += reward
             avg_reward /= len(rewards)
-            avg_rewards.append((avg_reward, aggregation_num, route_index, seed)) # Track rewards over aggregation steps
+            avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) # Track rewards over aggregation steps
 
             if avg_reward > best_avg:
                 best_avg = avg_reward
                 best_paths = paths_copy
                 if verbose:
-                    print(f'Route Index: {route_index} - New Best: {best_avg}')
+                    print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
             avg_ir = 0
             ir_count = 0
@@ -326,16 +346,16 @@ def train_dqn(
             # Open the file in write mode (use 'a' for append mode)
             if verbose:
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
+                    print(f"Zone: {zone_index + 1} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
 
-                print(f"Route Index: {route_index} - Episode: {i} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+                print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
-    np.save(f'outputs/best_paths/route_{route_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
-    return (q_network.state_dict(), avg_rewards, avg_output_values)
+    np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
+    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values
 
 def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
-    usage_per_hour_list = ev_info[2] # 15600
+    usage_per_hour_list = ev_info['usage_per_hour'] # 15600
 
     # Parameters to tweak
     decrease_rate = usage_per_hour_list[0] / 60
@@ -366,7 +386,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
-    starting_battery_level = ev_info[0]  # 5000-7000
+    starting_battery_level = ev_info['starting_charge']  # 5000-7000
 
     tokens = np.array([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
 

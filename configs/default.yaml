@@ -8,10 +8,8 @@ algorithm : DQN # Currently the only option working
 ############ Environment Settings ############
 environment_settings:
     seeds: [1234, 10225566, 555] # Used for reproducibility
-    num_of_agents: 25 #25 # Num of cars in simulation
+    num_of_agents: 50 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
-    make: 0 # Not currently used
-    model: 0 # Not currently used
 
     # Coordinates of city regions in London
     coords: 
@@ -23,8 +21,10 @@ environment_settings:
     
     radius: 20 # Max radius of the circle containing the entire trip
     starting_charge: 6000 # 6kw starting charge
-    usage_per_min: 15600 # Average usage per hour of Tesla
-    max_charge: 100000 # 100kW
+
+    models: ['Tesla Model Y', 'BYD Song', 'Tesla Model 3'] # The 3 most popular EV models
+    usage_per_min: [16400, 14100, 15600] # Average usage per hour for each model in Wh/100 km
+    max_charge: [170000, 90000, 170000] # in Watts
 
 ############ HPP Settings ############
 hpp_config:

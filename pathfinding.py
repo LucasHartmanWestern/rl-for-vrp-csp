@@ -3,9 +3,12 @@ import numpy as np
 
 def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
 
-    starting_charge_list = ev_info[0] # 5000-7000
-    max_charge_list = ev_info[1] # 100000
-    usage_per_hour_list = ev_info[2] # 15600
+    starting_charge_list = ev_info['starting_charge'] # 5000-7000
+    max_charge_list = ev_info['max_charge'] # in Watts
+    usage_per_hour_list = ev_info['usage_per_hour'] # in Wh/100 km
+
+    model_types = ev_info['model_type']
+    model_indices = ev_info['model_indices']
 
     # Usage rates
     usage_per_min = usage_per_hour_list[agent_index] / 60
