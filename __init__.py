@@ -8,7 +8,7 @@ import random
 import os
 import time
 import torch.multiprocessing as mp
-from frl_custom import aggregate_weights
+from frl_custom import get_global_weights
 import copy
 from datetime import datetime
 import numpy as np
@@ -38,12 +38,8 @@ def train_rl_vrp_csp(date):
     nn_c  = c['nn_hyperparameters']
     hpp_c = c['hpp_config']
 
-    # starting_charge = [env_c['starting_charge'] for agent in range(env_c['num_of_agents'])]
-    usage_per_min = np.array([env_c['usage_per_min'] for agent in range(env_c['num_of_agents'])])
-    max_charge = np.array([env_c['max_charge'] for agent in range(env_c['num_of_agents'])])
-
-    batch_size = int(nn_c['batch_size'] * env_c['num_of_agents'])
-    buffer_limit = int(batch_size)
+    batch_size = int(nn_c['batch_size'])
+    buffer_limit = int(nn_c['buffer_limit'])
 
     action_dim = nn_c['action_dim'] * env_c['num_of_chargers']
 
@@ -56,11 +52,41 @@ def train_rl_vrp_csp(date):
         # Generating sub seeds to run on each environment
         chargers_seeds = rng.integers(low=0, high=10000, size=len(env_c['coords']))
 
-        start_time = time.time()
-        # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
-        starting_charge = env_c['starting_charge'] + 2000*(rng.random(env_c['num_of_agents'])-0.5)
-        elapsed_time = time.time() - start_time
-        ev_info = np.vstack((starting_charge, max_charge, usage_per_min))
+        # Assign seed
+        random.seed(seed)
+
+        ev_info = []
+
+        for _ in env_c['coords']:
+            # Generate a random model index for each agent
+            model_indices = np.array([random.randrange(3) for agent in range(env_c['num_of_agents'])], dtype=int)
+
+            # Use the indices to select the model type and corresponding configurations
+            model_type = np.array([env_c['models'][index] for index in model_indices], dtype=str)
+            usage_per_hour = np.array([env_c['usage_per_min'][index] for index in model_indices], dtype=int)
+            max_charge = np.array([env_c['max_charge'][index] for index in model_indices], dtype=int)
+
+            start_time = time.time()
+            # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
+            starting_charge = env_c['starting_charge'] + 2000*(rng.random(env_c['num_of_agents'])-0.5)
+            elapsed_time = time.time() - start_time
+
+            # Define a structured array
+            dtypes = [('starting_charge', float),
+                      ('max_charge', int),
+                      ('usage_per_hour', int),
+                      ('model_type', 'U50'),  # Adjust string length as needed
+                      ('model_indices', int)]
+            info = np.zeros(env_c['num_of_agents'], dtype=dtypes)
+
+            # Assign values
+            info['starting_charge'] = starting_charge
+            info['max_charge'] = max_charge
+            info['usage_per_hour'] = usage_per_hour
+            info['model_type'] = model_type
+            info['model_indices'] = model_indices
+
+            ev_info.append(info)
 
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
@@ -138,7 +164,7 @@ def train_rl_vrp_csp(date):
                     processes = []
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(
-                            charger_list, ev_info, all_routes[ind], date, action_dim, global_weights, aggregate_step,
+                            charger_list, ev_info[ind], all_routes[ind], date, action_dim, global_weights, aggregate_step,
                             ind, chargers_seeds[ind], nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
@@ -154,7 +180,7 @@ def train_rl_vrp_csp(date):
                     print("Join Weights")
 
                     # Aggregate the weights from all local models
-                    global_weights = aggregate_weights(local_weights_list)
+                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['zone_multiplier'], nn_c['model_multiplier'])
 
                     # Extend the main lists with the contents of the process lists
                     sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -237,12 +263,12 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights, agg
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+        local_weights_per_agent, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
                                   batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose)
 
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
-        local_weights_list[ind] = local_weights
+        local_weights_list[ind] = local_weights_per_agent
 
         print(f"Thread {ind} waiting")
 
