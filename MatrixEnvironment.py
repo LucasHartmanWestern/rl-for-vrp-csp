@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import warnings
 import torch
+import numpy as np
 warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
 
 if torch.cuda.is_available():
@@ -68,15 +69,14 @@ ir = 0.01
 # Rate of battery decrease
 dr = 0.001
 
-def get_actions(actions, stops):
+def get_actions(actions, stops_np):
 
     # Make new identity matrix
     max_val = len(actions[0])
     identity_matrix = torch.eye(max_val)
+    stops = torch.from_numpy(stops_np)
 
-    # Not sure how np.arrange works, but this returns the actions
-    actions = (stops[:, 0].reshape(-1, 1) == torch.arange(max_val).float() @ identity_matrix.float()).int()
-
+    actions = (stops[:, 0].reshape(-1, 1) == torch.arange(max_val).float() @ identity_matrix).int()
     return actions
 
 def get_distance(tokens, destinations, actions):
@@ -85,7 +85,7 @@ def get_distance(tokens, destinations, actions):
     token_targets = actions @ destinations
 
     # Compute Euclidian distance for each token
-    dist = ((tokens - token_targets).T * torch.max(actions, axis=1)).T
+    dist = ((tokens - token_targets).t() * torch.max(actions, axis=1).values).t()
     total_dist = torch.sqrt(torch.sum(dist ** 2, axis=1)).reshape(-1, 1)
 
     # Return distances as Nx1 matrix
@@ -94,15 +94,15 @@ def get_distance(tokens, destinations, actions):
 def get_arrived(dists, dist_threshold):
 
     # Return 1 if below threshold, and 0 if above
-    return (dists <= dist_threshold).astype(int)
+    return (dists <= dist_threshold).int()
 
-def get_traffic(stops, destinations, is_charging):
+def get_traffic(stops_np, destinations, is_charging):
 
     # Get stations to charge at
-    target_stations = stops[:, 0].reshape(-1) + 1
+    target_stations = torch.from_numpy(stops_np[:, 0]).reshape(-1) + 1
 
     # Isolate stations to charge at
-    stations_in_use = (target_stations * is_charging).astype(int)
+    stations_in_use = (target_stations *is_charging).int()
     stations_in_use = torch.maximum(stations_in_use - 1, 0)
 
     # Used to find end of the list
@@ -155,26 +155,35 @@ def get_battery_charged(battery, target):
     # Return if the battery level is above the needed level to depart from charging station
     return (battery >= stop_target).astype(int)
 
-def move_tokens(tokens, moving, actions, destinations, step_size):
+def move_tokens(tokens_np, moving, actions, destinations, step_size):
 
     # Get target destinations for tokens that are moving
     target_coords = actions @ destinations
+    tokens = torch.from_numpy(tokens_np)
 
     # Compute the displacement vectors and their norms
-    displacement = ((target_coords - tokens).T * torch.max(actions, axis=1)).T
+    right_term = (target_coords - tokens).t()
+    left_term = torch.max(actions, axis=1).values
+    displacement = (right_term * left_term).t()
     distances = torch.linalg.norm(displacement, axis=1)
 
     # Compute the normalized direction vectors
-    direction = torch.divide(displacement, distances[:, None], out=torch.zeros_like(displacement), where=distances[:, None] != 0)
+    # Initialize the output tensor with zeros, matching the shape of displacement
+    direction = torch.zeros_like(displacement)
+    # Create a mask where distances are not zero
+    mask = distances != 0
+    # Perform the division where the mask is True
+    direction[mask] = displacement[mask] / distances[mask].unsqueeze(1)
 
     # Zero-out direction for tokens that aren't moving
-    masked_direction = (direction.T * moving).T
+    masked_direction = (direction.t() * moving).t()
 
     # Compute the step vectors
-    steps = torch.minimum(distances, step_size)[:, None] * masked_direction
-
+    steps = torch.minimum(distances, torch.tensor(step_size, dtype=distances.dtype)).unsqueeze(-1)
+    steps = steps * masked_direction
+    
     # If the car is charging but isn't directly on the charging station, shift them onto it
-    shift_to_charger_while_charging = (displacement.T * ((moving - 1) * -1)).T
+    shift_to_charger_while_charging = (displacement.t() * ((moving - 1) * -1)).t()
 
     # Update token positions
     new_tokens = tokens + steps
@@ -204,10 +213,11 @@ def update_stops(stops, ready_to_leave):
 
     return updated_stops
 
-def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
+def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity_np, target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    capacity = torch.from_numpy(capacity_np)
+    
     # Pre-process capacity array
     capacity = torch.concatenate((torch.zeros(tokens.shape[0]), capacity))
 
