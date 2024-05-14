@@ -380,9 +380,9 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     # print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
 
     # Calculate reward as -(distance * 100 + peak traffic)
-    simulation_reward = -(distances[-1] * 100 + np.max(traffic))
+    simulation_reward = -(distances[-1] * 100 + np.max(np.array(traffic)))
 
-    return simulation_reward
+    return simulation_reward.numpy()
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
