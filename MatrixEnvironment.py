@@ -70,8 +70,7 @@ ir = 0.01
 dr = 0.001
 
 def get_actions(actions, stops):
-    if isinstance(stops,np.ndarray):
-        stops = torch.from_numpy(stops)
+
     # Make new identity matrix
     max_val = len(actions[0])
     identity_matrix = torch.eye(max_val)
@@ -97,8 +96,7 @@ def get_arrived(dists, dist_threshold):
     return (dists <= dist_threshold).int()
 
 def get_traffic(stops, destinations, is_charging):
-    if isinstance(stops,np.ndarray):
-        stops = torch.from_numpy(stops)
+
     # Get stations to charge at
     target_stations = stops[:, 0].reshape(-1) + 1
 
@@ -120,8 +118,6 @@ def get_traffic(stops, destinations, is_charging):
     return traffic_level
 
 def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, increase_rate):
-    if isinstance(stops,np.ndarray):
-        stops = torch.from_numpy(stops)
     
     # Get target stop for each car
     target_stop = stops[:, 0]
@@ -151,13 +147,10 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, i
     return rates_by_car
 
 def update_battery(battery, charge_rate):
-    if isinstance(battery,np.ndarray):
-        battery = torch.from_numpy(battery)
     return battery + charge_rate
 
 def get_battery_charged(battery, target):
-    if isinstance(target,np.ndarray):
-        target = torch.from_numpy(target)
+
     # Target for this stop
     stop_target = target[:, 0]
 
@@ -165,8 +158,7 @@ def get_battery_charged(battery, target):
     return (battery >= stop_target).int()
 
 def move_tokens(tokens, moving, actions, destinations, step_size):
-    if isinstance(tokens,np.ndarray):
-        tokens = torch.from_numpy(tokens)
+
     # Get target destinations for tokens that are moving
     target_coords = actions @ destinations
 
@@ -204,8 +196,7 @@ def move_tokens(tokens, moving, actions, destinations, step_size):
     return new_tokens, distance_travelled
 
 def update_stops(stops, ready_to_leave):
-    if isinstance(stops,np.ndarray):
-        stops = torch.from_numpy(stops)
+    
     # Create transformation matrix
     K = stops.shape[1]
     transform_matrix = torch.zeros((K, K), dtype=float)
@@ -215,18 +206,18 @@ def update_stops(stops, ready_to_leave):
 
     # I'm not sure how this works tbh...
     updated_stops =  stops * ready_to_leave @ transform_matrix + stops * (1 - ready_to_leave)
-
+    
     # Set rows to zeros if there is only one nonzero element in the row and ready_to_leave is 1
     for i in range(len(stops)):
         if ready_to_leave[i] == 1 and torch.count_nonzero(stops[i]) == 1:
             updated_stops[i] = torch.zeros(K)
-
+   
     return updated_stops
 
 def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
 
-    if isinstance(capacity,np.ndarray):
-        capacity = torch.from_numpy(capacity)
+    target_battery_level = torch.from_numpy(target_battery_level)
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Pre-process capacity array
@@ -270,6 +261,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
 
         # Update the battery level of each car
         battery = update_battery(battery, charging_rates)
+        # print(f'battery after {battery}')
 
         battery_levels.append(battery)
 
