@@ -10,19 +10,8 @@ def load_config_file(fname=None):
         output:
             parameters: python dict
     '''
-    default_fname = "configs/default.yaml"
     
-    
-    with open(default_fname) as default_config: parameters=yaml.safe_load(default_config)
-    if fname!=None:
-        with open(fname, 'r') as update_config:
-            try:
-                # Converts yaml document to python object
-                update=yaml.safe_load(update_config)
-
-            except yaml.YAMLError as e:
-                print(e)
-        # updates default dict with most updates parameters
-        parameters.update(update)
+    with open(fname) as config:
+        parameters=yaml.safe_load(config)
     
     return parameters

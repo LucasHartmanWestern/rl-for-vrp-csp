@@ -1,8 +1,7 @@
 from dqn_custom import train_dqn
-from ev_simulation_environment import get_charger_data, get_charger_list
+from data_loader import get_charger_data, get_charger_list
 from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
-from training_visualizer import Simulation
 from _helpers import load_config_file as load_config
 import random
 import os
@@ -32,10 +31,18 @@ def train_rl_vrp_csp(date):
 
     ############ Initialization ############
 
-    config_fname = 'configs/nnParameters.yaml'
-    c = load_config(config_fname)
+    neural_network_config_fname = 'configs/neural_network_config.yaml'
+    algorithm_config_fname = 'configs/algorithm_config.yaml'
+    environment_config_fname = 'configs/environment_config.yaml'
+    hpp_config_fname = 'configs/hpp_config.yaml'
+
+    c = load_config(neural_network_config_fname)
+    nn_c = c['nn_hyperparameters']
+    c = load_config(algorithm_config_fname)
+    algo_c = c['algorithm_settings']
+    c = load_config(environment_config_fname)
     env_c = c['environment_settings']
-    nn_c  = c['nn_hyperparameters']
+    c = load_config(hpp_config_fname)
     hpp_c = c['hpp_config']
 
     batch_size = int(nn_c['batch_size'])
@@ -219,35 +226,37 @@ def train_rl_vrp_csp(date):
                 #     env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                 #     env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
 
-            if generate_plots:
-                num_of_agents = env_c['num_of_agents']
-                num_episodes = nn_c['num_episodes']
+            # TODO - Update this to work with new environment
 
-                for index, env in enumerate(chargers):
-                    route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-
-                    route_datasets = []
-                    if env_c['num_of_agents'] == 1:
-                        for id_value, group in route_data.groupby('Episode Num'):
-                            route_datasets.append(group)
-                    else:
-                        for episode_num, episode_group in route_data.groupby('Episode Num'):
-                            if episode_num == route_data['Episode Num'].max():
-                                for agent_num, agent_group in episode_group.groupby('Agent Num'):
-                                    route_datasets.append(agent_group)
-
-                    if train_model and (num_episodes > 1):
-                        generate_average_reward_plot(algorithm, reward_data, seed)
-
-                    if num_episodes == 1 and num_of_agents > 1:
-                        generate_traffic_plot(traffic_data)
-
-                    origins = [(route[0], route[1]) for route in all_routes[index]]
-                    destinations = [(route[2], route[3]) for route in all_routes[index]]
-                    generate_interactive_plot(algorithm, seed, route_datasets, charger_data, origins, destinations)
+            # if generate_plots:
+            #     num_of_agents = env_c['num_of_agents']
+            #     num_episodes = nn_c['num_episodes']
+            #
+            #     for index, env in enumerate(chargers):
+            #         route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #
+            #         route_datasets = []
+            #         if env_c['num_of_agents'] == 1:
+            #             for id_value, group in route_data.groupby('Episode Num'):
+            #                 route_datasets.append(group)
+            #         else:
+            #             for episode_num, episode_group in route_data.groupby('Episode Num'):
+            #                 if episode_num == route_data['Episode Num'].max():
+            #                     for agent_num, agent_group in episode_group.groupby('Agent Num'):
+            #                         route_datasets.append(agent_group)
+            #
+            #         if train_model and (num_episodes > 1):
+            #             generate_average_reward_plot(algorithm, reward_data, seed)
+            #
+            #         if num_episodes == 1 and num_of_agents > 1:
+            #             generate_traffic_plot(traffic_data)
+            #
+            #         origins = [(route[0], route[1]) for route in all_routes[index]]
+            #         destinations = [(route[2], route[3]) for route in all_routes[index]]
+            #         generate_interactive_plot(algorithm, seed, route_datasets, charger_data, origins, destinations)
 
             if nn_c['num_episodes'] != 1 and continue_training:
                 user_input = input("More Episodes? ")
