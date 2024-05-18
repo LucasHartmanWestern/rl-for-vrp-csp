@@ -1,14 +1,11 @@
-from dqn_custom import train_dqn
-from ev_simulation_environment import get_charger_data, get_charger_list
-from geolocation.visualize import *
-from geolocation.maps_free import get_org_dest_coords
-from training_visualizer import Simulation
-from _helpers import load_config_file as load_config
+from train import train
+from data_loader import *
+from visualize import *
 import random
 import os
 import time
 import torch.multiprocessing as mp
-from frl_custom import get_global_weights
+from federated_learning import get_global_weights
 import copy
 from datetime import datetime
 import numpy as np
@@ -18,25 +15,32 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(date):
-    ############ Algorithm ############
 
-    algorithm = "DQN" # Currently the only option working
+    """
+    Trains reinforcement learning models for vehicle routing and charging station placement (VRP-CSP).
 
-    ############ Configuration ############
+    Parameters:
+        date (str): The date string for logging purposes.
 
-    train_model = True # Set to false for model evaluation
-    save_data = False # Set to true if you want to save simulation results in a csv file
-    generate_plots = False # Set to true if you want to generate plots of the simulation environments
-    save_aggregate_rewards = True # Set to true if you want to save the rewards across aggregations
-    continue_training = False # Set to true if you want the option to continue training after a full training loop completes
+    Returns:
+        None
+    """
 
     ############ Initialization ############
 
-    config_fname = 'configs/nnParameters.yaml'
-    c = load_config(config_fname)
+    neural_network_config_fname = 'configs/neural_network_config.yaml'
+    algorithm_config_fname = 'configs/algorithm_config.yaml'
+    environment_config_fname = 'configs/environment_config.yaml'
+    eval_config_fname = 'configs/evaluation_config.yaml'
+
+    c = load_config_file(neural_network_config_fname)
+    nn_c = c['nn_hyperparameters']
+    c = load_config_file(algorithm_config_fname)
+    algo_c = c['algorithm_settings']
+    c = load_config_file(environment_config_fname)
     env_c = c['environment_settings']
-    nn_c  = c['nn_hyperparameters']
-    hpp_c = c['hpp_config']
+    c = load_config_file(eval_config_fname)
+    eval_c = c['eval_config']
 
     batch_size = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
@@ -127,7 +131,7 @@ def train_rl_vrp_csp(date):
         user_input = ""
 
         while user_input != 'Done':
-            if train_model:
+            if eval_c['train_model']:
 
                 if user_input != "":
                     nn_c['num_episodes'] = int(user_input)
@@ -164,7 +168,7 @@ def train_rl_vrp_csp(date):
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
-                            hpp_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier, hpp_c['verbose']))
+                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier, eval_c['verbose'], eval_c['display_training_times']))
                         processes.append(process)
                         process.start()
 
@@ -190,7 +194,7 @@ def train_rl_vrp_csp(date):
                     print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n",)
 
                 # Plot the aggregated data
-                if save_aggregate_rewards:
+                if eval_c['save_aggregate_rewards']:
                     save_to_csv(rewards, 'outputs/rewards.csv')
                     save_to_csv(output_values, 'outputs/output_values.csv')
 
@@ -200,67 +204,108 @@ def train_rl_vrp_csp(date):
                     plot_aggregate_reward_data(loaded_rewards)
                     plot_aggregate_output_values_per_route(loaded_output_values)
 
-            if hpp_c['fixed_attributes'] != [0, 1] and hpp_c['fixed_attributes'] != [1, 0] and hpp_c['fixed_attributes'] != [0.5, 0.5]:
+            if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
             else:
-                fixed_attributes = hpp_c['fixed_attributes']
+                fixed_attributes = eval_c['fixed_attributes']
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-            if save_data:
+            if eval_c['save_data']:
                 # Add this before you save your model
                 if not os.path.exists('outputs'):
                     os.makedirs('outputs')
 
-                # TODO - Update this to not use environments
-
+                # TODO - Update this to work with new environment
                 # for index, env in enumerate(envs):
                 #     env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                 #     env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                 #     env.write_reward_graph_to_csv(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                 #     env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
 
-            if generate_plots:
-                num_of_agents = env_c['num_of_agents']
-                num_episodes = nn_c['num_episodes']
+            # TODO - Update this to work with new environment
+            # if generate_plots:
+            #     num_of_agents = env_c['num_of_agents']
+            #     num_episodes = nn_c['num_episodes']
+            #
+            #     for index, env in enumerate(chargers):
+            #         route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #         traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
+            #
+            #         route_datasets = []
+            #         if env_c['num_of_agents'] == 1:
+            #             for id_value, group in route_data.groupby('Episode Num'):
+            #                 route_datasets.append(group)
+            #         else:
+            #             for episode_num, episode_group in route_data.groupby('Episode Num'):
+            #                 if episode_num == route_data['Episode Num'].max():
+            #                     for agent_num, agent_group in episode_group.groupby('Agent Num'):
+            #                         route_datasets.append(agent_group)
+            #
+            #         if train_model and (num_episodes > 1):
+            #             generate_average_reward_plot(algorithm, reward_data, seed)
+            #
+            #         if num_episodes == 1 and num_of_agents > 1:
+            #             generate_traffic_plot(traffic_data)
+            #
+            #         origins = [(route[0], route[1]) for route in all_routes[index]]
+            #         destinations = [(route[2], route[3]) for route in all_routes[index]]
+            #         generate_interactive_plot(algorithm, seed, route_datasets, charger_data, origins, destinations)
 
-                for index, env in enumerate(chargers):
-                    route_data = read_csv_data(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    charger_data = read_csv_data(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    reward_data = read_csv_data(f'outputs/rewards_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-                    traffic_data = read_csv_data(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
-
-                    route_datasets = []
-                    if env_c['num_of_agents'] == 1:
-                        for id_value, group in route_data.groupby('Episode Num'):
-                            route_datasets.append(group)
-                    else:
-                        for episode_num, episode_group in route_data.groupby('Episode Num'):
-                            if episode_num == route_data['Episode Num'].max():
-                                for agent_num, agent_group in episode_group.groupby('Agent Num'):
-                                    route_datasets.append(agent_group)
-
-                    if train_model and (num_episodes > 1):
-                        generate_average_reward_plot(algorithm, reward_data, seed)
-
-                    if num_episodes == 1 and num_of_agents > 1:
-                        generate_traffic_plot(traffic_data)
-
-                    origins = [(route[0], route[1]) for route in all_routes[index]]
-                    destinations = [(route[2], route[3]) for route in all_routes[index]]
-                    generate_interactive_plot(algorithm, seed, route_datasets, charger_data, origins, destinations)
-
-            if nn_c['num_episodes'] != 1 and continue_training:
+            if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
             else:
                 user_input = 'Done'
 
-def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose):
+def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
+                aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
+                discount_factor, learning_rate, num_episodes, batch_size,
+                buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
+                local_weights_list, rewards, output_values, barrier, verbose, display_training_times):
+
+    """
+    Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
+
+    Parameters:
+        chargers (array): Array of charger locations and their properties.
+        ev_info (dict): Information about the electric vehicles.
+        routes (array): Array containing route information for each EV.
+        date (str): Date string for logging purposes.
+        action_dim (int): Dimension of the action space.
+        global_weights (array): Pre-trained weights for initializing the Q-networks.
+        aggregate_step (int): Aggregation step number for tracking.
+        ind (int): Index of the current process.
+        sub_seed (int): Sub-seed for reproducibility of training.
+        main_seed (int): Main seed for initializing the environment.
+        epsilon (float): Initial exploration rate for epsilon-greedy policy.
+        epsilon_decay (float): Decay rate for the exploration rate.
+        discount_factor (float): Discount factor for future rewards.
+        learning_rate (float): Learning rate for the optimizer.
+        num_episodes (int): Number of training episodes.
+        batch_size (int): Size of the mini-batch for experience replay.
+        buffer_limit (int): Maximum size of the experience replay buffer.
+        num_of_agents (int): Number of agents (EVs) in the environment.
+        num_of_chargers (int): Number of charging stations.
+        layers (list): List of integers defining the architecture of the neural networks.
+        fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
+        local_weights_list (list): List to store the local weights of each agent.
+        rewards (list): List to store the average rewards for each episode.
+        output_values (list): List to store the average output values for each episode.
+        barrier (multiprocessing.Barrier): Barrier for synchronizing multiprocessing tasks.
+        verbose (bool): Flag to enable detailed logging.
+        display_training_times (bool): Flag to display training times for different operations.
+
+    Returns:
+        None
+    """
+
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                                  batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose)
+        local_weights_per_agent, avg_rewards, avg_output_values = train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+                                  batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose, display_training_times)
 
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
@@ -273,7 +318,6 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights, agg
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         raise
-
 
 if __name__ == '__main__':
 
