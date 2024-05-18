@@ -29,7 +29,7 @@ class QNetwork(nn.Module):
             # self.init_weights(linear_layer)  # Initialize weights and biases
             self.layers.append(linear_layer)
             self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
-            
+
         self.output = nn.Linear(layers[-1], action_dim)  # Output layer
         
     def forward(self, state):
@@ -111,6 +111,8 @@ def train_dqn(
         torch.manual_seed(seed)
         random.seed(seed)
         dqn_rng = np.random.default_rng(seed)
+        
+    # device = get_device_by_id(p['n_workers'], gpus, rank,verbose=True)
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
@@ -371,7 +373,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     el1 = time.time() - t1
     t2 = time.time()
 
-    # Run simulation
+    # Run simulation    
     path_results, traffic, battery_levels, distances = simulate_matrix_env(
         tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, max_sim_steps)
 
@@ -380,21 +382,23 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     # print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
 
     # Calculate reward as -(distance * 100 + peak traffic)
-    simulation_reward = -(distances[-1] * 100 + np.max(traffic))
+    simulation_reward = -(distances[-1] * 100 + np.max(np.array(traffic)))
 
-    return simulation_reward
+    return simulation_reward.numpy()
+    # return simulation_reward
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
-    starting_battery_level = ev_info['starting_charge']  # 5000-7000
+    starting_charge_array = np.array(ev_info['starting_charge'], copy=True)
+    starting_battery_level = torch.tensor(starting_charge_array, dtype=torch.float) # 5000-7000
 
-    tokens = np.array([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
+    tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
 
     destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
 
-    capacity = np.ones(destinations.shape[0]) * 10
+    capacity = torch.ones(destinations.shape[0],dtype=float) * 10
 
-    stops = np.zeros((destinations.shape[0], max(len(path) for path in paths) + 1))
+    stops = torch.zeros((destinations.shape[0], max(len(path) for path in paths) + 1), dtype=float)
     target_battery_level = np.zeros_like(stops)
 
     charging_stations = []
