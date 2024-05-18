@@ -5,9 +5,16 @@ from geopy.geocoders import Nominatim
 from geopy import Point
 from geopy.distance import geodesic
 import numpy as np
+import csv
 
-# Used to get the coordinates of the chargers from the API dataset
 def get_charger_data():
+    """
+    Retrieves charger data from a JSON file and filters it for charging stations located in London.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the ID, latitude, and longitude of the chargers in London.
+    """
+
     # From JSON file
     with open('data/Ontario_Charger_Dataset.json') as file:
         data = json.load(file)
@@ -21,8 +28,24 @@ def get_charger_data():
 
     return charger_info
 
-# Get list of charger coordinates relative to where the origin, destination, and midpoint are
 def get_charger_list(chargers, org_lat, org_long, dest_lat, dest_long, num_of_chargers):
+
+    """
+    Generates a list of charger locations around the origin, destination, and midway point.
+
+    Parameters:
+        chargers (list): List of chargers with their latitude and longitude.
+        org_lat (float): Latitude of the origin.
+        org_long (float): Longitude of the origin.
+        dest_lat (float): Latitude of the destination.
+        dest_long (float): Longitude of the destination.
+        num_of_chargers (int): Number of chargers to select around each point.
+
+    Returns:
+        list: A list of unique chargers around the origin, destination, and midway point, padded to ensure
+              the list contains num_of_chargers * 3 chargers.
+    """
+
     list_of_chargers = [(i, lat, long) for i, (lat, long) in enumerate(chargers)]
 
     # Calculate the midway point between origin and destination
@@ -47,14 +70,17 @@ def get_charger_list(chargers, org_lat, org_long, dest_lat, dest_long, num_of_ch
 
 def load_config_file(fname=None):
     # Created by Santiago 26/04/2024
-    ''' Helper method to load the configuration parameters from yaml file
-        first the default yaml file is loaded and the upadted with the
-        new most updated configuration yaml file given by fname.
-        args:
-            fname: string-> path to the yaml config file
-        output:
-            parameters: python dict
-    '''
+    """
+    Helper method to load the configuration parameters from yaml file first the default yaml file is
+    loaded and the upadted with the new most updated configuration yaml file given by fname.
+
+    Parameters:
+        fname (string) path to the yaml config file
+
+    Returns:
+        parameters (python dict)
+
+    """
 
     with open(fname) as config:
         parameters = yaml.safe_load(config)
@@ -62,9 +88,11 @@ def load_config_file(fname=None):
     return parameters
 
 def get_closest_chargers(current_lat, current_long, return_num, charger_list, existing_list=None):
-    """Returns a list of chargering stations which are closest to the current coordinates
 
-    Args:
+    """
+    Returns a list of charging stations which are closest to the current coordinates
+
+    Parameters:
         current_lat: Latitude to use as the origin
         current_long: Longitude to use as the origin
         return_num: Amount of charging stations to return
@@ -73,6 +101,7 @@ def get_closest_chargers(current_lat, current_long, return_num, charger_list, ex
     Returns:
         A filtered list of tuples (id, lat, long)
     """
+
     # Calculate the distances and travel times between the current coordinates and all charger locations
     distances_and_times = []
     origin = (current_lat, current_long)
@@ -111,7 +140,17 @@ def get_closest_chargers(current_lat, current_long, return_num, charger_list, ex
     return closest_chargers
 
 def get_distance_and_time(origin, destination):
-    """Gets the distance and travel-time between two coordinates using the OpenStreetMap's data"""
+
+    """
+    Gets the distance and travel time between two coordinates using geodesic distance and an assumed average speed.
+
+    Parameters:
+        origin (tuple): A tuple containing the latitude and longitude of the origin.
+        destination (tuple): A tuple containing the latitude and longitude of the destination.
+
+    Returns:
+        tuple: A tuple containing the distance in kilometers and the travel time in seconds.
+    """
 
     # Assume average driving speed of 60 km/h
     average_speed = 60
@@ -128,6 +167,21 @@ def get_distance_and_time(origin, destination):
     return distance, time
 
 def get_org_dest_coords(center, radius, org_angle):
+
+    """
+    Calculates the coordinates of origin and destination points on the circumference of a circle
+    with a given center and radius.
+
+    Parameters:
+        center (tuple): A tuple containing the latitude and longitude of the center point.
+        radius (float): The radius of the circle in kilometers.
+        org_angle (float): The angle in radians for the origin point on the circle's circumference.
+
+    Returns:
+        np.ndarray: A 1D array containing the latitude and longitude of the origin and destination points,
+                    rounded to 4 decimal places.
+    """
+
     lat, long = center
     km_in_degrees = radius / 111.11  # Approximation of km to degrees
 
@@ -153,3 +207,79 @@ def get_org_dest_coords(center, radius, org_angle):
     orig_dest_coord = np.round(np.array([org_lat, org_long, dest_lat, dest_long]), decimals=4)
 
     return orig_dest_coord.transpose()
+
+def read_excel_data(file_path, sheet_name):
+
+    """
+    Retrieves data from an Excel file and returns it as a DataFrame.
+
+    Parameters:
+        file_path (str): The path to the Excel file.
+        sheet_name (str): The name of the sheet to read from the Excel file.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the data from the specified sheet.
+    """
+
+    df = pd.read_excel(file_path, sheet_name=sheet_name)
+    return df
+
+def read_csv_data(file_path):
+
+    """
+    Reads data from a CSV file and returns it as a DataFrame.
+
+    Parameters:
+        file_path (str): The path to the CSV file.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the data from the CSV file.
+    """
+
+    df = pd.read_csv(file_path)
+    return df
+
+def save_to_csv(data, filename):
+    """
+    Saves the given data to a CSV file.
+
+    Parameters:
+        data (list): A list of lists, where each inner list represents a row of data to be written to the CSV file.
+        filename (str): The name of the file where the data will be saved.
+
+    Returns:
+        None
+    """
+
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for row in data:
+            writer.writerow(row)
+
+def load_from_csv(filename):
+
+    """
+    Loads data from a CSV file and attempts to parse each item as a Python literal.
+
+    Parameters:
+        filename (str): The name of the file from which the data will be loaded.
+
+    Returns:
+        list: A list of tuples, where each tuple represents a row of data from the CSV file.
+    """
+
+    data = []
+    with open(filename, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            converted_row = []
+            for item in row:
+                try:
+                    # Attempt to parse the item as a Python literal (e.g., list, int, float)
+                    converted_item = ast.literal_eval(item)
+                    converted_row.append(converted_item)
+                except (ValueError, SyntaxError):
+                    # Keep as string if conversion fails
+                    converted_row.append(item)
+            data.append(tuple(converted_row))
+    return data

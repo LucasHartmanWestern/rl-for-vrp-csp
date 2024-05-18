@@ -3,20 +3,20 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import csv
 import ast
-
-def read_excel_data(file_path, sheet_name):
-    """Retrieve the data from the excel file and parse it as needed"""
-    df = pd.read_excel(file_path, sheet_name=sheet_name)
-    return df
-
-def read_csv_data(file_path):
-    df = pd.read_csv(file_path)
-    return df
+import torch
 
 def generate_plot(df):
-    """Visualize the data using a graph.
-    The graph connects the coordinates in the Latitude and Longitude columns
-    and plots the coordinates in the various (CX_Latitude, CX_Longitude) columns."""
+
+    """
+    Visualizes the data using a graph. The graph connects the coordinates in the Latitude and Longitude columns
+    and plots the coordinates in the various (C1_Latitude, C1_Longitude, ..., C10_Latitude, C10_Longitude) columns.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing the data to be plotted.
+
+    Returns:
+        None
+    """
 
     # Initialize the plot
     plt.figure(figsize=(10, 8))
@@ -42,6 +42,18 @@ def generate_plot(df):
     plt.show()
 
 def plot_aggregate_output_values_per_route(data):
+
+    """
+    Plots the average output values of neurons over time for each route index.
+
+    Parameters:
+        data (list): A nested list containing tuples of the form
+                     (episode_avg_output_values, episode_number, aggregation_num, route_index, seed).
+
+    Returns:
+        None
+    """
+
     # Extract unique route indices and aggregation numbers
     route_indices = sorted(set(item[3] for sublist in data for item in sublist))
     aggregation_nums = sorted(set(item[2] for sublist in data for item in sublist))
@@ -75,6 +87,17 @@ def plot_aggregate_output_values_per_route(data):
 
 
 def plot_aggregate_reward_data(data):
+
+    """
+    Plots the average rewards over time for each route index, with vertical lines indicating aggregation steps.
+
+    Parameters:
+        data (list): A nested list containing tuples of the form (avg_reward, aggregation_num, route_index, seed).
+
+    Returns:
+        None
+    """
+
     # Extract unique route indices and aggregation numbers
     route_indices = sorted(set(item[2] for sublist in data for item in sublist))
     aggregation_nums = sorted(set(item[1] for sublist in data for item in sublist))
@@ -102,8 +125,19 @@ def plot_aggregate_reward_data(data):
     plt.show()
 
 def generate_average_reward_plot(algorithm, df, session_number):
-    """Visualize the data using a graph.
-        The graph shows the average reward over time per episode"""
+
+    """
+    Visualizes the average reward over time per episode using a graph.
+
+    Parameters:
+        algorithm (str): The name of the algorithm used for training.
+        df (pandas.DataFrame): The DataFrame containing the data to be plotted,
+                               with columns 'Episode Num' and 'Average Reward'.
+        session_number (int): The session number for which the data is being plotted.
+
+    Returns:
+        None
+    """
 
     # Initialize the plot
     plt.figure(figsize=(10, 8))
@@ -121,7 +155,16 @@ def generate_average_reward_plot(algorithm, df, session_number):
     plt.show()
 
 def generate_traffic_plot(df):
-    """Visualize the traffic per charger id over the timesteps."""
+
+    """
+    Visualizes the traffic per charger ID over the timesteps using a graph.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing the traffic data to be plotted, with columns 'Charger ID', 'Timestep', and 'Traffic'.
+
+    Returns:
+        None
+    """
 
     plt.figure(figsize=(10, 8))
 
@@ -144,7 +187,21 @@ def generate_traffic_plot(df):
     plt.show()
 
 def generate_interactive_plot(algorithm, session_number, routes, chargers, origin, destination):
-    """Visualize the data using an interactive graph."""
+
+    """
+    Visualizes the paths of agents using an interactive graph.
+
+    Parameters:
+        algorithm (str): The name of the algorithm used for training.
+        session_number (int): The session number for which the data is being plotted.
+        routes (list): A list of DataFrames, each containing the route data for an agent, with columns including 'Longitude', 'Latitude', 'Episode Num', 'Agent Num', 'Action', 'Timestep', 'SoC', 'Is Charging', 'Episode Reward', 'Max Time Left', and 'Time to Destination'.
+        chargers (pandas.DataFrame): A DataFrame containing the charger data with columns 'Charger ID', 'Latitude', and 'Longitude'.
+        origin (list): A list of tuples containing the coordinates of the origin points.
+        destination (list): A list of tuples containing the coordinates of the destination points.
+
+    Returns:
+        None
+    """
 
     multi_agent = False
     if len(origin) > 1:
@@ -242,7 +299,18 @@ def generate_interactive_plot(algorithm, session_number, routes, chargers, origi
     fig.show()
 
 def generate_charger_only_plot(chargers, origin, destination):
-    """Visualize the data using an interactive graph."""
+
+    """
+    Visualizes the locations of chargers, the origin, and the destination using an interactive graph.
+
+    Parameters:
+    chargers (pandas.DataFrame): A DataFrame containing the charger data with columns 'Charger ID', 'Latitude', and 'Longitude'.
+    origin (tuple): A tuple containing the coordinates (latitude, longitude) of the origin point.
+    destination (tuple): A tuple containing the coordinates (latitude, longitude) of the destination point.
+
+    Returns:
+    None
+    """
 
     fig = go.Figure()
 
@@ -302,25 +370,73 @@ def generate_charger_only_plot(chargers, origin, destination):
 
     fig.show()
 
-def save_to_csv(data, filename):
-    with open(filename, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        for row in data:
-            writer.writerow(row)
+def visualize_simulation(paths, destinations):
 
-def load_from_csv(filename):
-    data = []
-    with open(filename, newline='') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            converted_row = []
-            for item in row:
-                try:
-                    # Attempt to parse the item as a Python literal (e.g., list, int, float)
-                    converted_item = ast.literal_eval(item)
-                    converted_row.append(converted_item)
-                except (ValueError, SyntaxError):
-                    # Keep as string if conversion fails
-                    converted_row.append(item)
-            data.append(tuple(converted_row))
-    return data
+    """
+    Visualizes the paths taken by tokens (vehicles) during the simulation along with their destinations.
+
+    Parameters:
+        paths (list): A list of token positions at each timestep.
+        destinations (torch.Tensor): A tensor containing the coordinates of the destinations.
+
+    Returns:
+        None
+    """
+
+    # Rearrange the data so that each path represents the movement of one token over time
+    token_paths = [torch.array([step[i] for step in paths]) for i in range(len(paths[0]))]
+
+    # Plot the token paths
+    colors = ['blue', 'green', 'orange', 'cyan', 'magenta']
+    for i, path in enumerate(token_paths):
+        plt.plot(path[:, 1], path[:, 0], marker='o', markersize=3, linestyle='-', color=colors[i], label=f'Token {i + 1}')
+
+    # Plot the destinations
+    plt.scatter(destinations[:, 1], destinations[:, 0], marker='*', s=100, c='red', label='Destinations')
+
+    # Set labels and title
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title('Token Paths and Destinations')
+
+    # Add a legend
+    plt.legend()
+
+    # Show the plot
+    plt.show()
+
+def visualize_stats(data, title, measure):
+
+    """
+    Visualizes the change in specified measures over time during the simulation.
+
+    Parameters:
+        data (list): A list of arrays, where each array contains the values of the specified measure at each timestep.
+        title (str): The title of the plot.
+        measure (str): The name of the measure being plotted.
+
+    Returns:
+        None
+    """
+
+    num_steps = len(data)
+    num_values = len(data[0])
+
+    # Create a time axis
+    time = torch.arange(num_steps)
+
+    # Plot the change in values for each index
+    for i in range(num_values):
+        values = [array[i] for array in data]
+        plt.plot(time, values, label=f'{measure} {i + 1}')
+
+    # Set labels and title
+    plt.xlabel('Step')
+    plt.ylabel(f'{measure}')
+    plt.title(f'{title}')
+
+    # Add a legend
+    plt.legend()
+
+    # Show the plot
+    plt.show()

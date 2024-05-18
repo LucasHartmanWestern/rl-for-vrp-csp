@@ -6,38 +6,54 @@ import os
 from collections import deque
 from pathfinding import *
 import time
-from environment import simulate_matrix_env, visualize_simulation, visualize_stats
+from environment import simulate_matrix_env
 from pathfinding import haversine
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
     
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
-def train(
-    chargers,
-    ev_info,
-    routes,
-    date,
-    action_dim,
-    global_weights,
-    aggregation_num,
-    zone_index,
-    seed,
-    main_seed,
-    epsilon,
-    epsilon_decay,
-    discount_factor,
-    learning_rate,
-    num_episodes,
-    batch_size,
-    buffer_limit,
-    num_of_agents,
-    num_of_charges,
-    layers=[64, 128, 1024, 128, 64],
-    fixed_attributes=None,
-    verbose=False,
-    display_training_times=False
+def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+    seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
+    buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
+    verbose=False, display_training_times=False
 ):
+
+    """
+    Trains a Deep Q-Network (DQN) for Electric Vehicle (EV) routing and charging optimization.
+
+    Parameters:
+        chargers (array): Array of charger locations and their properties.
+        ev_info (dict): Information about the electric vehicles.
+        routes (array): Array containing route information for each EV.
+        date (str): Date string for logging purposes.
+        action_dim (int): Dimension of the action space.
+        global_weights (array): Pre-trained weights for initializing the Q-networks.
+        aggregation_num (int): Aggregation step number for tracking.
+        zone_index (int): Index of the current zone being processed.
+        seed (int): Seed for reproducibility of training.
+        main_seed (int): Main seed for initializing the environment.
+        epsilon (float): Initial exploration rate for epsilon-greedy policy.
+        epsilon_decay (float): Decay rate for the exploration rate.
+        discount_factor (float): Discount factor for future rewards.
+        learning_rate (float): Learning rate for the optimizer.
+        num_episodes (int): Number of training episodes.
+        batch_size (int): Size of the mini-batch for experience replay.
+        buffer_limit (int): Maximum size of the experience replay buffer.
+        num_of_agents (int): Number of agents (EVs) in the environment.
+        num_of_charges (int): Number of charging stations.
+        layers (list, optional): List of integers defining the architecture of the neural networks.
+        fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
+        verbose (bool, optional): Flag to enable detailed logging.
+        display_training_times (bool, optional): Flag to display training times for different operations.
+
+    Returns:
+        tuple: A tuple containing:
+            - List of trained Q-network state dictionaries.
+            - List of average rewards for each episode.
+            - List of average output values for each episode.
+    """
+
     avg_rewards = []
 
     # Set seeds for reproducibility
@@ -285,6 +301,22 @@ def train(
 
 def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
+    """
+    Simulates the EV routing and charging process to evaluate the performance of the given paths.
+
+    Parameters:
+        paths (list): List of paths for each EV.
+        ev_routes (array): Array containing route information for each EV.
+        ev_info (dict): Information about the electric vehicles, including usage rates.
+        unique_chargers (array): Array of unique charger locations.
+        charge_needed (list): List of charging requirements for each EV.
+        local_paths (list): List of local paths for each EV.
+
+    Returns:
+        float: The simulation reward, calculated as the negative sum of the total distance traveled
+               (scaled by 100) and the peak traffic encountered during the simulation.
+    """
+
     usage_per_hour_list = ev_info['usage_per_hour']  # 15600
 
     # Parameters to tweak
@@ -306,6 +338,30 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     return simulation_reward.numpy()
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
+
+    """
+    Formats the data required for simulating the EV routing and charging process.
+
+    Parameters:
+        paths (list): List of paths for each EV.
+        ev_routes (array): Array containing route information for each EV.
+        ev_info (dict): Information about the electric vehicles, including starting charge levels.
+        unique_chargers (array): Array of unique charger locations.
+        charge_needed (list): List of charging requirements for each EV.
+        local_paths (list): List of local paths for each EV.
+
+    Returns:
+        tuple: A tuple containing:
+            - tokens (torch.tensor): Tensor of origin coordinates for each EV.
+            - destinations (numpy.array): Array of destination coordinates, including charging stations.
+            - capacity (torch.tensor): Tensor of capacity values for each destination.
+            - stops (torch.tensor): Tensor indicating the stop sequence for each EV.
+            - target_battery_level (numpy.array): Array of target battery levels at each stop.
+            - starting_battery_level (torch.tensor): Tensor of initial battery levels for each EV.
+            - actions (numpy.array): Array of actions for each EV.
+            - move (numpy.array): Array indicating movement status for each EV.
+            - traffic (numpy.array): Array indicating traffic levels at each destination.
+    """
 
     starting_charge_array = np.array(ev_info['starting_charge'], copy=True)
     starting_battery_level = torch.tensor(starting_charge_array, dtype=torch.float) # 5000-7000

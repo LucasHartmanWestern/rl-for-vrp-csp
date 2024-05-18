@@ -1,5 +1,5 @@
 from train import train
-from data_loader import get_charger_data, get_charger_list, load_config_file, get_org_dest_coords
+from data_loader import *
 from visualize import *
 import random
 import os
@@ -15,6 +15,16 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(date):
+
+    """
+    Trains reinforcement learning models for vehicle routing and charging station placement (VRP-CSP).
+
+    Parameters:
+        date (str): The date string for logging purposes.
+
+    Returns:
+        None
+    """
 
     ############ Initialization ############
 
@@ -248,7 +258,48 @@ def train_rl_vrp_csp(date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose, display_training_times):
+def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
+                aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
+                discount_factor, learning_rate, num_episodes, batch_size,
+                buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
+                local_weights_list, rewards, output_values, barrier, verbose, display_training_times):
+
+    """
+    Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
+
+    Parameters:
+        chargers (array): Array of charger locations and their properties.
+        ev_info (dict): Information about the electric vehicles.
+        routes (array): Array containing route information for each EV.
+        date (str): Date string for logging purposes.
+        action_dim (int): Dimension of the action space.
+        global_weights (array): Pre-trained weights for initializing the Q-networks.
+        aggregate_step (int): Aggregation step number for tracking.
+        ind (int): Index of the current process.
+        sub_seed (int): Sub-seed for reproducibility of training.
+        main_seed (int): Main seed for initializing the environment.
+        epsilon (float): Initial exploration rate for epsilon-greedy policy.
+        epsilon_decay (float): Decay rate for the exploration rate.
+        discount_factor (float): Discount factor for future rewards.
+        learning_rate (float): Learning rate for the optimizer.
+        num_episodes (int): Number of training episodes.
+        batch_size (int): Size of the mini-batch for experience replay.
+        buffer_limit (int): Maximum size of the experience replay buffer.
+        num_of_agents (int): Number of agents (EVs) in the environment.
+        num_of_chargers (int): Number of charging stations.
+        layers (list): List of integers defining the architecture of the neural networks.
+        fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
+        local_weights_list (list): List to store the local weights of each agent.
+        rewards (list): List to store the average rewards for each episode.
+        output_values (list): List to store the average output values for each episode.
+        barrier (multiprocessing.Barrier): Barrier for synchronizing multiprocessing tasks.
+        verbose (bool): Flag to enable detailed logging.
+        display_training_times (bool): Flag to display training times for different operations.
+
+    Returns:
+        None
+    """
+
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
@@ -267,7 +318,6 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights, agg
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         raise
-
 
 if __name__ == '__main__':
 
