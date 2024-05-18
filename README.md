@@ -2,9 +2,25 @@
 
 ## Overview
 
-With Electric Vehicle (EV) adoption rates continuing to grow, it is becoming increasingly critical to find solutions to mitigate the risk of overloading the electrical grid. This project examines the effectiveness of a deployed EV routing application powered by the Multi-factor Edge-weighting with Reinforcement Learning (MERL) algorithm. The algorithm is designed to optimize EV routing by minimizing traffic clustering and travel duration. By combining real-time data on traffic patterns, charging station availability, and grid load, the application directs drivers efficiently, aiming to alleviate congestion and balance grid demands.
-
-The application operates through a client-server framework on real-world data, but training is conducted using a realistic simulation environment to find routes that optimize travel efficiency and grid sustainability. Our findings demonstrate that this advanced algorithmic approach significantly reduces peak charging station loads and enhances electrical grid efficiency. This study highlights the potential of integrating sophisticated algorithms with practical applications to mitigate the challenges of urban EV integration, marking a pivotal step towards sustainable urban mobility.
+With Electric Vehicle (EV) adoption rates continuing
+to grow, it is becoming increasingly critical to find solutions
+to mitigate the risk of overloading the electrical grid. This
+paper examines the effectiveness of an EV routing application
+powered by an enhanced version of the Multi-factor Edge-weighting
+with Reinforcement Learning (MERL) algorithm, which
+uses federated learning to significantly increase performance,
+provide added security measures, and improve the sustainability
+of the algorithm. The application is designed to optimize EV
+routing by minimizing traffic clustering and travel duration. The
+application combines real-time data on traffic patterns, charging
+station availability, and grid load to direct drivers efficiently,
+aiming to alleviate congestion and balance grid demands. Our
+findings demonstrate that this advanced algorithmic approach
+significantly reduces peak charging station loads and enhances
+electrical grid efficiency. This study highlights the potential of
+merging sophisticated algorithms with practical applications to
+mitigate the challenges of urban EV integration, marking a
+pivotal step towards sustainable urban mobility.
 
 ## Authors
 
