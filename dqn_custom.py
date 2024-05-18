@@ -29,7 +29,7 @@ class QNetwork(nn.Module):
             # self.init_weights(linear_layer)  # Initialize weights and biases
             self.layers.append(linear_layer)
             self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
-            
+
         self.output = nn.Linear(layers[-1], action_dim)  # Output layer
         
     def forward(self, state):
@@ -99,7 +99,6 @@ def train_dqn(
     buffer_limit,
     num_of_agents,
     num_of_charges,
-    gpus,
     layers=[64, 128, 1024, 128, 64],
     fixed_attributes=None,
     verbose=False
@@ -390,7 +389,8 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
-    starting_battery_level = torch.tensor(ev_info['starting_charge'], dtype=float)  # 5000-7000
+    starting_charge_array = np.array(ev_info['starting_charge'], copy=True)
+    starting_battery_level = torch.tensor(starting_charge_array, dtype=torch.float) # 5000-7000
 
     tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
 

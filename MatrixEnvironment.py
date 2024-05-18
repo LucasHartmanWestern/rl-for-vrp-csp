@@ -5,11 +5,6 @@ import torch
 
 warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
 
-if torch.cuda.is_available():
-    print("CUDA is available. GPU can be used.")
-else:
-    print("CUDA is not available. Using CPU.")
-
 # Token (Nx2)
 T = torch.tensor([[43.02120034946083, -81.28349087468504],
               [43.004969336049854, -81.18631870502043],
