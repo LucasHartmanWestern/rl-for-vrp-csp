@@ -1,7 +1,6 @@
 from train import train
-from data_loader import get_charger_data, get_charger_list, load_config_file
-from geolocation.visualize import *
-from geolocation.maps_free import get_org_dest_coords
+from data_loader import get_charger_data, get_charger_list, load_config_file, get_org_dest_coords
+from visualize import *
 import random
 import os
 import time
@@ -16,17 +15,6 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(date):
-    ############ Algorithm ############
-
-    algorithm = "DQN" # Currently the only option working
-
-    ############ Configuration ############
-
-    train_model = True # Set to false for model evaluation
-    save_data = False # Set to true if you want to save simulation results in a csv file
-    generate_plots = False # Set to true if you want to generate plots of the simulation environments
-    save_aggregate_rewards = True # Set to true if you want to save the rewards across aggregations
-    continue_training = False # Set to true if you want the option to continue training after a full training loop completes
 
     ############ Initialization ############
 
@@ -133,7 +121,7 @@ def train_rl_vrp_csp(date):
         user_input = ""
 
         while user_input != 'Done':
-            if train_model:
+            if eval_c['train_model']:
 
                 if user_input != "":
                     nn_c['num_episodes'] = int(user_input)
@@ -196,7 +184,7 @@ def train_rl_vrp_csp(date):
                     print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n",)
 
                 # Plot the aggregated data
-                if save_aggregate_rewards:
+                if eval_c['save_aggregate_rewards']:
                     save_to_csv(rewards, 'outputs/rewards.csv')
                     save_to_csv(output_values, 'outputs/output_values.csv')
 
@@ -212,13 +200,12 @@ def train_rl_vrp_csp(date):
                 fixed_attributes = eval_c['fixed_attributes']
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-            if save_data:
+            if eval_c['save_data']:
                 # Add this before you save your model
                 if not os.path.exists('outputs'):
                     os.makedirs('outputs')
 
-                # TODO - Update this to not use environments
-
+                # TODO - Update this to work with new environment
                 # for index, env in enumerate(envs):
                 #     env.write_path_to_csv(f'outputs/routes_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
                 #     env.write_chargers_to_csv(f'outputs/chargers_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
@@ -226,7 +213,6 @@ def train_rl_vrp_csp(date):
                 #     env.write_charger_traffic_to_csv(f'outputs/traffic_{num_of_agents}_{num_episodes}_{seeds}_{attr_label}_{index}.csv')
 
             # TODO - Update this to work with new environment
-
             # if generate_plots:
             #     num_of_agents = env_c['num_of_agents']
             #     num_episodes = nn_c['num_episodes']
@@ -257,7 +243,7 @@ def train_rl_vrp_csp(date):
             #         destinations = [(route[2], route[3]) for route in all_routes[index]]
             #         generate_interactive_plot(algorithm, seed, route_datasets, charger_data, origins, destinations)
 
-            if nn_c['num_episodes'] != 1 and continue_training:
+            if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
             else:
                 user_input = 'Done'

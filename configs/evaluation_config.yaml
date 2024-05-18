@@ -8,3 +8,9 @@ eval_config:
     fixed_attributes: [] # Determine impact ratings through training
     verbose: True # Log episode-specific data during training
     display_training_times: False # Display breakdown of how much each step takes
+
+    train_model: True # Set to false for model evaluation
+    save_data: False # Set to true if you want to save simulation results in a csv file
+    generate_plots: False # Set to true if you want to generate plots of the simulation environments
+    save_aggregate_rewards: True # Set to true if you want to save the rewards across aggregations
+    continue_training: False # Set to true if you want the option to continue training after a full training loop completes
