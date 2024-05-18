@@ -1,6 +1,7 @@
 import torch
 
 def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier):
+
     max_model_index = 0
 
     for info in ev_info:
@@ -47,13 +48,6 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
     return global_weights
 
 def aggregate_weights(local_weights_list):
-    """
-    Aggregate the weights from multiple local models.
-    Args:
-        local_weights_list: List of state_dicts from local models.
-    Returns:
-        A state_dict representing the aggregated weights.
-    """
 
     # Initialize the aggregated weights with the structure of the first model's weights
     aggregated_weights = {key: torch.zeros_like(value) for key, value in local_weights_list[0].items()}

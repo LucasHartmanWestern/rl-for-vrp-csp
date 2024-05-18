@@ -1,13 +1,12 @@
-from dqn_custom import train_dqn
-from data_loader import get_charger_data, get_charger_list
+from train import train
+from data_loader import get_charger_data, get_charger_list, load_config_file
 from geolocation.visualize import *
 from geolocation.maps_free import get_org_dest_coords
-from _helpers import load_config_file as load_config
 import random
 import os
 import time
 import torch.multiprocessing as mp
-from frl_custom import get_global_weights
+from federated_learning import get_global_weights
 import copy
 from datetime import datetime
 import numpy as np
@@ -34,16 +33,16 @@ def train_rl_vrp_csp(date):
     neural_network_config_fname = 'configs/neural_network_config.yaml'
     algorithm_config_fname = 'configs/algorithm_config.yaml'
     environment_config_fname = 'configs/environment_config.yaml'
-    hpp_config_fname = 'configs/hpp_config.yaml'
+    eval_config_fname = 'configs/evaluation_config.yaml'
 
-    c = load_config(neural_network_config_fname)
+    c = load_config_file(neural_network_config_fname)
     nn_c = c['nn_hyperparameters']
-    c = load_config(algorithm_config_fname)
+    c = load_config_file(algorithm_config_fname)
     algo_c = c['algorithm_settings']
-    c = load_config(environment_config_fname)
+    c = load_config_file(environment_config_fname)
     env_c = c['environment_settings']
-    c = load_config(hpp_config_fname)
-    hpp_c = c['hpp_config']
+    c = load_config_file(eval_config_fname)
+    eval_c = c['eval_config']
 
     batch_size = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
@@ -171,7 +170,7 @@ def train_rl_vrp_csp(date):
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
-                            hpp_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier, hpp_c['verbose']))
+                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_output_values, barrier, eval_c['verbose'], eval_c['display_training_times']))
                         processes.append(process)
                         process.start()
 
@@ -207,10 +206,10 @@ def train_rl_vrp_csp(date):
                     plot_aggregate_reward_data(loaded_rewards)
                     plot_aggregate_output_values_per_route(loaded_output_values)
 
-            if hpp_c['fixed_attributes'] != [0, 1] and hpp_c['fixed_attributes'] != [1, 0] and hpp_c['fixed_attributes'] != [0.5, 0.5]:
+            if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
             else:
-                fixed_attributes = hpp_c['fixed_attributes']
+                fixed_attributes = eval_c['fixed_attributes']
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
             if save_data:
@@ -263,13 +262,13 @@ def train_rl_vrp_csp(date):
             else:
                 user_input = 'Done'
 
-def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose):
+def train_route(chargers, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, local_weights_list, rewards, output_values, barrier, verbose, display_training_times):
     try:
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values = train_dqn(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                                  batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose)
+        local_weights_per_agent, avg_rewards, avg_output_values = train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
+                                  batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose, display_training_times)
 
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)

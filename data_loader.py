@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 from geolocation.maps_free import get_closest_chargers, move_towards, get_distance_and_time
+import yaml
 
 # Used to get the coordinates of the chargers from the API dataset
 def get_charger_data():
@@ -39,3 +40,20 @@ def get_charger_list(chargers, org_lat, org_long, dest_lat, dest_long, num_of_ch
 
     # Combine and append lists
     return unique_list + padding_chargers
+
+
+def load_config_file(fname=None):
+    # Created by Santiago 26/04/2024
+    ''' Helper method to load the configuration parameters from yaml file
+        first the default yaml file is loaded and the upadted with the
+        new most updated configuration yaml file given by fname.
+        args:
+            fname: string-> path to the yaml config file
+        output:
+            parameters: python dict
+    '''
+
+    with open(fname) as config:
+        parameters = yaml.safe_load(config)
+
+    return parameters
