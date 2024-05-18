@@ -73,3 +73,7 @@ Evaluate the trained models created:
 ```sh
 python ?.py
 ```
+
+## Diagrams
+### Process Diagram
+![Process Diagram](images/process_diagram.png)
