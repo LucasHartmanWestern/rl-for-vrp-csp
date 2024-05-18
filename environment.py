@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import warnings
 import torch
+from visualize import visualize_stats, visualize_simulation
 
 warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
 
@@ -66,6 +67,17 @@ dr = 0.001
 
 def get_actions(actions, stops):
 
+    """
+    Generates a new identity matrix and creates action vectors based on the stops.
+
+    Parameters:
+        actions (torch.Tensor): A tensor representing possible actions.
+        stops (torch.Tensor): A tensor containing the stops for each action.
+
+    Returns:
+        torch.Tensor: A tensor containing the action vectors.
+    """
+
     # Make new identity matrix
     max_val = len(actions[0])
     identity_matrix = torch.eye(max_val)
@@ -74,7 +86,19 @@ def get_actions(actions, stops):
     return actions
 
 def get_distance(tokens, destinations, actions):
-    
+
+    """
+    Computes the Euclidean distance between each token's position and its corresponding target destination.
+
+    Parameters:
+        tokens (torch.Tensor): A tensor containing the coordinates of the tokens.
+        destinations (torch.Tensor): A tensor containing the coordinates of the possible destinations.
+        actions (torch.Tensor): A tensor indicating the chosen actions for each token.
+
+    Returns:
+        torch.Tensor: A tensor containing the distances between each token and its target destination as a 1D array.
+    """
+
     # Compute targets for each token
     token_targets = actions @ destinations
 
@@ -87,10 +111,34 @@ def get_distance(tokens, destinations, actions):
 
 def get_arrived(dists, dist_threshold):
 
+    """
+    Determines whether each distance is below or above a given threshold.
+
+    Parameters:
+        dists (torch.Tensor): A tensor containing distances.
+        dist_threshold (float): The distance threshold.
+
+    Returns:
+        torch.Tensor: A tensor containing 1s and 0s where 1 indicates the distance is below or equal to the threshold
+                      and 0 indicates the distance is above the threshold.
+    """
+
     # Return 1 if below threshold, and 0 if above
     return (dists <= dist_threshold).int()
 
 def get_traffic(stops, destinations, is_charging):
+
+    """
+    Calculates the traffic level at each charging station based on the stops and charging status of vehicles.
+
+    Parameters:
+        stops (torch.Tensor): A tensor containing the stops for each vehicle.
+        destinations (torch.Tensor): A tensor containing the coordinates of possible destinations, including charging stations.
+        is_charging (torch.Tensor): A tensor indicating whether each vehicle is charging (1) or not (0).
+
+    Returns:
+        torch.Tensor: A tensor containing the traffic level at each charging station.
+    """
 
     # Get stations to charge at
     target_stations = stops[:, 0].reshape(-1) + 1
@@ -113,7 +161,23 @@ def get_traffic(stops, destinations, is_charging):
     return traffic_level
 
 def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, increase_rate):
-    
+
+    """
+    Calculates the charging rates for each vehicle based on their current stops, traffic level at charging stations,
+    arrival status, and station capacities.
+
+    Parameters:
+        stops (torch.Tensor): A tensor containing the stops for each vehicle.
+        traffic_level (torch.Tensor): A tensor containing the traffic level at each charging station.
+        arrived (torch.Tensor): A tensor indicating whether each vehicle has arrived at its target stop (1 if arrived, 0 otherwise).
+        capacity (torch.Tensor): A tensor containing the capacity of each charging station.
+        decrease_rate (float): The rate at which charging decreases.
+        increase_rate (float): The maximum rate at which charging can increase.
+
+    Returns:
+        torch.Tensor: A tensor containing the charging rates for each vehicle.
+    """
+
     # Get target stop for each car
     target_stop = stops[:, 0]
 
@@ -142,9 +206,32 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, i
     return rates_by_car
 
 def update_battery(battery, charge_rate):
+
+    """
+    Updates the battery levels of vehicles based on the charging rates.
+
+    Parameters:
+        battery (torch.Tensor): A tensor containing the current battery levels of the vehicles.
+        charge_rate (torch.Tensor): A tensor containing the charging rates for the vehicles.
+
+    Returns:
+        torch.Tensor: A tensor containing the updated battery levels.
+    """
+
     return battery + charge_rate
 
 def get_battery_charged(battery, target):
+
+    """
+    Determines whether each vehicle's battery level is sufficient to depart from the charging station.
+
+    Parameters:
+        battery (torch.Tensor): A tensor containing the current battery levels of the vehicles.
+        target (torch.Tensor): A tensor containing the target battery levels required to depart from the charging station.
+
+    Returns:
+        torch.Tensor: A tensor containing 1s and 0s where 1 indicates the battery level is sufficient and 0 indicates it is not.
+    """
 
     # Target for this stop
     stop_target = target[:, 0]
@@ -153,6 +240,22 @@ def get_battery_charged(battery, target):
     return (battery >= stop_target).int()
 
 def move_tokens(tokens, moving, actions, destinations, step_size):
+
+    """
+    Moves tokens towards their target destinations, updating their positions and calculating the distance traveled.
+
+    Parameters:
+        tokens (torch.Tensor): A tensor containing the current positions of the tokens.
+        moving (torch.Tensor): A tensor indicating whether each token is moving (1 if moving, 0 otherwise).
+        actions (torch.Tensor): A tensor indicating the chosen actions for each token.
+        destinations (torch.Tensor): A tensor containing the coordinates of the possible destinations.
+        step_size (float): The maximum step size for each movement.
+
+    Returns:
+        tuple: A tuple containing:
+            - new_tokens (torch.Tensor): A tensor containing the updated positions of the tokens.
+            - distance_travelled (torch.Tensor): A tensor containing the distances traveled by each token.
+    """
 
     # Get target destinations for tokens that are moving
     target_coords = actions @ destinations
@@ -191,7 +294,18 @@ def move_tokens(tokens, moving, actions, destinations, step_size):
     return new_tokens, distance_travelled
 
 def update_stops(stops, ready_to_leave):
-    
+
+    """
+    Updates the stops for each vehicle based on their readiness to leave the current stop.
+
+    Parameters:
+        stops (torch.Tensor): A tensor containing the current stops for each vehicle.
+        ready_to_leave (torch.Tensor): A tensor indicating whether each vehicle is ready to leave its current stop (1 if ready, 0 otherwise).
+
+    Returns:
+        torch.Tensor: A tensor containing the updated stops for each vehicle.
+    """
+
     # Create transformation matrix
     K = stops.shape[1]
     transform_matrix = torch.zeros((K, K), dtype=float)
@@ -209,7 +323,35 @@ def update_stops(stops, ready_to_leave):
    
     return updated_stops
 
-def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
+def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity,
+                        target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
+
+    """
+    Simulates the environment for a matrix of tokens (vehicles) as they move towards their destinations,
+    update their battery levels, and interact with charging stations.
+
+    Parameters:
+        tokens (torch.Tensor): A tensor containing the initial positions of the tokens.
+        battery (torch.Tensor): A tensor containing the initial battery levels of the tokens.
+        destinations (torch.Tensor): A tensor containing the coordinates of the possible destinations.
+        actions (torch.Tensor): A tensor indicating the possible actions for each token.
+        moving (torch.Tensor): A tensor indicating whether each token is moving (1 if moving, 0 otherwise).
+        traffic_level (torch.Tensor): A tensor indicating the initial traffic level at each charging station.
+        capacity (torch.Tensor): A tensor containing the capacity of each charging station.
+        target_battery_level (numpy.ndarray): An array containing the target battery levels required at each stop.
+        stops (torch.Tensor): A tensor containing the initial stops for each token.
+        step_size (float): The maximum step size for each movement.
+        increase_rate (float): The maximum rate at which charging can increase.
+        decrease_rate (float): The rate at which charging decreases.
+        k_steps (int): The maximum number of steps for the simulation.
+
+    Returns:
+        tuple: A tuple containing:
+            - paths (list): List of token positions at each timestep.
+            - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
+            - battery_levels (list): List of battery levels at each timestep.
+            - distances_per_car (list): List of distances traveled by each token at each timestep.
+    """
 
     target_battery_level = torch.from_numpy(target_battery_level)
     
@@ -288,53 +430,9 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
     return paths, torch.cat(traffic_per_charger), battery_levels, distances_per_car
 
 
-def visualize_simulation(paths, destinations):
-    # Rearrange the data so that each path represents the movement of one token over time
-    token_paths = [torch.array([step[i] for step in paths]) for i in range(len(paths[0]))]
-
-    # Plot the token paths
-    colors = ['blue', 'green', 'orange', 'cyan', 'magenta']
-    for i, path in enumerate(token_paths):
-        plt.plot(path[:, 1], path[:, 0], marker='o', markersize=3, linestyle='-', color=colors[i], label=f'Token {i + 1}')
-
-    # Plot the destinations
-    plt.scatter(destinations[:, 1], destinations[:, 0], marker='*', s=100, c='red', label='Destinations')
-
-    # Set labels and title
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.title('Token Paths and Destinations')
-
-    # Add a legend
-    plt.legend()
-
-    # Show the plot
-    plt.show()
-
-def visualize_stats(data, title, measure):
-    num_steps = len(data)
-    num_values = len(data[0])
-
-    # Create a time axis
-    time = torch.arange(num_steps)
-
-    # Plot the change in values for each index
-    for i in range(num_values):
-        values = [array[i] for array in data]
-        plt.plot(time, values, label=f'{measure} {i + 1}')
-
-    # Set labels and title
-    plt.xlabel('Step')
-    plt.ylabel(f'{measure}')
-    plt.title(f'{title}')
-
-    # Add a legend
-    plt.legend()
-
-    # Show the plot
-    plt.show()
-
 if __name__ == '__main__':
+
+    # Use this to test the environment with sample data
 
     # Run simulation
     paths, traffic, battery_levels, distances = simulate_matrix_env(T, B, D, A, Mov, Tr, Cap, Tar, S, step_size, ir, dr, 500)

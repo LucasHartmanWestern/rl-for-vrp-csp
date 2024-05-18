@@ -1,111 +1,61 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import copy
 from collections import namedtuple
 import random
 import os
 from collections import deque
 from pathfinding import *
 import time
-from MatrixEnvironment import simulate_matrix_env, visualize_simulation, visualize_stats
+from environment import simulate_matrix_env
 from pathfinding import haversine
-
-
-# Define the QNetwork architecture
-class QNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, layers):
-        super(QNetwork, self).__init__()
-
-        self.layers = nn.ModuleList()
-        self.batch_norms = nn.ModuleList()  # Add a list for batch normalization layers
-        for i, layer_size in enumerate(layers):
-            if i == 0:
-                linear_layer = nn.Linear(state_dim, layer_size)
-            else:
-                linear_layer = nn.Linear(layers[i - 1], layer_size)
-            
-            # self.init_weights(linear_layer)  # Initialize weights and biases
-            self.layers.append(linear_layer)
-            self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
-
-        self.output = nn.Linear(layers[-1], action_dim)  # Output layer
-        
-    def forward(self, state):
-        x = state
-        for i in range(len(self.layers) - 1):
-            x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return self.output(x) # Output layer
+from agent import initialize, agent_learn, get_actions, soft_update, save_model
     
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
-def initialize(state_dim, action_dim, layers):
-    q_network = QNetwork(state_dim, action_dim, layers)  # Q-network
-    target_q_network = QNetwork(state_dim, action_dim, layers)  # Target Q-network
-    target_q_network.load_state_dict(q_network.state_dict())  # Initialize target Q-network with the same weights as Q-network
-    return q_network, target_q_network
-
-def compute_loss(experiences, gamma, q_network, target_q_network):
-    states, distributions, rewards, next_states, dones = experiences
-
-    current_Q = q_network(states)
-    next_Q_values = target_q_network(next_states).detach()
-    max_next_Q_values = next_Q_values.max(1)[0].unsqueeze(1)
-    target_Q = rewards + (gamma * max_next_Q_values * (1 - dones))
-
-    # Expand target_Q to have the same size as current_Q
-    target_Q = target_Q.expand_as(current_Q)
-
-    # Use the Huber loss (SmoothL1Loss)
-    loss = nn.SmoothL1Loss()(current_Q, target_Q)
-    return loss
-
-
-def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
-
-    # Convert NumPy arrays to PyTorch tensors
-    states, distributions, rewards, next_states, dones = experiences
-    states = torch.tensor(states, dtype=torch.float32)
-    distributions = torch.tensor(distributions, dtype=torch.int64)
-    rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
-    next_states = torch.tensor(next_states, dtype=torch.float32)
-    dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(1)
-    experiences = (states, distributions, rewards, next_states, dones)
-
-    loss = compute_loss(experiences, gamma, q_network, target_q_network)  # Compute loss
-    optimizer.zero_grad()  # Zero out gradients
-    loss.backward()  # Backpropagate loss
-    optimizer.step()  # Update weights
-
-def train_dqn(
-    chargers,
-    ev_info,
-    routes,
-    date,
-    action_dim,
-    global_weights,
-    aggregation_num,
-    zone_index,
-    seed,
-    main_seed,
-    epsilon,
-    epsilon_decay,
-    discount_factor,
-    learning_rate,
-    num_episodes,
-    batch_size,
-    buffer_limit,
-    num_of_agents,
-    num_of_charges,
-    layers=[64, 128, 1024, 128, 64],
-    fixed_attributes=None,
-    verbose=False
+def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+    seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
+    buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
+    verbose=False, display_training_times=False
 ):
+
+    """
+    Trains a Deep Q-Network (DQN) for Electric Vehicle (EV) routing and charging optimization.
+
+    Parameters:
+        chargers (array): Array of charger locations and their properties.
+        ev_info (dict): Information about the electric vehicles.
+        routes (array): Array containing route information for each EV.
+        date (str): Date string for logging purposes.
+        action_dim (int): Dimension of the action space.
+        global_weights (array): Pre-trained weights for initializing the Q-networks.
+        aggregation_num (int): Aggregation step number for tracking.
+        zone_index (int): Index of the current zone being processed.
+        seed (int): Seed for reproducibility of training.
+        main_seed (int): Main seed for initializing the environment.
+        epsilon (float): Initial exploration rate for epsilon-greedy policy.
+        epsilon_decay (float): Decay rate for the exploration rate.
+        discount_factor (float): Discount factor for future rewards.
+        learning_rate (float): Learning rate for the optimizer.
+        num_episodes (int): Number of training episodes.
+        batch_size (int): Size of the mini-batch for experience replay.
+        buffer_limit (int): Maximum size of the experience replay buffer.
+        num_of_agents (int): Number of agents (EVs) in the environment.
+        num_of_charges (int): Number of charging stations.
+        layers (list, optional): List of integers defining the architecture of the neural networks.
+        fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
+        verbose (bool, optional): Flag to enable detailed logging.
+        display_training_times (bool, optional): Flag to display training times for different operations.
+
+    Returns:
+        tuple: A tuple containing:
+            - List of trained Q-network state dictionaries.
+            - List of average rewards for each episode.
+            - List of average output values for each episode.
+    """
+
     avg_rewards = []
 
-    # Moved up here, because otherwise it won't initialize correctly the q NNs
     # Set seeds for reproducibility
     if seed is not None:
         torch.manual_seed(seed)
@@ -183,16 +133,9 @@ def train_dqn(
 
             # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
             state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents])))
-
-            states.append(state)
-
+            states.append(state)  # Track states
             state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
-            if random_threshold[i,j] < epsilon:  # Epsilon-greedy action selection
-                action_values = q_networks[j](state)
-                noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
-                action_values += noise  # Add noise for exploration
-            else:
-                action_values = q_networks[j](state)  # Greedy action
+            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j)  # Get the action values from the agent
 
             t2 = time.time()
 
@@ -251,7 +194,7 @@ def train_dqn(
 
             t8 = time.time()
 
-            if j == 0 and False:
+            if j == 0 and display_training_times:
                 print(f"Get actions - {int((t2 - t1) // 3600)}h, {int(((t2 - t1) % 3600) // 60)}m, {int((t2 - t1) % 60)}s, {int(((t2 - t1) % 1) * 1000)}ms")
                 print(f"Get distributions - {int((t3 - t2) // 3600)}h, {int(((t3 - t2) % 3600) // 60)}m, {int((t3 - t2) % 60)}s, {int(((t3 - t2) % 1) * 1000)}ms")
                 print(f"Build graph - {int((t4 - t3) // 3600)}h, {int(((t4 - t3) % 3600) // 60)}m, {int((t4 - t3) % 60)}s, {int(((t4 - t3) % 1) * 1000)}ms")
@@ -272,7 +215,8 @@ def train_dqn(
 
         time_end_paths = time.time() - time_start_paths
 
-        # print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
+        if display_training_times:
+            print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
 
         ########### GET REWARD ###########
 
@@ -357,37 +301,67 @@ def train_dqn(
 
 def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
-    usage_per_hour_list = ev_info['usage_per_hour'] # 15600
+    """
+    Simulates the EV routing and charging process to evaluate the performance of the given paths.
+
+    Parameters:
+        paths (list): List of paths for each EV.
+        ev_routes (array): Array containing route information for each EV.
+        ev_info (dict): Information about the electric vehicles, including usage rates.
+        unique_chargers (array): Array of unique charger locations.
+        charge_needed (list): List of charging requirements for each EV.
+        local_paths (list): List of local paths for each EV.
+
+    Returns:
+        float: The simulation reward, calculated as the negative sum of the total distance traveled
+               (scaled by 100) and the peak traffic encountered during the simulation.
+    """
+
+    usage_per_hour_list = ev_info['usage_per_hour']  # 15600
 
     # Parameters to tweak
     decrease_rate = usage_per_hour_list[0] / 60
     increase_rate = 12500 / 60
-    step_size = 0.01 # 60km per hour / 60 minutes per hour = 1 km per minute
+    step_size = 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
     max_sim_steps = 500
-
-    t1 = time.time()
 
     # Get formatted data
     tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths)
-
-    el1 = time.time() - t1
-    t2 = time.time()
 
     # Run simulation    
     path_results, traffic, battery_levels, distances = simulate_matrix_env(
         tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, max_sim_steps)
 
-    el2 = time.time() - t2
-
-    # print(f"Format data - {int(el1 // 3600)}h, {int((el1 % 3600) // 60)}m, {int(el1 % 60)}s - Simulate {int(el2 // 3600)}h, {int((el2 % 3600) // 60)}m, {int(el2 % 60)}s")
-
     # Calculate reward as -(distance * 100 + peak traffic)
     simulation_reward = -(distances[-1] * 100 + np.max(np.array(traffic)))
 
     return simulation_reward.numpy()
-    # return simulation_reward
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
+
+    """
+    Formats the data required for simulating the EV routing and charging process.
+
+    Parameters:
+        paths (list): List of paths for each EV.
+        ev_routes (array): Array containing route information for each EV.
+        ev_info (dict): Information about the electric vehicles, including starting charge levels.
+        unique_chargers (array): Array of unique charger locations.
+        charge_needed (list): List of charging requirements for each EV.
+        local_paths (list): List of local paths for each EV.
+
+    Returns:
+        tuple: A tuple containing:
+            - tokens (torch.tensor): Tensor of origin coordinates for each EV.
+            - destinations (numpy.array): Array of destination coordinates, including charging stations.
+            - capacity (torch.tensor): Tensor of capacity values for each destination.
+            - stops (torch.tensor): Tensor indicating the stop sequence for each EV.
+            - target_battery_level (numpy.array): Array of target battery levels at each stop.
+            - starting_battery_level (torch.tensor): Tensor of initial battery levels for each EV.
+            - actions (numpy.array): Array of actions for each EV.
+            - move (numpy.array): Array indicating movement status for each EV.
+            - traffic (numpy.array): Array indicating traffic levels at each destination.
+    """
 
     starting_charge_array = np.array(ev_info['starting_charge'], copy=True)
     starting_battery_level = torch.tensor(starting_charge_array, dtype=torch.float) # 5000-7000
@@ -413,7 +387,7 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
             if step_index == len(stops[agent_index]) - 1: # Go to final destination
                 stops[agent_index][step_index] = agent_index + 1
                 target_battery_level[agent_index, step_index] = charge_needed[agent_index][prev_step, -1]
-            else: # Go to stop
+            else:  # Go to stop
 
                 # Check if charger already exists in list
                 charger_id = unique_chargers[path[step_index]][0]
@@ -438,11 +412,3 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
     traffic = np.zeros(destinations.shape[0])
 
     return tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic
-
-def soft_update(target_network, source_network, tau=0.001):
-    for target_param, source_param in zip(target_network.parameters(), source_network.parameters()):
-        target_param.data.copy_(tau * source_param.data + (1 - tau) * target_param.data)
-
-def save_model(network, filename):
-    torch.save(network.state_dict(), filename)
-

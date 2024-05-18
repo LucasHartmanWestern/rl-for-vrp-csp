@@ -1,6 +1,21 @@
 import torch
 
 def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier):
+
+    """
+    Aggregates weights from different zones and models to compute global weights for each zone-model pair.
+
+    Parameters:
+        zone_weights (list): A list of weights for each zone.
+        ev_info (list): A list of dictionaries containing information about the electric vehicles.
+        city_multiplier (float): The multiplier for city-level aggregation.
+        zone_multiplier (float): The multiplier for zone-level aggregation.
+        model_multiplier (float): The multiplier for model-level aggregation.
+
+    Returns:
+        list: A 2D list (zones x models) containing the global weights for each zone-model pair.
+    """
+
     max_model_index = 0
 
     for info in ev_info:
@@ -47,12 +62,15 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
     return global_weights
 
 def aggregate_weights(local_weights_list):
+
     """
-    Aggregate the weights from multiple local models.
-    Args:
-        local_weights_list: List of state_dicts from local models.
+    Aggregates the weights from multiple local models by averaging them.
+
+    Parameters:
+        local_weights_list (list): A list of dictionaries, where each dictionary contains the weights of a local model.
+
     Returns:
-        A state_dict representing the aggregated weights.
+        dict: A dictionary containing the averaged weights.
     """
 
     # Initialize the aggregated weights with the structure of the first model's weights

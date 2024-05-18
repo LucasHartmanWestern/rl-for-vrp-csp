@@ -3,6 +3,23 @@ import numpy as np
 
 def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
 
+    """
+    Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
+
+    Parameters:
+        agent_index (int): Index of the current agent.
+        ev_info (dict): Dictionary containing information about the electric vehicles, including starting charge,
+                        maximum charge, and usage per hour.
+        unique_chargers (list): List of tuples containing the unique charger IDs, latitudes, and longitudes.
+        org_lat (float): Latitude of the origin.
+        org_long (float): Longitude of the origin.
+        dest_lat (float): Latitude of the destination.
+        dest_long (float): Longitude of the destination.
+
+    Returns:
+        numpy.ndarray: A graph represented as a 2D numpy array where each element represents the distance between points.
+    """
+
     starting_charge_list = ev_info['starting_charge'] # 5000-7000
     max_charge_list = ev_info['max_charge'] # in Watts
     usage_per_hour_list = ev_info['usage_per_hour'] # in Wh/100 km
@@ -45,6 +62,20 @@ def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_l
     return graph
 
 def haversine(lat1, lon1, lat2, lon2):
+
+    """
+    Calculates the great-circle distance between two points on the Earth's surface using the Haversine formula.
+
+    Parameters:
+        lat1 (float): Latitude of the first point.
+        lon1 (float): Longitude of the first point.
+        lat2 (float): Latitude of the second point.
+        lon2 (float): Longitude of the second point.
+
+    Returns:
+        float: The distance between the two points in kilometers.
+    """
+
     R = 6371  # Earth radius in kilometers
     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
     dlat = lat2 - lat1
@@ -55,6 +86,17 @@ def haversine(lat1, lon1, lat2, lon2):
     return distance
 
 def dijkstra(graph):
+
+    """
+    Implements Dijkstra's algorithm to find the shortest path in a graph from the origin to the destination.
+
+    Parameters:
+        graph (numpy.ndarray): A 2D array representing the distances between nodes in the graph.
+
+    Returns:
+        list: A list of node indices representing the shortest path from the origin to the destination, excluding the origin and destination themselves.
+    """
+
     N = len(graph) - 2  # Exclude the origin and destination which are included in the graph size (N+2)
     origin = N  # Second last entry
     destination = N + 1  # Last entry
