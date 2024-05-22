@@ -99,6 +99,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
     best_avg = float('-inf')
     best_paths = None
 
+    metrics = []
+
     avg_output_values = []  # List to store the average values of output neurons for each episode
 
     for i in range(num_episodes):  # For each episode
@@ -218,9 +220,22 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         if display_training_times:
             print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
 
-        ########### GET REWARD ###########
+        ########### GET SIMULATION RESULTS ###########
 
-        rewards = simulate(paths, routes, ev_info, unique_chargers, charges_needed, local_paths)
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, routes, ev_info, unique_chargers, charges_needed, local_paths)
+
+        # Used to evaluate simulation
+        metric = {
+            "zone": zone_index,
+            "episode": i,
+            "aggregation": aggregation_num,
+            "paths": sim_path_results,
+            "traffic": sim_traffic,
+            "batteries": sim_battery_levels,
+            "distances": sim_distances,
+            "rewards": rewards
+        }
+        metrics.append(metric)
 
         ########### STORE EXPERIENCES ###########
 
@@ -297,7 +312,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
                 print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
-    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values
+    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
 
 def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
@@ -335,7 +350,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     # Calculate reward as -(distance * 100 + peak traffic)
     simulation_reward = -(distances[-1] * 100 + np.max(np.array(traffic)))
 
-    return simulation_reward.numpy()
+    return path_results, traffic, battery_levels, distances, simulation_reward.numpy()
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 
