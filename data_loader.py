@@ -236,7 +236,7 @@ def read_csv_data(file_path):
         pandas.DataFrame: A DataFrame containing the data from the CSV file.
     """
 
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, header=None)  # This will treat all rows equally
     return df
 
 def save_to_csv(data, filename):

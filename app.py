@@ -9,6 +9,7 @@ from federated_learning import get_global_weights
 import copy
 from datetime import datetime
 import numpy as np
+from evaluation import evaluate
 
 mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
 
@@ -142,11 +143,10 @@ def train_rl_vrp_csp(date):
 
                 print(f"Training using Deep-Q Learning - Seed {seed}")
 
+                metrics = []  # Used to track all metrics
                 rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
                 output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
                 global_weights = None
-
-                metrics = [] # Used to track all metrics
 
                 for aggregate_step in range(nn_c['aggregation_count']):
 
@@ -154,6 +154,7 @@ def train_rl_vrp_csp(date):
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
+                    process_metrics = manager.list()
 
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
@@ -170,7 +171,7 @@ def train_rl_vrp_csp(date):
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
-                            eval_c['fixed_attributes'], local_weights_list, process_rewards, metrics, process_output_values, barrier, eval_c['verbose'], eval_c['display_training_times']))
+                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics, process_output_values, barrier, eval_c['verbose'], eval_c['display_training_times']))
                         processes.append(process)
                         process.start()
 
@@ -186,9 +187,10 @@ def train_rl_vrp_csp(date):
 
                     # Extend the main lists with the contents of the process lists
                     sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
-                    print(f'Min and Max rewards for the agregation step: {sorted_list[0],sorted_list[-1]}')
+                    print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
+                    metrics.extend(process_metrics)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
                         print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n", file=file)
@@ -213,15 +215,14 @@ def train_rl_vrp_csp(date):
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
             # Save all metrics from training into a file
-            if eval_c['save_data']:
-                save_to_csv(metrics, f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}.csv")
+            if eval_c['save_data'] and eval_c['train_model']:
+                save_to_csv(metrics, f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}.csv")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                training_results = read_csv_data(f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}.csv")
+                training_results = read_csv_data(f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}.csv")
 
-                print(training_results)
-
+                evaluate(ev_info, training_results)
 
             if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
@@ -261,6 +262,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
         local_weights_list (list): List to store the local weights of each agent.
         rewards (list): List to store the average rewards for each episode.
+        metrics (list): List to store the various metrics collected during a simulation
         output_values (list): List to store the average output values for each episode.
         barrier (multiprocessing.Barrier): Barrier for synchronizing multiprocessing tasks.
         verbose (bool): Flag to enable detailed logging.
@@ -274,12 +276,23 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics = train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes,
-                                  batch_size, buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes, verbose, display_training_times)
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
+            train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
+                  epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
+                  num_of_chargers, layers, fixed_attributes, verbose, display_training_times)
 
+        # Save results of training
+        st = time.time()
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
         metrics.append(training_metrics)
+        et = time.time() - st
+
+        if verbose:
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(f'Spent {et:.3f} seconds saving results', file=file)  # Print saving time with 3 decimal places
+            print(f'Spent {et:.3f} seconds saving results')  # Print saving time with 3 decimal places
+
         local_weights_list[ind] = local_weights_per_agent
 
         print(f"Thread {ind} waiting")

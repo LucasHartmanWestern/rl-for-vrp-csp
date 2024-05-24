@@ -3,7 +3,7 @@
 
 ############ Hyperparameters ############
 nn_hyperparameters:
-    aggregation_count: 5 # Amount of aggregation steps for federated learning
+    aggregation_count: 3 # Amount of aggregation steps for federated learning
     num_episodes: 25 # Amount of training episodes per session
     learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training

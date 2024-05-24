@@ -1,6 +1,13 @@
 import numpy as np
 import matplotlib as plt
 
+def evaluate(ev_info, metrics):
+    print(f"Number of Zones: {len(ev_info)}")
+    print(f"Number of EVs: {len(ev_info[0])}")
+    print(f"Number of aggregations: {int(len(metrics) / len(ev_info))}")
+
+    
+
 def evaluate_distance():
     print("Evaluating Distance Metrics")
 
