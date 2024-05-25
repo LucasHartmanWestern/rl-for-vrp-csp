@@ -222,7 +222,7 @@ def train_rl_vrp_csp(date):
             if eval_c['generate_plots']:
                 training_results = read_csv_data(f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}.csv")
 
-                evaluate(ev_info, training_results)
+                evaluate(ev_info, training_results, seed, date, eval_c['verbose'])
 
             if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
