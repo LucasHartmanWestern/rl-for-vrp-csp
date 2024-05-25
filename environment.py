@@ -398,7 +398,6 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
 
         # Update the battery level of each car
         battery = update_battery(battery, charging_rates)
-        # print(f'battery after {battery}')
 
         battery_levels.append(battery)
 
@@ -427,7 +426,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
         # Increase step count
         step_count += 1
 
-    return paths, torch.cat(traffic_per_charger), battery_levels, distances_per_car
+    return paths, traffic_per_charger, battery_levels, distances_per_car
 
 
 if __name__ == '__main__':

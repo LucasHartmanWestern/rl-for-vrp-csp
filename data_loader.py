@@ -239,6 +239,7 @@ def read_csv_data(file_path):
     df = pd.read_csv(file_path, header=None)  # This will treat all rows equally
     return df
 
+
 def save_to_csv(data, filename):
     """
     Saves the given data to a CSV file.
@@ -254,7 +255,9 @@ def save_to_csv(data, filename):
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for row in data:
-            writer.writerow(row)
+            # Convert each element in the row to a JSON string
+            writer.writerow(
+                [json.dumps(element, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else x) for element in row])
 
 def load_from_csv(filename):
 

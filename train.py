@@ -348,9 +348,21 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
         tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, max_sim_steps)
 
     # Calculate reward as -(distance * 100 + peak traffic)
-    simulation_reward = -(distances[-1] * 100 + np.max(np.array(traffic)))
+    simulation_reward = -(distances[-1] * 100 + np.max(np.array(torch.cat(traffic))))
 
-    return path_results, traffic, battery_levels, distances, simulation_reward.numpy()
+    # Convert all return values to NumPy arrays
+    path_results = np.array([tensor_to_numpy(pr) for pr in path_results])
+    traffic = np.array([tensor_to_numpy(tr) for tr in traffic])
+    battery_levels = np.array([tensor_to_numpy(bl) for bl in battery_levels])
+    distances = np.array([tensor_to_numpy(d) for d in distances])
+    simulation_reward = np.array(simulation_reward)
+
+    return path_results, traffic, battery_levels, distances, simulation_reward
+
+def tensor_to_numpy(tensor):
+    if isinstance(tensor, torch.Tensor):
+        return tensor.numpy()
+    return tensor
 
 def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
 

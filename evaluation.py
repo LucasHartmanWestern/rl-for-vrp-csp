@@ -1,12 +1,16 @@
 import numpy as np
 import matplotlib as plt
+import json
 
 def evaluate(ev_info, metrics):
     print(f"Number of Zones: {len(ev_info)}")
     print(f"Number of EVs: {len(ev_info[0])}")
     print(f"Number of aggregations: {int(len(metrics) / len(ev_info))}")
 
-    
+    first_ep = metrics[0]
+    print(first_ep)
+    #zone_0_agg_0 = json.loads(str(first_ep[0]))
+    #print(zone_0_agg_0['traffic'])
 
 def evaluate_distance():
     print("Evaluating Distance Metrics")
