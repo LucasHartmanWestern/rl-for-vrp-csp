@@ -9,7 +9,7 @@ eval_config:
     verbose: True # Log episode-specific data during training
     display_training_times: False # Display breakdown of how much each step takes
 
-    train_model: False # Set to false for model evaluation
+    train_model: True # Set to false for model evaluation
     save_data: True # Set to true if you want to save simulation results in a csv file
     generate_plots: True # Set to true if you want to generate plots of the simulation environments
     save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations

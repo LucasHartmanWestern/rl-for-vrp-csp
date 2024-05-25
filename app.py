@@ -68,7 +68,7 @@ def train_rl_vrp_csp(date):
 
             # Use the indices to select the model type and corresponding configurations
             model_type = np.array([env_c['models'][index] for index in model_indices], dtype=str)
-            usage_per_hour = np.array([env_c['usage_per_min'][index] for index in model_indices], dtype=int)
+            usage_per_hour = np.array([env_c['usage_per_hour'][index] for index in model_indices], dtype=int)
             max_charge = np.array([env_c['max_charge'][index] for index in model_indices], dtype=int)
 
             start_time = time.time()

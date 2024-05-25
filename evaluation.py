@@ -187,7 +187,6 @@ def evaluate_training_duration(data):
     # - Evaluate how long it takes to plateau to reward
     # - Evaluate how long it takes to retrain after defining base models
 
-
 def evaluate_by_station(data, seed, verbose):
     if verbose: print("Evaluating Traffic Metrics")
 

@@ -335,7 +335,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
     usage_per_hour_list = ev_info['usage_per_hour']  # 15600
 
     # Parameters to tweak
-    decrease_rate = usage_per_hour_list[0] / 60
+    decrease_rates = torch.Tensor(usage_per_hour_list / 60)
     increase_rate = 12500 / 60
     step_size = 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
     max_sim_steps = 500
@@ -345,7 +345,7 @@ def simulate(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_pa
 
     # Run simulation    
     path_results, traffic, battery_levels, distances = simulate_matrix_env(
-        tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rate, max_sim_steps)
+        tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rates, max_sim_steps)
 
     # Calculate reward as -(distance * 100 + peak traffic)
     simulation_reward = -(distances[-1] * 100 + np.max(np.array(torch.cat(traffic))))
