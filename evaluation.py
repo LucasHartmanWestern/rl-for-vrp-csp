@@ -109,6 +109,9 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     # Evaluate average throughout simulation by car model
     avg_by_car_model = df.groupby('car_model')[metric_name].mean()
 
+    # Evaluate average throughout simulation by aggregation
+    avg_by_aggregation = df.groupby('aggregation')[metric_name].mean()
+
     # Evaluate average per episode of training
     avg_by_episode = df.groupby('episode')[metric_name].mean()
 
@@ -117,6 +120,9 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
 
     # Evaluate average per episode of training by car model
     avg_by_episode_car_model = df.groupby(['episode', 'car_model'])[metric_name].mean().unstack()
+
+    # Evaluate average per episode of training by aggregation
+    avg_by_episode_aggregation = df.groupby(['episode', 'aggregation'])[metric_name].mean().unstack()
 
     # Average Total
     plt.figure(figsize=(8, 6))
@@ -139,6 +145,13 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     plt.title(f'Seed {seed} - Average {metric_title} by Car Model')
     plt.show()
 
+    # Average by Aggregation
+    plt.figure(figsize=(8, 6))
+    plt.bar(avg_by_aggregation.index, avg_by_aggregation.values)
+    plt.ylabel(f'{metric_title}')
+    plt.title(f'Seed {seed} - Average {metric_title} by Aggregation')
+    plt.show()
+
     # Average per Episode
     plt.figure(figsize=(8, 6))
     plt.plot(avg_by_episode.index, avg_by_episode.values)
@@ -158,6 +171,13 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     avg_by_episode_car_model.plot()
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Car Model')
+    plt.show()
+
+    # Average per Episode by Aggregation
+    plt.figure(figsize=(8, 6))
+    avg_by_episode_aggregation.plot()
+    plt.ylabel(f'{metric_title}')
+    plt.title(f'Seed {seed} - Average {metric_title} per Episode by Aggregation')
     plt.show()
 
 def evaluate_training_duration(data):
@@ -183,11 +203,17 @@ def evaluate_by_station(data, seed, verbose):
     # Add traffic levels across zones
     traffic_levels_across_zones = df.groupby('zone')['traffic'].mean()
 
+    # Add traffic levels across aggregations
+    traffic_levels_across_aggregations = df.groupby('aggregation')['traffic'].mean()
+
     # Add average traffic per episode of training
     average_traffic_per_episode = df.groupby('episode')['traffic'].mean()
 
     # Add average traffic per episode of training by zone
     average_traffic_per_episode_by_zone = df.groupby(['episode', 'zone'])['traffic'].mean()
+
+    # Add average traffic per episode of training by aggregation
+    average_traffic_per_episode_by_aggregation = df.groupby(['episode', 'aggregation'])['traffic'].mean()
 
     # Add peak traffic for each charger in the last episode
     last_episode = df['episode'].max()
@@ -224,6 +250,14 @@ def evaluate_by_station(data, seed, verbose):
     plt.ylabel('Average Traffic')
     plt.show()
 
+    # Traffic Levels Across Aggregations
+    plt.figure(figsize=(8, 6))
+    traffic_levels_across_aggregations.plot(kind='bar', color='orange')
+    plt.title(f'Seed {seed} - Average Traffic Levels Across Aggregations')
+    plt.xlabel('Aggregation')
+    plt.ylabel('Average Traffic')
+    plt.show()
+
     # Average Traffic Per Episode of Training
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode.plot()
@@ -239,4 +273,13 @@ def evaluate_by_station(data, seed, verbose):
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
     plt.legend(title='Zone')
+    plt.show()
+
+    # Average Traffic Per Episode of Training by Aggregation
+    plt.figure(figsize=(8, 6))
+    average_traffic_per_episode_by_aggregation.unstack().plot()
+    plt.title(f'Seed {seed} - Average Traffic Per Episode by Aggregation')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Traffic')
+    plt.legend(title='Aggregation')
     plt.show()
