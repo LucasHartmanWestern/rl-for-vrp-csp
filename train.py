@@ -59,7 +59,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
     # Set seeds for reproducibility
     if seed is not None:
         torch.manual_seed(seed)
-        random.seed(seed)
+        random.seed(int(seed))
         dqn_rng = np.random.default_rng(seed)
         
     # device = get_device_by_id(p['n_workers'], gpus, rank,verbose=True)
