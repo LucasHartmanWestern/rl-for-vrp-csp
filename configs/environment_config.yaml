@@ -16,8 +16,8 @@ environment_settings:
 #        - [42.9819404397449, -81.2508736429095] # Central London
     
     radius: 20 # Max radius of the circle containing the entire trip
-    starting_charge: 6000 # 6kw starting charge
+    starting_charge: 4000 # 4kw starting charge
 
     models: ['Tesla Model Y', 'BYD Song', 'Tesla Model 3'] # The 3 most popular EV models
-    usage_per_hour: [16400, 14100, 15600] # Average usage per hour for each model in Wh/100 km
+    usage_per_hour: [9840, 8460, 9360] # Average usage per hour for each model in Wh/60 km
     max_charge: [170000, 90000, 170000] # in Watts

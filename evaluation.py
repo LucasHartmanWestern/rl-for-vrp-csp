@@ -44,7 +44,7 @@ def evaluate(ev_info, metrics, seed, date, verbose):
                     "aggregation": episode['aggregation'],
                     "agent_index": agent_ind,
                     "car_model": car_model,
-                    "distance": episode['distances'][-1][agent_ind]
+                    "distance": episode['distances'][-1][agent_ind] * 10
                 })
 
                 reward_data.append({
@@ -85,10 +85,10 @@ def evaluate(ev_info, metrics, seed, date, verbose):
     if verbose: print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
 
     # Evaluate the metrics per-agent
-    evaluate_by_agent(distance_data, 'distance', 'Distance Travelled', seed, verbose)
-    evaluate_by_agent(battery_data, 'average_battery', 'Battery Level', seed, verbose)
-    evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level', seed, verbose)
-    evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling', seed, verbose)
+    evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose)
+    evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose)
+    evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose)
+    evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose)
     evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose)
 
     # Evaluate metrics per-station

@@ -218,9 +218,6 @@ def update_battery(battery, charge_rate):
         torch.Tensor: A tensor containing the updated battery levels.
     """
 
-    if torch.min(battery + charge_rate) < 0:
-        raise Exception(f"Battery level at {battery} adding {charge_rate}")
-
     return battery + charge_rate
 
 def get_battery_charged(battery, target):
@@ -267,21 +264,21 @@ def move_tokens(tokens, moving, actions, destinations, step_size):
     right_term = (target_coords - tokens).t()
     left_term = torch.max(actions, axis=1).values
     displacement = (right_term * left_term).t()
-    distances = torch.linalg.norm(displacement, axis=1)
+    distances_to_travel = torch.linalg.norm(displacement, axis=1)
 
     # Compute the normalized direction vectors
     # Initialize the output tensor with zeros, matching the shape of displacement
     direction = torch.zeros_like(displacement)
     # Create a mask where distances are not zero
-    mask = distances != 0
+    mask = distances_to_travel != 0
     # Perform the division where the mask is True
-    direction[mask] = displacement[mask] / distances[mask].unsqueeze(1)
+    direction[mask] = displacement[mask] / distances_to_travel[mask].unsqueeze(1)
 
     # Zero-out direction for tokens that aren't moving
     masked_direction = (direction.t() * moving).t()
 
     # Compute the step vectors
-    steps = torch.minimum(distances, torch.tensor(step_size, dtype=distances.dtype)).unsqueeze(-1)
+    steps = torch.minimum(distances_to_travel, torch.tensor(step_size, dtype=distances_to_travel.dtype)).unsqueeze(-1)
     steps = steps * masked_direction
     
     # If the car is charging but isn't directly on the charging station, shift them onto it
@@ -372,7 +369,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
 
     while max(stops[:,0]) > 0 and step_count <= k_steps:
 
-        stops[:,0] -= 1
+        stops[:, 0] -= 1
 
         # Get NxM matrix of actions
         actions = get_actions(actions, stops)
@@ -401,6 +398,13 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
 
         # Update the battery level of each car
         battery = update_battery(battery, charging_rates)
+
+        if torch.min(battery) < 0:
+            print(distances)
+            visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
+            visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
+            visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
+            raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
 
         battery_levels.append(battery)
 
