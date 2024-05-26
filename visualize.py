@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import csv
 import ast
 import torch
+import numpy as np
 
 def generate_plot(df):
 
@@ -384,7 +385,7 @@ def visualize_simulation(paths, destinations):
     """
 
     # Rearrange the data so that each path represents the movement of one token over time
-    token_paths = [torch.array([step[i] for step in paths]) for i in range(len(paths[0]))]
+    token_paths = [np.array([step[i] for step in paths]) for i in range(len(paths[0]))]
 
     # Plot the token paths
     colors = ['blue', 'green', 'orange', 'cyan', 'magenta']

@@ -3,6 +3,7 @@ import matplotlib
 import warnings
 import torch
 from visualize import visualize_stats, visualize_simulation
+import numpy as np
 
 warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
 
@@ -41,7 +42,7 @@ Mov = torch.ones(T.shape[0])
 A = torch.zeros((T.shape[0], D.shape[0]))
 
 # Target battery level
-Tar = torch.tensor([[0, 0, 0],
+Tar = np.array([[0, 0, 0],
                 [0.5, 0, 0],
                 [0.3, 0.5, 0],
                 [0.2, 0, 0],
@@ -160,8 +161,7 @@ def get_traffic(stops, destinations, is_charging):
     # Note that the first N entries can be ignored since they aren't charging stations, but rather final destinations
     return traffic_level
 
-def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, increase_rate):
-
+def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, increase_rate):
     """
     Calculates the charging rates for each vehicle based on their current stops, traffic level at charging stations,
     arrival status, and station capacities.
@@ -171,7 +171,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, i
         traffic_level (torch.Tensor): A tensor containing the traffic level at each charging station.
         arrived (torch.Tensor): A tensor indicating whether each vehicle has arrived at its target stop (1 if arrived, 0 otherwise).
         capacity (torch.Tensor): A tensor containing the capacity of each charging station.
-        decrease_rate (float): The rate at which charging decreases.
+        decrease_rates (torch.Tensor): A tensor containing the rate at which charging decreases by model.
         increase_rate (float): The maximum rate at which charging can increase.
 
     Returns:
@@ -182,25 +182,25 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, i
     target_stop = stops[:, 0]
 
     # Get charging rate for each station
-    max_traffic_level = torch.maximum(traffic_level, torch.tensor(1, dtype=traffic_level.dtype))
+    max_traffic_level = torch.maximum(traffic_level, torch.tensor(1.0, dtype=traffic_level.dtype))
     capacity_rate = (capacity / max_traffic_level) * increase_rate
-    station_rate = torch.minimum(capacity_rate, torch.tensor(increase_rate, dtype=float))
+    station_rate = torch.minimum(capacity_rate, torch.tensor(increase_rate, dtype=capacity_rate.dtype))
 
     # Offset everything by decrease rate
-    station_rate += decrease_rate
+    station_rate = station_rate.unsqueeze(1) + decrease_rates.unsqueeze(0)
 
     # Get charging rates for each car based on target
-    rates_by_car = station_rate[target_stop.int()]
+    rates_by_car = station_rate[target_stop.long(), torch.arange(len(decrease_rates)).long()]
 
     # Zero out charging rate for cars that haven't arrived
     rates_by_car *= arrived.int()
 
     # Undo the offset
-    rates_by_car -= decrease_rate
+    rates_by_car -= decrease_rates
 
     # Zero-out charging rate for cars already at their destination
-    diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=float))
-    rates_by_car = rates_by_car @ diag_matrix
+    diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=torch.float32))
+    rates_by_car = rates_by_car.float() @ diag_matrix.float()
 
     # Return Nx1 charging rate for each car
     return rates_by_car
@@ -264,21 +264,21 @@ def move_tokens(tokens, moving, actions, destinations, step_size):
     right_term = (target_coords - tokens).t()
     left_term = torch.max(actions, axis=1).values
     displacement = (right_term * left_term).t()
-    distances = torch.linalg.norm(displacement, axis=1)
+    distances_to_travel = torch.linalg.norm(displacement, axis=1)
 
     # Compute the normalized direction vectors
     # Initialize the output tensor with zeros, matching the shape of displacement
     direction = torch.zeros_like(displacement)
     # Create a mask where distances are not zero
-    mask = distances != 0
+    mask = distances_to_travel != 0
     # Perform the division where the mask is True
-    direction[mask] = displacement[mask] / distances[mask].unsqueeze(1)
+    direction[mask] = displacement[mask] / distances_to_travel[mask].unsqueeze(1)
 
     # Zero-out direction for tokens that aren't moving
     masked_direction = (direction.t() * moving).t()
 
     # Compute the step vectors
-    steps = torch.minimum(distances, torch.tensor(step_size, dtype=distances.dtype)).unsqueeze(-1)
+    steps = torch.minimum(distances_to_travel, torch.tensor(step_size, dtype=distances_to_travel.dtype)).unsqueeze(-1)
     steps = steps * masked_direction
     
     # If the car is charging but isn't directly on the charging station, shift them onto it
@@ -314,7 +314,7 @@ def update_stops(stops, ready_to_leave):
     ready_to_leave = ready_to_leave.reshape(-1, 1)
 
     # I'm not sure how this works tbh...
-    updated_stops =  stops * ready_to_leave @ transform_matrix + stops * (1 - ready_to_leave)
+    updated_stops = stops * ready_to_leave.double() @ transform_matrix.double() + stops * (1 - ready_to_leave)
     
     # Set rows to zeros if there is only one nonzero element in the row and ready_to_leave is 1
     for i in range(len(stops)):
@@ -324,7 +324,7 @@ def update_stops(stops, ready_to_leave):
     return updated_stops
 
 def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity,
-                        target_battery_level, stops, step_size, increase_rate, decrease_rate, k_steps):
+                        target_battery_level, stops, step_size, increase_rate, decrease_rates, k_steps):
 
     """
     Simulates the environment for a matrix of tokens (vehicles) as they move towards their destinations,
@@ -342,7 +342,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
         stops (torch.Tensor): A tensor containing the initial stops for each token.
         step_size (float): The maximum step size for each movement.
         increase_rate (float): The maximum rate at which charging can increase.
-        decrease_rate (float): The rate at which charging decreases.
+        decrease_rates (torch.Tensor): The rate at which charging decreases by model.
         k_steps (int): The maximum number of steps for the simulation.
 
     Returns:
@@ -369,7 +369,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
 
     while max(stops[:,0]) > 0 and step_count <= k_steps:
 
-        stops[:,0] -= 1
+        stops[:, 0] -= 1
 
         # Get NxM matrix of actions
         actions = get_actions(actions, stops)
@@ -394,11 +394,17 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
         traffic_per_charger.append(traffic_level)
 
         # Get charging or discharging rate for each car as Nx1 matrix
-        charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rate, increase_rate)
+        charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, increase_rate)
 
         # Update the battery level of each car
         battery = update_battery(battery, charging_rates)
-        # print(f'battery after {battery}')
+
+        if torch.min(battery) < 0:
+            print(distances)
+            visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
+            visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
+            visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
+            raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
 
         battery_levels.append(battery)
 
@@ -427,7 +433,7 @@ def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_
         # Increase step count
         step_count += 1
 
-    return paths, torch.cat(traffic_per_charger), battery_levels, distances_per_car
+    return paths, traffic_per_charger, battery_levels, distances_per_car
 
 
 if __name__ == '__main__':
@@ -438,7 +444,7 @@ if __name__ == '__main__':
     paths, traffic, battery_levels, distances = simulate_matrix_env(T, B, D, A, Mov, Tr, Cap, Tar, S, step_size, ir, dr, 500)
 
     # Show the paths of each car
-    visualize_simulation(paths, D)
+    #visualize_simulation(paths, D)
 
     # Plot the various stats
     visualize_stats(traffic, 'Change in Traffic Levels Over Time', 'Traffic Level')

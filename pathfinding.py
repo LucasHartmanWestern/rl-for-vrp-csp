@@ -1,13 +1,13 @@
 import copy
 import numpy as np
 
-def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
-
+def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
     """
     Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
 
     Parameters:
         agent_index (int): Index of the current agent.
+        step_size (float): Amount to move each timestep
         ev_info (dict): Dictionary containing information about the electric vehicles, including starting charge,
                         maximum charge, and usage per hour.
         unique_chargers (list): List of tuples containing the unique charger IDs, latitudes, and longitudes.
@@ -22,7 +22,7 @@ def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_l
 
     starting_charge_list = ev_info['starting_charge'] # 5000-7000
     max_charge_list = ev_info['max_charge'] # in Watts
-    usage_per_hour_list = ev_info['usage_per_hour'] # in Wh/100 km
+    usage_per_hour_list = ev_info['usage_per_hour'] # in Wh/60 km
 
     model_types = ev_info['model_type']
     model_indices = ev_info['model_indices']
@@ -33,31 +33,31 @@ def build_graph(agent_index, ev_info, unique_chargers, org_lat, org_long, dest_l
     max_soc = max_charge_list[agent_index]
 
     # Thresholds
-    max_dist_from_start = start_soc / usage_per_min
-    max_dist_on_full_charge = max_soc / usage_per_min
+    max_steps_from_start = start_soc / usage_per_min
+    max_steps_on_full_charge = max_soc / usage_per_min
 
     # Convert unique_chargers to numpy array
     charger_locs = np.array([(lat, lon) for _, lat, lon in unique_chargers])
     all_points = np.vstack((charger_locs, [org_lat, org_long], [dest_lat, dest_long]))
+
 
     # Initialize graph matrix
     num_points = len(all_points)
     graph = np.zeros((num_points, num_points))
 
     # Populate graph matrix
-    latitudes = np.radians(all_points[:, 0])
-    longitudes = np.radians(all_points[:, 1])
-    delta_lat = latitudes[:, np.newaxis] - latitudes
-    delta_lon = longitudes[:, np.newaxis] - longitudes
-    a = np.sin(delta_lat / 2) ** 2 + np.cos(latitudes)[:, np.newaxis] * np.cos(latitudes) * np.sin(delta_lon / 2) ** 2
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-    R = 6371  # Earth radius in kilometers
-    graph = R * c
+    for i in range(num_points):
+        for j in range(num_points):
+            if i != j:
+                # Calculate Euclidean distance between point i and point j
+                distance = np.linalg.norm(all_points[i] - all_points[j])
+                # Calculate number of steps and store in graph
+                graph[i, j] = (distance / step_size) * usage_per_min
 
-    # Threshold the edges so you cannot go below 0% battery
-    graph[graph > max_dist_on_full_charge] = np.inf
-    graph[len(unique_chargers), graph[len(unique_chargers)] > max_dist_from_start] = np.inf # Origin is capped based on the starting battery
-    graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > max_dist_from_start, np.inf, graph[:, len(unique_chargers)])
+    # Apply thresholds
+    graph[graph > max_soc] = np.inf
+    graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = np.inf  # Origin is capped based on the starting battery
+    graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > start_soc, np.inf, graph[:, len(unique_chargers)])
 
     return graph
 
@@ -85,7 +85,7 @@ def haversine(lat1, lon1, lat2, lon2):
     distance = R * c
     return distance
 
-def dijkstra(graph):
+def dijkstra(graph, agent_index):
 
     """
     Implements Dijkstra's algorithm to find the shortest path in a graph from the origin to the destination.
