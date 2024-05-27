@@ -44,7 +44,7 @@ def evaluate(ev_info, metrics, seed, date, verbose):
                     "aggregation": episode['aggregation'],
                     "agent_index": agent_ind,
                     "car_model": car_model,
-                    "distance": episode['distances'][-1][agent_ind] * 10
+                    "distance": episode['distances'][-1][agent_ind] * 100
                 })
 
                 reward_data.append({
