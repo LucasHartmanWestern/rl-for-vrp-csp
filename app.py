@@ -11,6 +11,8 @@ from datetime import datetime
 import numpy as np
 from evaluation import evaluate
 
+mp.set_sharing_strategy('file_system')
+
 mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
