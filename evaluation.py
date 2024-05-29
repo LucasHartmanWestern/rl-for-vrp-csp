@@ -5,7 +5,7 @@ import pandas as pd
 import time
 from data_loader import save_to_json, load_from_json
 
-def evaluate(ev_info, metrics, seed, date, verbose, purpose, base_path):
+def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
 
     if purpose == 'save':
 
@@ -106,20 +106,23 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, base_path):
         traffic_data = load_from_json(f'{base_path}_traffic.json')
 
         # Evaluate the metrics per-agent
-        evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose)
-        evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose)
-        evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose)
-        evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose)
-        evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose)
+        evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose, num_episodes)
+        evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose, num_episodes)
+        evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose, num_episodes)
+        evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose, num_episodes)
+        evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose, num_episodes)
 
         # Evaluate metrics per-station
-        evaluate_by_station(traffic_data, seed, verbose)
+        evaluate_by_station(traffic_data, seed, verbose, num_episodes)
 
-def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
+def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episodes):
     if verbose: print(f"Evaluating {metric_title} Metrics for seed {seed}")
 
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
+
+    # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
+    df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
 
     # Evaluate average battery level throughout simulation
     avg_total = df[metric_name].mean()
@@ -134,13 +137,13 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     avg_by_aggregation = df.groupby('aggregation')[metric_name].mean()
 
     # Evaluate average per episode of training
-    avg_by_episode = df.groupby('episode')[metric_name].mean()
+    avg_by_episode = df.groupby('recalculated_episode')[metric_name].mean()
 
     # Evaluate average per episode of training by zone
-    avg_by_episode_zone = df.groupby(['episode', 'zone'])[metric_name].mean().unstack()
+    avg_by_episode_zone = df.groupby(['recalculated_episode', 'zone'])[metric_name].mean().unstack()
 
     # Evaluate average per episode of training by car model
-    avg_by_episode_car_model = df.groupby(['episode', 'car_model'])[metric_name].mean().unstack()
+    avg_by_episode_car_model = df.groupby(['recalculated_episode', 'car_model'])[metric_name].mean().unstack()
 
     # Evaluate average per episode of training by aggregation
     avg_by_episode_aggregation = df.groupby(['episode', 'aggregation'])[metric_name].mean().unstack()
@@ -176,6 +179,8 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     # Average per Episode
     plt.figure(figsize=(8, 6))
     plt.plot(avg_by_episode.index, avg_by_episode.values)
+    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode')
     plt.show()
@@ -183,6 +188,8 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     # Average per Episode by Zone
     plt.figure(figsize=(8, 6))
     avg_by_episode_zone.plot()
+    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Zone')
     plt.show()
@@ -190,6 +197,8 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     # Average per Episode by Car Model
     plt.figure(figsize=(8, 6))
     avg_by_episode_car_model.plot()
+    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Car Model')
     plt.show()
@@ -208,11 +217,14 @@ def evaluate_training_duration(data):
     # - Evaluate how long it takes to plateau to reward
     # - Evaluate how long it takes to retrain after defining base models
 
-def evaluate_by_station(data, seed, verbose):
+def evaluate_by_station(data, seed, verbose, num_episodes):
     if verbose: print("Evaluating Traffic Metrics")
 
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
+
+    # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
+    df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
 
     # Add peak traffic by charger (station_index)
     peak_traffic_by_charger = df.groupby('station_index')['traffic'].max()
@@ -227,10 +239,10 @@ def evaluate_by_station(data, seed, verbose):
     traffic_levels_across_aggregations = df.groupby('aggregation')['traffic'].mean()
 
     # Add average traffic per episode of training
-    average_traffic_per_episode = df.groupby('episode')['traffic'].mean()
+    average_traffic_per_episode = df.groupby('recalculated_episode')['traffic'].mean()
 
     # Add average traffic per episode of training by zone
-    average_traffic_per_episode_by_zone = df.groupby(['episode', 'zone'])['traffic'].mean()
+    average_traffic_per_episode_by_zone = df.groupby(['recalculated_episode', 'zone'])['traffic'].mean()
 
     # Add average traffic per episode of training by aggregation
     average_traffic_per_episode_by_aggregation = df.groupby(['episode', 'aggregation'])['traffic'].mean()
@@ -281,6 +293,8 @@ def evaluate_by_station(data, seed, verbose):
     # Average Traffic Per Episode of Training
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode.plot()
+    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.title(f'Seed {seed} - Average Traffic Per Episode of Training')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
@@ -289,6 +303,8 @@ def evaluate_by_station(data, seed, verbose):
     # Average Traffic Per Episode of Training by Zone
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode_by_zone.unstack().plot()
+    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.title(f'Seed {seed} - Average Traffic Per Episode by Zone')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
