@@ -58,6 +58,9 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     avg_rewards = []
 
+    # Carry over epsilon from last aggregation
+    epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
+
     step_size = 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
 
     # Set seeds for reproducibility
@@ -317,7 +320,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, epsilon
+    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
 
 def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 
