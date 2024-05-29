@@ -14,6 +14,8 @@ import numpy as np
 from evaluation import evaluate
 
 
+mp.set_sharing_strategy('file_system')
+
 mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -234,13 +236,11 @@ def train_rl_vrp_csp(date, args):
 
             # Save all metrics from training into a file
             if eval_c['save_data'] and eval_c['train_model']:
-                save_to_csv(metrics, f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}.csv")
+                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                training_results = read_csv_data(f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}.csv")
-
-                evaluate(ev_info, training_results, seed, date, eval_c['verbose'])
+                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'display', f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
             if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")

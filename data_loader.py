@@ -256,8 +256,23 @@ def save_to_csv(data, filename):
         writer = csv.writer(csvfile)
         for row in data:
             # Convert each element in the row to a JSON string
-            writer.writerow(
-                [json.dumps(element, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else x) for element in row])
+            writer.writerow([json.dumps(element, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else x) for element in row])
+
+def save_to_json(data, filename):
+    with open(filename, 'w') as file:
+        json.dump(data, file, cls=NumpyEncoder)
+
+def load_from_json(filename):
+    with open(filename, 'r') as file:
+        return json.load(file)
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.int64, np.int32)):  # Handle numpy integer types
+            return int(obj)
+        elif isinstance(obj, (np.float64, np.float32)):  # Handle numpy float types
+            return float(obj)
+        return json.JSONEncoder.default(self, obj)
 
 def load_from_csv(filename):
 
