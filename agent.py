@@ -27,7 +27,7 @@ class QNetwork(nn.Module):
             x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
         return self.output(x) # Output layer
 
-def initialize(state_dim, action_dim, layers):
+def initialize(state_dim, action_dim, layers, device_agents):
 
     """
     Initializes the Q-network and target Q-network for the DQN agent.
@@ -46,7 +46,7 @@ def initialize(state_dim, action_dim, layers):
     q_network = QNetwork(state_dim, action_dim, layers)  # Q-network
     target_q_network = QNetwork(state_dim, action_dim, layers)  # Target Q-network
     target_q_network.load_state_dict(q_network.state_dict())  # Initialize target Q-network with the same weights as Q-network
-    return q_network, target_q_network
+    return q_network.to(device_agents), target_q_network.to(device_agents)
 
 def compute_loss(experiences, gamma, q_network, target_q_network):
 
@@ -82,7 +82,7 @@ def compute_loss(experiences, gamma, q_network, target_q_network):
     loss = nn.SmoothL1Loss()(current_Q, target_Q)
     return loss
 
-def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
+def agent_learn(experiences, gamma, q_network, target_q_network, optimizer, device):
 
     """
     Performs a learning step for the agent by computing the loss and updating the Q-network's weights.
@@ -105,11 +105,11 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
 
     # Convert NumPy arrays to PyTorch tensors
     states, distributions, rewards, next_states, dones = experiences
-    states = torch.tensor(states, dtype=torch.float32)
-    distributions = torch.tensor(distributions, dtype=torch.int64)
-    rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(1)
-    next_states = torch.tensor(next_states, dtype=torch.float32)
-    dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(1)
+    states = torch.tensor(states, dtype=torch.float32, device=device)
+    distributions = torch.tensor(distributions, dtype=torch.int64, device=device)
+    rewards = torch.tensor(rewards, dtype=torch.float32, device=device).unsqueeze(1)
+    next_states = torch.tensor(next_states, dtype=torch.float32, device=device)
+    dones = torch.tensor(dones, dtype=torch.float32, device=device).unsqueeze(1)
     experiences = (states, distributions, rewards, next_states, dones)
 
     loss = compute_loss(experiences, gamma, q_network, target_q_network)  # Compute loss
@@ -117,7 +117,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer):
     loss.backward()  # Backpropagate loss
     optimizer.step()  # Update weights
 
-def get_actions(state, q_networks, random_threshold, epsilon, episode_index, agent_index):
+def get_actions(state, q_networks, random_threshold, epsilon, episode_index, agent_index, device):
 
     """
     Selects actions for an agent using an epsilon-greedy policy.
@@ -137,11 +137,11 @@ def get_actions(state, q_networks, random_threshold, epsilon, episode_index, age
     if random_threshold[episode_index, agent_index] < epsilon:  # Epsilon-greedy action selection
         action_values = q_networks[agent_index](state)
         noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
-        action_values += noise  # Add noise for exploration
+        action_values += noise.to(device)  # Add noise for exploration
     else:
         action_values = q_networks[agent_index](state)  # Greedy action
 
-    return action_values
+    return action_values.cpu()
 
 def soft_update(target_network, source_network, tau=0.001):
 
