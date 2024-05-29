@@ -294,7 +294,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, epsilon =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
                   num_of_chargers, layers, fixed_attributes, device, verbose, display_training_times)

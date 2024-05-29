@@ -312,7 +312,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
                 print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
-    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
+    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, epsilon
 
 def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 
