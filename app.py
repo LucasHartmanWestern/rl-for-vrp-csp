@@ -56,15 +56,18 @@ def train_rl_vrp_csp(date, args):
     #can be improved to run with multiple gpus in future
     gpus_count = len(args.list_gpus)
     if gpus_count == 0:
-        device = 'cpu' # no gpus assigned, then everything running on cpu
+        devices = 'cpu' # no gpus assigned, then everything running on cpu
+        print(f'Woring with CPUs for environment and model tranning')
     elif gpus_count == 1:
-        print("Use of GPUs implemented only for matrix multiplication on enviroment tranning.")
-        device = f'cuda:{args.list_gpus[0]}'
-    else:
-        warnings.warn("**FUTURE WORK**\n Use of multiple GPUs not implemented yet. Only the first GPU in given list of GPUs will be used")
-        device = f'cuda:{args.list_gpus[0]}'
+        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with one GPU, bothg environment and model tranning running with {devices[0]}')
 
-    print(f'Working on traingin with device {device}')
+    elif gpus_count == 2:
+        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[1]}']
+        print(f'Woring with two GPUs, running environment with {devices[0]} and model trainning with {devices[1]}')
+    else:
+        warnings.warn("**FUTURE WORK**\n Use of multiple GPUs for environment not implemented yet. Only the first GPU in given list of GPUs will be used")
+        devices =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
 
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
@@ -189,7 +192,7 @@ def train_rl_vrp_csp(date, args):
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
-                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics, process_output_values, barrier, device, eval_c['verbose'], eval_c['display_training_times']))
+                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics, process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times']))
                         processes.append(process)
                         process.start()
 
@@ -251,7 +254,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
                 buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
-                local_weights_list, rewards, metrics, output_values, barrier, device, verbose, display_training_times):
+                local_weights_list, rewards, metrics, output_values, barrier, devices, verbose, display_training_times):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -297,7 +300,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, layers, fixed_attributes, device, verbose, display_training_times)
+                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times)
 
         # Save results of training
         st = time.time()

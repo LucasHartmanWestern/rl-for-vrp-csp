@@ -16,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
     buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
-    device='cpu', verbose=False, display_training_times=False
+    devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32
 ):
 
     """
@@ -44,6 +44,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         num_of_charges (int): Number of charging stations.
         layers (list, optional): List of integers defining the architecture of the neural networks.
         fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
+        devices (list, optional): list of two devices to run the environment and model, default both are cpu. 
+                                 device[0] for environment setting, device[1] for model trainning.
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
 
@@ -63,8 +65,10 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         torch.manual_seed(seed)
         random.seed(int(seed))
         dqn_rng = np.random.default_rng(seed)
-        
-    # device = get_device_by_id(p['n_workers'], gpus, rank,verbose=True)
+    
+    # Set devices for environment and agent
+    device_environment = devices[0]
+    device_agents = devices[1]
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
@@ -78,7 +82,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     # Assign unique NN for each agent
     for agent_ind in range(num_of_agents):
-        q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
+        q_network, target_q_network = initialize(state_dimension, action_dim, layers, device_agents)  # Initialize networks
 
         if global_weights is not None:
             q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
@@ -136,8 +140,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
             # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
             state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents])))
             states.append(state)  # Track states
-            state = torch.tensor(state, dtype=torch.float32)  # Convert state to tensor
-            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j)  # Get the action values from the agent
+            state = torch.tensor(state, dtype=dtype, device=device_agents)  # Convert state to tensor
+            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j, device_agents)  # Get the action values from the agent
 
             t2 = time.time()
 
@@ -222,7 +226,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
         ########### GET SIMULATION RESULTS ###########
 
-        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, step_size, routes, ev_info, unique_chargers, charges_needed, local_paths, device)
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, step_size, routes, ev_info, unique_chargers, charges_needed, local_paths, device_environment)
 
         # Used to evaluate simulation
         metric = {
@@ -255,7 +259,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
                 mini_batch = dqn_rng.choice(np.array(buffers[agent_ind], dtype=object), batch_size, replace=False)
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
-                agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind])  # Update networks
+                agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device_agents)  # Update networks
 
         et = time.time() - st
 
@@ -312,7 +316,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
                 print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
-    return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
+    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
 
 def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 
