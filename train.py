@@ -16,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
     buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
-    verbose=False, display_training_times=False
+    device='cpu', verbose=False, display_training_times=False
 ):
 
     """
@@ -81,8 +81,6 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         q_network, target_q_network = initialize(state_dimension, action_dim, layers)  # Initialize networks
 
         if global_weights is not None:
-            #print(f"Loading Weights for Zone {zone_index} Model {model_indices[agent_ind]} - Zones: {len(global_weights)} and Models {len(global_weights[zone_index])}")
-
             q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
             target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
@@ -224,7 +222,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
         ########### GET SIMULATION RESULTS ###########
 
-        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, step_size, routes, ev_info, unique_chargers, charges_needed, local_paths)
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, step_size, routes, ev_info, unique_chargers, charges_needed, local_paths, device)
 
         # Used to evaluate simulation
         metric = {
@@ -316,7 +314,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
     return [q_network.state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
 
-def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
+def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 
     """
     Simulates the EV routing and charging process to evaluate the performance of the given paths.
@@ -329,6 +327,7 @@ def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_neede
         unique_chargers (array): Array of unique charger locations.
         charge_needed (list): List of charging requirements for each EV.
         local_paths (list): List of local paths for each EV.
+        device (torch.device): Cuda davice to work with tensors.
 
     Returns:
         float: The simulation reward, calculated as the negative sum of the total distance traveled
@@ -338,35 +337,24 @@ def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_neede
     usage_per_hour_list = ev_info['usage_per_hour']
 
     # Parameters to tweak
-    decrease_rates = torch.Tensor(usage_per_hour_list / 60)
+    decrease_rates = torch.Tensor(usage_per_hour_list / 60).to(device)
     increase_rate = 12500 / 60
     max_sim_steps = 500
 
     # Get formatted data
-    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths)
+    tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic = format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype)
 
     # Run simulation    
     path_results, traffic, battery_levels, distances = simulate_matrix_env(
-        tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rates, max_sim_steps)
+        tokens, starting_battery_level, destinations, actions, move, traffic, capacity, target_battery_level, stops, step_size, increase_rate, decrease_rates, max_sim_steps, dtype=dtype)
 
     # Calculate reward as -(distance * 100 + peak traffic)
-    simulation_reward = -(distances[-1] * 100 + np.max(np.array(torch.cat(traffic))))
+    simulation_reward = -(distances[-1] * 100 + np.max(traffic.numpy()))
 
-    # Convert all return values to NumPy arrays
-    path_results = np.array([tensor_to_numpy(pr) for pr in path_results])
-    traffic = np.array([tensor_to_numpy(tr) for tr in traffic])
-    battery_levels = np.array([tensor_to_numpy(bl) for bl in battery_levels])
-    distances = np.array([tensor_to_numpy(d) for d in distances])
-    simulation_reward = np.array(simulation_reward)
 
-    return path_results, traffic, battery_levels, distances, simulation_reward
+    return path_results.numpy(), traffic.numpy(), battery_levels.numpy(), distances.numpy(), simulation_reward.numpy()
 
-def tensor_to_numpy(tensor):
-    if isinstance(tensor, torch.Tensor):
-        return tensor.numpy()
-    return tensor
-
-def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths):
+def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype):
 
     """
     Formats the data required for simulating the EV routing and charging process.
@@ -378,6 +366,7 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
         unique_chargers (array): Array of unique charger locations.
         charge_needed (list): List of charging requirements for each EV.
         local_paths (list): List of local paths for each EV.
+        device (torch.device): Cuda davice to work with tensors.
 
     Returns:
         tuple: A tuple containing:
@@ -393,15 +382,17 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
     """
 
     starting_charge_array = np.array(ev_info['starting_charge'], copy=True)
-    starting_battery_level = torch.tensor(starting_charge_array, dtype=torch.float) # 5000-7000
+    starting_battery_level = torch.tensor(starting_charge_array, dtype=dtype, device=device) # 5000-7000
 
-    tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
+    tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes], device=device)
 
     destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in ev_routes])
+    destinations = torch.from_numpy(destinations).to(dtype).to(device)
 
-    stops = torch.zeros((destinations.shape[0], max(len(path) for path in paths) + 1), dtype=float)
-    target_battery_level = np.zeros_like(stops)
+    stops = torch.zeros((destinations.shape[0], max(len(path) for path in paths) + 1), dtype=dtype)
+    target_battery_level = torch.zeros_like(stops, device=device)
 
+    # charging_stations = torch.zeros((len(paths),2), device=device)
     charging_stations = []
     station_ids = []
 
@@ -425,6 +416,8 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
                     station_ids.append(charger_id)
                     station_index = len(station_ids) + destinations.shape[0]
                     stop = [unique_chargers[path[step_index]][1], unique_chargers[path[step_index]][2]]  # Lat and long of charging station
+
+                    # charging_stations[agent_index] = stop
                     charging_stations.append(stop)
 
                 stops[agent_index][step_index] = station_index
@@ -434,12 +427,14 @@ def format_data(paths, ev_routes, ev_info, unique_chargers, charge_needed, local
 
     target_battery_level = target_battery_level[:, 1:]
 
-    destinations = np.vstack((destinations, np.array(charging_stations)))
+    # destinations = torch.vstack((destinations, charging_stations))
+    charging_stations = np.array(charging_stations)
+    destinations = torch.vstack((destinations, torch.from_numpy(charging_stations).to(device)))
 
-    actions = np.zeros((tokens.shape[0], destinations.shape[0]))
-    move = np.ones(tokens.shape[0])
+    actions = torch.zeros((tokens.shape[0], destinations.shape[0]), device=device)
+    move = torch.ones(tokens.shape[0], device=device)
     traffic = np.zeros(destinations.shape[0])
 
-    capacity = torch.ones(len(charging_stations), dtype=float) * 10 # Dummy capacity of 10 cars for every station
+    capacity = torch.ones(len(charging_stations), dtype=dtype, device=device) * 10 # Dummy capacity of 10 cars for every station
 
-    return tokens, destinations, capacity, stops, target_battery_level, starting_battery_level, actions, move, traffic
+    return tokens, destinations, capacity, stops.to(device) , target_battery_level, starting_battery_level, actions, move, traffic
