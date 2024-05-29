@@ -3,96 +3,117 @@ import matplotlib.pyplot as plt
 import json
 import pandas as pd
 import time
+from data_loader import save_to_json, load_from_json
 
-def evaluate(ev_info, metrics, seed, date, verbose):
+def evaluate(ev_info, metrics, seed, date, verbose, purpose, base_path):
 
-    traffic_data = []
-    distance_data = []
-    reward_data = []
-    battery_data = []
-    time_data = []
+    if purpose == 'save':
 
-    # Get the model index by using car_models[zone_index][agent_index]
-    car_models = np.column_stack([info['model_type'] for info in ev_info]).T
+        traffic_data = []
+        distance_data = []
+        reward_data = []
+        battery_data = []
+        time_data = []
 
-    st = time.time()
+        # Get the model index by using car_models[zone_index][agent_index]
+        car_models = np.column_stack([info['model_type'] for info in ev_info]).T
 
-    # Flatten the data
-    for _, zone_agg in metrics.iterrows():
-        for episode_raw in zone_agg:
+        st = time.time()
 
-            episode = json.loads(str(episode_raw))
+        # Flatten the data
+        for zone_agg in metrics:
+            for episode in zone_agg:
 
-            # Loop through sim steps and stations
-            for step_ind in range(len(episode['traffic'])):
-                for station_ind in range(len(episode['traffic'][0])):
-                    traffic_data.append({
+                # Loop through sim steps and stations
+                for step_ind in range(len(episode['traffic'])):
+                    for station_ind in range(len(episode['traffic'][0])):
+                        traffic_data.append({
+                            "episode": episode['episode'],
+                            "zone": episode['zone'] + 1,
+                            "aggregation": episode['aggregation'],
+                            "simulation_step": step_ind,
+                            "station_index": station_ind,
+                            "traffic": episode['traffic'][step_ind][station_ind]
+                        })
+
+                # Loop through the agents in each zone
+                for agent_ind, car_model in enumerate(car_models[episode['zone']]):
+
+                    distance_data.append({
                         "episode": episode['episode'],
                         "zone": episode['zone'] + 1,
                         "aggregation": episode['aggregation'],
-                        "simulation_step": step_ind,
-                        "station_index": station_ind,
-                        "traffic": episode['traffic'][step_ind][station_ind]
+                        "agent_index": agent_ind,
+                        "car_model": car_model,
+                        "distance": episode['distances'][-1][agent_ind] * 100
                     })
 
-            # Loop through the agents in each zone
-            for agent_ind, car_model in enumerate(car_models[episode['zone']]):
+                    reward_data.append({
+                        "episode": episode['episode'],
+                        "zone": episode['zone'] + 1,
+                        "aggregation": episode['aggregation'],
+                        "agent_index": agent_ind,
+                        "car_model": car_model,
+                        "reward": episode['rewards'][agent_ind]
+                    })
 
-                distance_data.append({
-                    "episode": episode['episode'],
-                    "zone": episode['zone'] + 1,
-                    "aggregation": episode['aggregation'],
-                    "agent_index": agent_ind,
-                    "car_model": car_model,
-                    "distance": episode['distances'][-1][agent_ind] * 10
-                })
+                    steps_taken = np.array(episode['distances']).T[agent_ind]
 
-                reward_data.append({
-                    "episode": episode['episode'],
-                    "zone": episode['zone'] + 1,
-                    "aggregation": episode['aggregation'],
-                    "agent_index": agent_ind,
-                    "car_model": car_model,
-                    "reward": episode['rewards'][agent_ind]
-                })
+                    time_data.append({
+                        "episode": episode['episode'],
+                        "zone": episode['zone'] + 1,
+                        "aggregation": episode['aggregation'],
+                        "agent_index": agent_ind,
+                        "car_model": car_model,
+                        "duration": np.where(steps_taken == steps_taken[-1])[0][0]
+                    })
 
-                steps_taken = np.array(episode['distances']).T[agent_ind]
+                    agent_battery = np.array(episode['batteries']).T[agent_ind]
 
-                time_data.append({
-                    "episode": episode['episode'],
-                    "zone": episode['zone'] + 1,
-                    "aggregation": episode['aggregation'],
-                    "agent_index": agent_ind,
-                    "car_model": car_model,
-                    "duration": np.where(steps_taken == steps_taken[-1])[0][0]
-                })
+                    battery_data.append({
+                        "episode": episode['episode'],
+                        "zone": episode['zone'] + 1,
+                        "aggregation": episode['aggregation'],
+                        "agent_index": agent_ind,
+                        "car_model": car_model,
+                        "average_battery": np.average(agent_battery),
+                        "ending_battery": agent_battery.tolist()[-1],
+                        "starting_battery": agent_battery.tolist()[0]
+                    })
 
-                agent_battery = np.array(episode['batteries']).T[agent_ind]
+        et = time.time() - st
 
-                battery_data.append({
-                    "episode": episode['episode'],
-                    "zone": episode['zone'] + 1,
-                    "aggregation": episode['aggregation'],
-                    "agent_index": agent_ind,
-                    "car_model": car_model,
-                    "average_battery": np.average(agent_battery),
-                    "ending_battery": agent_battery.tolist()[-1],
-                    "starting_battery": agent_battery.tolist()[0]
-                })
+        if verbose: print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
 
-    et = time.time() - st
+        st = time.time()
 
-    if verbose: print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
+        save_to_json(distance_data, f'{base_path}_distance.json')
+        save_to_json(battery_data, f'{base_path}_battery.json')
+        save_to_json(time_data, f'{base_path}_time.json')
+        save_to_json(reward_data, f'{base_path}_reward.json')
+        save_to_json(traffic_data, f'{base_path}_traffic.json')
 
-    # Evaluate the metrics per-agent
-    evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose)
-    evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose)
-    evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose)
-    evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose)
-    evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose)
+        et = time.time() - st
 
-    # Evaluate metrics per-station
-    evaluate_by_station(traffic_data, seed, verbose)
+        if verbose: print(f'\nSpent {et:.3f} seconds saving the results for evaluation\n')  # Print saving time with 3 decimal places
+
+    if purpose == 'display':
+
+        distance_data = load_from_json(f'{base_path}_distance.json')
+        battery_data = load_from_json(f'{base_path}_battery.json')
+        time_data = load_from_json(f'{base_path}_time.json')
+        reward_data = load_from_json(f'{base_path}_reward.json')
+        traffic_data = load_from_json(f'{base_path}_traffic.json')
+
+        # Evaluate the metrics per-agent
+        evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose)
+        evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose)
+        evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose)
+        evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose)
+        evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose)
+
+        # Evaluate metrics per-station
+        evaluate_by_station(traffic_data, seed, verbose)
 
 def evaluate_by_agent(data, metric_name, metric_title, seed, verbose):
     if verbose: print(f"Evaluating {metric_title} Metrics for seed {seed}")
