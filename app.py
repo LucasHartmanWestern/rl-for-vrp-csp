@@ -239,11 +239,11 @@ def train_rl_vrp_csp(date, args):
 
             # Save all metrics from training into a file
             if eval_c['save_data'] and eval_c['train_model']:
-                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
+                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'display', f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
+                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'display', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
             if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
