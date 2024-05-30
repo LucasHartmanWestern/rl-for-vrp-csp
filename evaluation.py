@@ -179,7 +179,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     # Average per Episode
     plt.figure(figsize=(8, 6))
     plt.plot(avg_by_episode.index, avg_by_episode.values)
-    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode')
@@ -188,7 +188,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     # Average per Episode by Zone
     plt.figure(figsize=(8, 6))
     avg_by_episode_zone.plot()
-    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Zone')
@@ -197,7 +197,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     # Average per Episode by Car Model
     plt.figure(figsize=(8, 6))
     avg_by_episode_car_model.plot()
-    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Car Model')
@@ -251,6 +251,10 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     last_episode = df['episode'].max()
     peak_traffic_last_episode = df[df['episode'] == last_episode].groupby('station_index')['traffic'].max()
 
+    # Add average peak traffic per episode
+    peak_traffic_per_episode = df.groupby(['recalculated_episode', 'station_index'])['traffic'].max()
+    average_peak_traffic_per_episode = peak_traffic_per_episode.groupby('recalculated_episode').mean()
+
     # Peak Traffic by Charger
     plt.figure(figsize=(8, 6))
     peak_traffic_by_charger.plot(kind='bar', color='skyblue')
@@ -293,17 +297,27 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Average Traffic Per Episode of Training
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode.plot()
-    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.title(f'Seed {seed} - Average Traffic Per Episode of Training')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
     plt.show()
 
+    # Average Peak Traffic Per Episode
+    plt.figure(figsize=(8, 6))
+    average_peak_traffic_per_episode.plot()
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
+        plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
+    plt.title(f'Seed {seed} - Average Peak Traffic Per Episode')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Peak Traffic')
+    plt.show()
+
     # Average Traffic Per Episode of Training by Zone
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode_by_zone.unstack().plot()
-    for x in range(0, max(df['recalculated_episode'] + 1), num_episodes):
+    for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.title(f'Seed {seed} - Average Traffic Per Episode by Zone')
     plt.xlabel('Episode')

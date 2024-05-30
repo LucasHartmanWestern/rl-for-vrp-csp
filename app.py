@@ -243,7 +243,7 @@ def train_rl_vrp_csp(date, args):
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'display', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
+                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
             if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
                 user_input = input("More Episodes? ")
