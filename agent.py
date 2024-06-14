@@ -117,7 +117,7 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer, devi
     loss.backward()  # Backpropagate loss
     optimizer.step()  # Update weights
 
-def get_actions(state, q_networks, random_threshold, epsilon, episode_index, agent_index, device):
+def get_actions(state, q_networks, random_threshold, epsilon, episode_index, agent_index, device, nn_by_zone):
 
     """
     Selects actions for an agent using an epsilon-greedy policy.
@@ -129,17 +129,24 @@ def get_actions(state, q_networks, random_threshold, epsilon, episode_index, age
         epsilon (float): Exploration rate for epsilon-greedy policy.
         episode_index (int): Index of the current episode.
         agent_index (int): Index of the current agent.
+        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
 
     Returns:
         torch.tensor: The action values for the given state.
     """
 
     if random_threshold[episode_index, agent_index] < epsilon:  # Epsilon-greedy action selection
-        action_values = q_networks[agent_index](state)
+        if nn_by_zone:
+            action_values = q_networks[0](state)
+        else:
+            action_values = q_networks[agent_index](state)
         noise = torch.randn(action_values.size()) * epsilon  # Match the size of the action_values tensor
         action_values += noise.to(device)  # Add noise for exploration
     else:
-        action_values = q_networks[agent_index](state)  # Greedy action
+        if nn_by_zone:
+            action_values = q_networks[0](state)  # Greedy action
+        else:
+            action_values = q_networks[agent_index](state)  # Greedy action
 
     return action_values.cpu()
 

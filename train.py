@@ -16,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
     buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
-    devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32
+    devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False
 ):
 
     """
@@ -48,6 +48,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
                                  device[0] for environment setting, device[1] for model trainning.
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
+        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+
 
     Returns:
         tuple: A tuple containing:
@@ -83,13 +85,12 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
     target_q_networks = []
     optimizers = []
 
-    # Assign unique NN for each agent
-    for agent_ind in range(num_of_agents):
+    if nn_by_zone:  # Use same NN for each zone
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device_agents)  # Initialize networks
 
         if global_weights is not None:
-            q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
-            target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+            q_network.load_state_dict(global_weights[zone_index])
+            target_q_network.load_state_dict(global_weights[zone_index])
 
         optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
 
@@ -97,6 +98,21 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         q_networks.append(q_network)
         target_q_networks.append(target_q_network)
         optimizers.append(optimizer)
+
+    else:  # Assign unique NN for each agent
+        for agent_ind in range(num_of_agents):
+            q_network, target_q_network = initialize(state_dimension, action_dim, layers, device_agents)  # Initialize networks
+
+            if global_weights is not None:
+                q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+
+            optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+
+            # Store individual networks
+            q_networks.append(q_network)
+            target_q_networks.append(target_q_network)
+            optimizers.append(optimizer)
 
     random_threshold = dqn_rng.random((num_episodes, num_of_agents))
 
@@ -144,12 +160,12 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
             state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents])))
             states.append(state)  # Track states
             state = torch.tensor(state, dtype=dtype, device=device_agents)  # Convert state to tensor
-            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j, device_agents)  # Get the action values from the agent
+            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j, device_agents, nn_by_zone)  # Get the action values from the agent
 
             t2 = time.time()
 
             distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
-            distributions_unmodified.append(distribution.tolist()) # Track outputs before the sigmoid application
+            distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
             distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
             distributions.append(distribution.tolist())  # Convert back to list and append
 
@@ -262,7 +278,11 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
                 mini_batch = dqn_rng.choice(np.array(buffers[agent_ind], dtype=object), batch_size, replace=False)
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
-                agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device_agents)  # Update networks
+
+                if nn_by_zone:
+                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0], optimizers[0], device_agents)  # Update networks
+                else:
+                    agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device_agents)  # Update networks
 
         et = time.time() - st
 
@@ -276,16 +296,27 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
-            for agent_ind in range(num_of_agents):
-                soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
+            if nn_by_zone:
+                soft_update(target_q_networks[0], q_networks[0])
 
                 # Add this before you save your model
                 if not os.path.exists('saved_networks'):
                     os.makedirs('saved_networks')
 
                 # Save the networks at the end of training
-                save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
+                save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
+            else:
+                for agent_ind in range(num_of_agents):
+                    soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
+
+                    # Add this before you save your model
+                    if not os.path.exists('saved_networks'):
+                        os.makedirs('saved_networks')
+
+                    # Save the networks at the end of training
+                    save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
         # Log every ith episode
         if i % 1 == 0:

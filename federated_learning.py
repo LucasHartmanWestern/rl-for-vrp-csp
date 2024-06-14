@@ -1,6 +1,6 @@
 import torch
 
-def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier):
+def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone):
 
     """
     Aggregates weights from different zones and models to compute global weights for each zone-model pair.
@@ -11,6 +11,7 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
         city_multiplier (float): The multiplier for city-level aggregation.
         zone_multiplier (float): The multiplier for zone-level aggregation.
         model_multiplier (float): The multiplier for model-level aggregation.
+        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
 
     Returns:
         list: A 2D list (zones x models) containing the global weights for each zone-model pair.
@@ -46,18 +47,31 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
 
     city_aggregates = aggregate_weights(city_weights)
 
-    # ZxM matrix of weights where Z is the number of zones and M is the number of models
-    global_weights = [[{} for _ in range(len(model_aggregates))] for _ in range(len(zone_aggregates))]
+    if nn_by_zone:
+        # Zx1 matrix of weights where Z is the number of zones
+        global_weights = [{} for _ in range(len(zone_aggregates))]
 
-    # Calculate the combined weights for each zone and model pair
-    for z in range(len(zone_aggregates)):
-        for m in range(len(model_aggregates)):
+        # Calculate the combined weights for each zone and model pair
+        for z in range(len(zone_aggregates)):
             combined_weights = {}
             for key in zone_aggregates[z].keys():
                 # Create each entry of global weights by doing a weighted average of the zone and model
-                # (0.75 x Zone Weight z) + (0.25 x Model Weight m) = Entry (z, n) of global_weights
-                combined_weights[key] = city_multiplier * city_aggregates[key] + zone_multiplier * zone_aggregates[z][key] + model_multiplier * model_aggregates[m][key]
-            global_weights[z][m] = combined_weights
+                # (1.00 x Zone Weight z) = Entry (z) of global_weights
+                combined_weights[key] = city_multiplier * city_aggregates[key] + zone_multiplier * zone_aggregates[z][key]
+            global_weights[z] = combined_weights
+    else:
+        # ZxM matrix of weights where Z is the number of zones and M is the number of models
+        global_weights = [[{} for _ in range(len(model_aggregates))] for _ in range(len(zone_aggregates))]
+
+        # Calculate the combined weights for each zone and model pair
+        for z in range(len(zone_aggregates)):
+            for m in range(len(model_aggregates)):
+                combined_weights = {}
+                for key in zone_aggregates[z].keys():
+                    # Create each entry of global weights by doing a weighted average of the zone and model
+                    # (0.75 x Zone Weight z) + (0.25 x Model Weight m) = Entry (z, n) of global_weights
+                    combined_weights[key] = city_multiplier * city_aggregates[key] + zone_multiplier * zone_aggregates[z][key] + model_multiplier * model_aggregates[m][key]
+                global_weights[z][m] = combined_weights
 
     return global_weights
 

@@ -194,7 +194,8 @@ def train_rl_vrp_csp(date, args):
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
-                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics, process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times']))
+                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
+                            process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times'], nn_c['nn_by_zone']))
                         processes.append(process)
                         process.start()
 
@@ -206,7 +207,7 @@ def train_rl_vrp_csp(date, args):
                     print("Join Weights")
 
                     # Aggregate the weights from all local models
-                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['city_multiplier'], nn_c['zone_multiplier'], nn_c['model_multiplier'])
+                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['city_multiplier'], nn_c['zone_multiplier'], nn_c['model_multiplier'], nn_c['nn_by_zone'])
 
                     # Extend the main lists with the contents of the process lists
                     sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -254,7 +255,8 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
                 buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
-                local_weights_list, rewards, metrics, output_values, barrier, devices, verbose, display_training_times):
+                local_weights_list, rewards, metrics, output_values, barrier, devices,
+                verbose, display_training_times, nn_by_zone):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -288,6 +290,8 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         barrier (multiprocessing.Barrier): Barrier for synchronizing multiprocessing tasks.
         verbose (bool): Flag to enable detailed logging.
         display_training_times (bool): Flag to display training times for different operations.
+        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+
 
     Returns:
         None
@@ -300,7 +304,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times)
+                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, nn_by_zone)
 
         # Save results of training
         st = time.time()
