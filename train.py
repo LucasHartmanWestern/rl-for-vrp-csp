@@ -9,14 +9,16 @@ import time
 from environment import simulate_matrix_env
 from pathfinding import haversine
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
-    
+
+import collections
+
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
     buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
-    devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False
+    devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
 ):
 
     """
@@ -72,8 +74,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         dqn_rng = np.random.default_rng(seed)
     
     # Set devices for environment and agent
-    device_environment = devices[0]
-    device_agents = devices[1]
+    device_environment = 'cpu'
+    device_agents = 'cpu'
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
@@ -118,6 +120,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_of_agents)]  # Initialize replay buffer with fixed size
 
+    trajectories = []
+    
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
@@ -266,6 +270,18 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         for d in range(len(distributions_unmodified)):
             buffers[d].append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
+            # Offline data recording for ODT
+            if save_offline_data:
+                traj = collections.defaultdict(list)
+                traj['observations'].append(states[d])
+                traj['actions'].append(distributions_unmodified[d])
+                traj['rewards'].append(rewards[d])
+                traj['terminals'].append(done)
+
+                for key in traj:
+                    traj[key] = np.array(traj[key])
+                trajectories.append(traj)
+
         st = time.time()
 
         trained = False
@@ -351,7 +367,9 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics
+    #print(f'Trajectories {trajectories}')
+
+    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories
 
 def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 

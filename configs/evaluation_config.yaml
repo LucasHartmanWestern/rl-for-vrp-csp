@@ -11,6 +11,7 @@ eval_config:
 
     train_model: True # Set to false for model evaluation
     save_data: True # Set to true if you want to save simulation results in a csv file
+    save_offline_data: True # Set true to save trajectories for offline training
     generate_plots: False # Set to true if you want to generate plots of the simulation environments
-    #save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
-    #continue_training: False # Set to true if you want the option to continue training after a full training loop completes
+    save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
+    continue_training: False # Set to true if you want the option to continue training after a full training loop completes
