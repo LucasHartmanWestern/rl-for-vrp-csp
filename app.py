@@ -52,7 +52,8 @@ def train_rl_vrp_csp(date, args):
     buffer_limit = int(nn_c['buffer_limit'])
 
     action_dim = nn_c['action_dim'] * env_c['num_of_chargers']
-    
+
+    trajectories = []
     #initializing GPUs for training
     #gpu initialization implemented to run everythin on one gpu for now. 
     #can be improved to run with multiple gpus in future
@@ -195,7 +196,7 @@ def train_rl_vrp_csp(date, args):
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
                             env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
                             eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
-                            process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times'], nn_c['nn_by_zone']))
+                            process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times'], nn_c['nn_by_zone'], eval_c['save_offline_data']))
                         processes.append(process)
                         process.start()
 
@@ -251,12 +252,19 @@ def train_rl_vrp_csp(date, args):
             else:
                 user_input = 'Done'
 
+            # Save offline data to pkl file
+            if eval_c['save_offline_data']:
+                dataset_path = f'data/offline-data.pkl'
+                with open(dataset_path, 'wb') as f:
+                    pickle.dump(trajectories, f)
+                    print('Offline Dataset Saved')
+
 def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
                 buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
                 local_weights_list, rewards, metrics, output_values, barrier, devices,
-                verbose, display_training_times, nn_by_zone):
+                verbose, display_training_times, nn_by_zone, save_offline_data):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -304,7 +312,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone)
+                  num_of_chargers, trajectories, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone, save_offline_data)
 
         # Save results of training
         st = time.time()
