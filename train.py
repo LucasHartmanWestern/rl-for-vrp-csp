@@ -77,7 +77,7 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (num_of_charges * 3 * 2) + 3
+    state_dimension = (num_of_charges * 3 * 2) + 4
 
     model_indices = ev_info['model_indices']
 
@@ -156,8 +156,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
             t1 = time.time()
 
-            # Traffic level and distance of each station plus total charger num, total distance, and number of EVs
-            state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents])))
+            # Traffic level and distance of each station plus total charger num, total distance, number of EVs, and car model index
+            state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents]), np.array([model_indices[j]])))
             states.append(state)  # Track states
             state = torch.tensor(state, dtype=dtype, device=device_agents)  # Convert state to tensor
             action_values = get_actions(state, q_networks, random_threshold, epsilon, i, j, device_agents, nn_by_zone)  # Get the action values from the agent

@@ -304,7 +304,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, nn_by_zone)
+                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone)
 
         # Save results of training
         st = time.time()

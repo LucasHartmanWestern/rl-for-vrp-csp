@@ -43,7 +43,8 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
                 if model_indices[nn_ind] == model_index:
                     model_weights.append(w)
 
-        model_aggregates.append(aggregate_weights(model_weights))
+        if not nn_by_zone:
+            model_aggregates.append(aggregate_weights(model_weights))
 
     city_aggregates = aggregate_weights(city_weights)
 
