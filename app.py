@@ -12,6 +12,7 @@ import copy
 from datetime import datetime
 import numpy as np
 from evaluation import evaluate
+import pickle
 
 
 mp.set_sharing_strategy('file_system')
@@ -52,8 +53,7 @@ def train_rl_vrp_csp(date, args):
     buffer_limit = int(nn_c['buffer_limit'])
 
     action_dim = nn_c['action_dim'] * env_c['num_of_chargers']
-
-    trajectories = []
+    
     #initializing GPUs for training
     #gpu initialization implemented to run everythin on one gpu for now. 
     #can be improved to run with multiple gpus in future
@@ -170,6 +170,7 @@ def train_rl_vrp_csp(date, args):
                 metrics = []  # Used to track all metrics
                 rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
                 output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
+                trajectories = []
                 global_weights = None
 
                 for aggregate_step in range(nn_c['aggregation_count']):
@@ -179,6 +180,7 @@ def train_rl_vrp_csp(date, args):
                     process_rewards = manager.list()
                     process_output_values = manager.list()
                     process_metrics = manager.list()
+                    process_trajectories = manager.list()
 
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
@@ -194,7 +196,7 @@ def train_rl_vrp_csp(date, args):
                             charger_list, ev_info[ind], all_routes[ind], date, action_dim, global_weights, aggregate_step,
                             ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
                             nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
-                            env_c['num_of_agents'], env_c['num_of_chargers'], nn_c['layers'],
+                            env_c['num_of_agents'], env_c['num_of_chargers'], process_trajectories, nn_c['layers'],
                             eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
                             process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times'], nn_c['nn_by_zone'], eval_c['save_offline_data']))
                         processes.append(process)
@@ -216,6 +218,7 @@ def train_rl_vrp_csp(date, args):
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
                     metrics.extend(process_metrics)
+                    trajectories.extend(process_trajectories)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
                         print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n", file=file)
@@ -262,7 +265,7 @@ def train_rl_vrp_csp(date, args):
 def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
-                buffer_limit, num_of_agents, num_of_chargers, layers, fixed_attributes,
+                buffer_limit, num_of_agents, num_of_chargers, trajectories, layers, fixed_attributes,
                 local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, nn_by_zone, save_offline_data):
 
@@ -309,16 +312,17 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics =\
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
                   epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, trajectories, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone, save_offline_data)
+                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone, save_offline_data)
 
         # Save results of training
         st = time.time()
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
         metrics.append(training_metrics)
+        trajectories.append(trajectories_per)
         et = time.time() - st
 
         if verbose:

@@ -9,13 +9,15 @@ import time
 from environment import simulate_matrix_env
 from pathfinding import haversine
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
-    
+
+import collections
+
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
-    buffer_limit, num_of_agents, num_of_charges, trajectories, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
+    buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
     devices=['cpu','cpu'], verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
 ):
 
@@ -72,8 +74,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         dqn_rng = np.random.default_rng(seed)
     
     # Set devices for environment and agent
-    device_environment = devices[0]
-    device_agents = devices[1]
+    device_environment = 'cpu'
+    device_agents = 'cpu'
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
@@ -118,6 +120,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_of_agents)]  # Initialize replay buffer with fixed size
 
+    trajectories = []
+    
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
@@ -362,6 +366,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
                 print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
+
+    #print(f'Trajectories {trajectories}')
 
     return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories
 
