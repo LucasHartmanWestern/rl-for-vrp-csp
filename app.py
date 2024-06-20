@@ -16,9 +16,11 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
+import collections
+
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
-from decision_transformer.models.mlp_bc import MLPBCModel
+#from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
 
@@ -163,6 +165,8 @@ def train_rl_vrp_csp(date, args):
 
         user_input = ""
 
+
+
         while user_input != 'Done':
             if eval_c['train_model']:
 
@@ -170,10 +174,15 @@ def train_rl_vrp_csp(date, args):
                     nn_c['num_episodes'] = int(user_input)
                     nn_c['epsilon'] = 0.1
 
-                with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
+                if algo_c['algorithm'] == 'ODT':
+                    print(f"Training using ODT - Seed {seed}")
+                    train_odt(devices)
+                    
+                else:
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
 
-                print(f"Training using Deep-Q Learning - Seed {seed}")
+                    print(f"Training using Deep-Q Learning - Seed {seed}")
 
                 metrics = []  # Used to track all metrics
                 rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
@@ -266,6 +275,7 @@ def train_rl_vrp_csp(date, args):
             # Save offline data to pkl file
             if eval_c['save_offline_data']:
                 dataset_path = f'data/offline-data.pkl'
+                trajectories = format_data(trajectories)
                 with open(dataset_path, 'wb') as f:
                     pickle.dump(trajectories, f)
                     print('Offline Dataset Saved')
@@ -349,8 +359,43 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         raise
 
 def train_odt(
-        exp_prefix,
-        variant
+    device,
+    exp_prefix = 'placeholder',
+    variant = {
+    'env': 'hopper',
+    'dataset': 'medium',
+    'mode': 'normal',
+    'K': 20,
+    'pct_traj': 1.0,
+    'batch_size': 64,
+    'model_type': 'dt',
+    'embed_dim': 128,
+    'n_layer': 3,
+    'n_head': 1,
+    'activation_function': 'relu',
+    'dropout': 0.1,
+    'learning_rate': 1e-4,
+    'weight_decay': 1e-4,
+    'warmup_steps': 10000,
+    'num_eval_episodes': 100,
+    'max_iters': 10,
+    'num_steps_per_iter': 10000,
+    'device': 'cuda:1',
+    'log_to_wandb': False,
+    'save_model': False,
+    'pretrained_model': None,
+    'stochastic': False,
+    'use_entropy': False,
+    'use_action_means': False,
+    'online_training': False,
+    'online_buffer_size': 1000,
+    'eval_only': False,
+    'remove_pos_embs': False,
+    'eval_context': None,
+    'target_entropy': False,
+    'stochastic_tanh': False,
+    'approximate_entropy_samples': 1000},
+    max_ep_len=1
 ):
     def discount_cumsum(x, gamma):
         discount_cumsum = np.zeros_like(x)
@@ -359,9 +404,12 @@ def train_odt(
             discount_cumsum[t] = x[t] + gamma * discount_cumsum[t+1]
         return discount_cumsum
 
-    device = variant.get('device', 'cuda')
+    
+    # device = variant['device']
     log_to_wandb = variant.get('log_to_wandb', False)
 
+    # FIX THIS CODE - Needs an actual enviornment object 
+    env = variant['env']
 
     dataset =  variant['dataset']
     model_type = variant['model_type']
@@ -373,11 +421,13 @@ def train_odt(
         os.makedirs(model_dir)
 
     #FIX THIS CODE
-    #state_dim = env.observation_space.shape[0]
-    #act_dim = env.action_space.shape[0]
+    state_dim = 22
+    act_dim = 9
+    scale = 1
+
 
     # load dataset
-    dataset_path = f'data/Offline-Data.pkl'
+    dataset_path = f'data/dummy-data.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -398,6 +448,8 @@ def train_odt(
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
 
     num_timesteps = sum(traj_lens)
+
+    env_targets = np.linspace(np.min(returns), np.max(returns), num=2).tolist()
 
     print('=' * 50)
     print(f'Starting new experiment: {dataset}')
@@ -433,6 +485,7 @@ def train_odt(
         num_trajectories = len(trajectories)
 
     starting_p_sample = p_sample
+    
     def get_batch(batch_size=256, max_len=K):
         # Dynamically recompute p_sample if online training
         if variant['online_training']:
@@ -440,8 +493,8 @@ def train_odt(
             p_sample = traj_lens / sum(traj_lens)
         else:
             p_sample = starting_p_sample
-
-
+            
+        
         batch_inds = np.random.choice(
             np.arange(num_trajectories),
             size=batch_size,
@@ -482,6 +535,11 @@ def train_odt(
             timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
             mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
 
+        # print(device)
+        #s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32)
+        #print(f's tensor {s.shape}')
+        #s = s.to(device)
+        
         s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
         a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
         r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
@@ -491,6 +549,8 @@ def train_odt(
         mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
 
         return s, a, r, d, rtg, timesteps, mask
+
+
 
     if variant['online_training']:
         # If online training, use means during eval, but (not during exploration)
@@ -578,7 +638,7 @@ def train_odt(
     else:
         raise NotImplementedError
 
-    model = model.to(device=device)
+    #model = model.to(device=device)
     warmup_steps = variant['warmup_steps']
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -713,6 +773,33 @@ def train_odt(
                     wandb.log(outputs)
 
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
+
+def format_data(data):
+    # Initialize a dictionary to hold all combined data
+    consolidated_dict = {
+        'observations': [],
+        'actions': [],
+        'rewards': [],
+        'terminals': []
+    }
+    
+    # Iterate through each sublist and each defaultdict to combine data
+    for sublist in data:
+        for dd in sublist:
+            for key in consolidated_dict.keys():
+                # Append each array to the corresponding key 
+                if key in dd:
+                    consolidated_dict[key].append(dd[key])
+
+    # Convert lists of arrays to single arrays for each key
+    for key in consolidated_dict:
+        consolidated_dict[key] = np.concatenate(consolidated_dict[key], axis=0)
+
+    consolidated_list = []
+    consolidated_list.append(consolidated_dict)
+
+    return consolidated_list
+    
 
 if __name__ == '__main__':
 

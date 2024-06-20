@@ -4,4 +4,4 @@
 ############ Algorithm ############
 
 algorithm_settings:
-    algorithm: 'DQN' # Currently the only option working
+    algorithm: 'ODT' # Currently the only option working
