@@ -13,8 +13,8 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
-from env_class import environment_class
-
+# from merl_env.env_class_v1_ import environment_class
+from merl_env.environment import EnvironmentClass
 
 mp.set_sharing_strategy('file_system')
 
@@ -60,18 +60,20 @@ def train_rl_vrp_csp(date, args):
     #can be improved to run with multiple gpus in future
     gpus_count = len(args.list_gpus)
     if gpus_count == 0:
-        devices = ['cpu','cpu'] # no gpus assigned, then everything running on cpu
+        devices_arg = ['cpu'] # no gpus assigned, then everything running on cpu
         print(f'Woring with CPUs for environment and model tranning')
     elif gpus_count == 1:
-        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
-        print(f'Woring with one GPU, bothg environment and model tranning running with {devices[0]}')
+        devices_arg = [f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with one GPU, bothg environment and model tranning running with {devices_arg[0]}')
 
     elif gpus_count == 2:
-        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[1]}']
-        print(f'Woring with two GPUs, running environment with {devices[0]} and model trainning with {devices[1]}')
+        devices_arg = [f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with two GPUs, running environment with {devices_arg[0]} and model trainning with {devices_arg[1]}')
     else:
         warnings.warn("**FUTURE WORK**\n Use of multiple GPUs for environment not implemented yet. Only the first GPU in given list of GPUs will be used")
-        devices =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
+        devices_arg =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
+        
+    devices = [devices_arg[0] for _ in range(len(env_c['coords']))]
 
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
@@ -87,45 +89,12 @@ def train_rl_vrp_csp(date, args):
         ev_info = []
         start_time = time.time()
         for area_idx in range(len(env_c['coords'])):
-            environment = environment_class(environment_config_fname, chargers_seeds[area_idx], devices[area_idx], dtype=torch.float32)
+            environment = EnvironmentClass(environment_config_fname, chargers_seeds[area_idx], devices[area_idx], dtype=torch.float32)
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
         
-#         ev_info = []
-
-#         for _ in env_c['coords']:
-#             # Generate a random model index for each agent
-#             model_indices = np.array([random.randrange(3) for agent in range(env_c['num_of_agents'])], dtype=int)
-
-#             # Use the indices to select the model type and corresponding configurations
-#             model_type = np.array([env_c['models'][index] for index in model_indices], dtype=str)
-#             usage_per_hour = np.array([env_c['usage_per_hour'][index] for index in model_indices], dtype=int)
-#             max_charge = np.array([env_c['max_charge'][index] for index in model_indices], dtype=int)
-
-#             start_time = time.time()
-#             # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
-#             starting_charge = env_c['starting_charge'] + 2000*(rng.random(env_c['num_of_agents'])-0.5)
-#             elapsed_time = time.time() - start_time
-
-#             # Define a structured array
-#             dtypes = [('starting_charge', float),
-#                       ('max_charge', int),
-#                       ('usage_per_hour', int),
-#                       ('model_type', 'U50'),  # Adjust string length as needed
-#                       ('model_indices', int)]
-#             info = np.zeros(env_c['num_of_agents'], dtype=dtypes)
-
-#             # Assign values
-#             info['starting_charge'] = starting_charge
-#             info['max_charge'] = max_charge
-#             info['usage_per_hour'] = usage_per_hour
-#             info['model_type'] = model_type
-#             info['model_indices'] = model_indices
-
-#             ev_info.append(info)
-
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
@@ -148,7 +117,7 @@ def train_rl_vrp_csp(date, args):
         start_time = time.time()
 
         chargers = np.zeros(shape=[len(all_routes), env_c['num_of_agents'], env_c['num_of_chargers'] * 3, 3])
-
+        
         for route_id,  route in enumerate(all_routes):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
                 data = get_charger_data()
@@ -199,10 +168,9 @@ def train_rl_vrp_csp(date, args):
                         charger_list, environment_list[ind], all_routes[ind], date, action_dim,
                         global_weights, aggregate_step, ind, chargers_seeds[ind], seed, nn_c['epsilon'],
                         nn_c['epsilon_decay'], nn_c['discount_factor'], nn_c['learning_rate'],
-                        nn_c['num_episodes'], batch_size, buffer_limit,
-                        env_c['num_of_agents'], env_c['num_of_chargers'], process_trajectories, nn_c['layers'],
+                        nn_c['num_episodes'], batch_size, buffer_limit, process_trajectories, nn_c['layers'],
                         eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
-                        process_output_values, barrier, devices, eval_c['verbose'], 
+                        process_output_values, barrier, devices[ind], eval_c['verbose'], 
                         eval_c['display_training_times'], nn_c['nn_by_zone'], eval_c['save_offline_data']))
                     processes.append(process)
                     process.start()
@@ -272,7 +240,7 @@ def train_rl_vrp_csp(date, args):
 def train_route(chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
-                buffer_limit, num_of_agents, num_of_chargers, trajectories, layers, fixed_attributes,
+                buffer_limit, trajectories, layers, fixed_attributes,
                 local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, nn_by_zone, save_offline_data):
 
@@ -322,9 +290,8 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
                   ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, \
-                  num_episodes, batch_size, buffer_limit, num_of_agents, num_of_chargers, layers,\
-                  fixed_attributes, devices, verbose, display_training_times, torch.float32,\
-                  nn_by_zone, save_offline_data)
+                  num_episodes, batch_size, buffer_limit, layers, devices, fixed_attributes, verbose,\
+                  display_training_times, torch.float32, nn_by_zone, save_offline_data)
 
         # Save results of training
         st = time.time()

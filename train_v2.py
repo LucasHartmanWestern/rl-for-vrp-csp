@@ -2,14 +2,11 @@ import torch
 import torch.optim as optim
 import numpy as np
 from collections import namedtuple
-import random
 import os
-import copy
 from collections import deque
-from pathfinding import *
 import time
+import copy
 
-from pathfinding import haversine
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
 
 import collections
@@ -19,8 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 
 def train(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
-    buffer_limit, num_of_agents, num_of_charges, layers=[64, 128, 1024, 128, 64], fixed_attributes=None,
-    devices=['cpu','cpu'], verbose=False, display_training_times=True, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
+    buffer_limit, layers, device, fixed_attributes=None, verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
 ):
 
     """
@@ -44,8 +40,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         num_episodes (int): Number of training episodes.
         batch_size (int): Size of the mini-batch for experience replay.
         buffer_limit (int): Maximum size of the experience replay buffer.
-        num_of_agents (int): Number of agents (EVs) in the environment.
-        num_of_charges (int): Number of charging stations.
         layers (list, optional): List of integers defining the architecture of the neural networks.
         fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
         devices (list, optional): list of two devices to run the environment and model, default both are cpu. 
@@ -70,17 +64,12 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     # Set seeds for reproducibility
     if seed is not None:
         torch.manual_seed(seed)
-        random.seed(int(seed))
         dqn_rng = np.random.default_rng(seed)
     
-    # Set devices for environment and agent
-    device_environment = devices[0]
-    device_agents = devices[1]
-        
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (num_of_charges * 3 * 2) + 4
+    state_dimension = (environment.num_of_chargers * 3 * 2) + 4
 
     model_indices = environment.info['model_indices']
     
@@ -90,7 +79,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
     if nn_by_zone:  # Use same NN for each zone
         # Initialize networks
-        q_network, target_q_network = initialize(state_dimension, action_dim, layers, device_agents) 
+        q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
             q_network.load_state_dict(global_weights[zone_index])
@@ -104,9 +93,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         optimizers.append(optimizer)
 
     else:  # Assign unique NN for each agent
-        for agent_ind in range(num_of_agents):
+        for agent_ind in range(environment.num_of_agents):
             # Initialize networks
-            q_network, target_q_network = initialize(state_dimension, action_dim, layers, device_agents)  
+            q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
 
             if global_weights is not None:
                 q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
@@ -119,9 +108,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             target_q_networks.append(target_q_network)
             optimizers.append(optimizer)
 
-    random_threshold = dqn_rng.random((num_episodes, num_of_agents))
+    random_threshold = dqn_rng.random((num_episodes, environment.num_of_agents))
 
-    buffers = [deque(maxlen=buffer_limit) for _ in range(num_of_agents)]  # Initialize replay buffer with fixed size
+    buffers = [deque(maxlen=buffer_limit) for _ in range(environment.num_of_agents)]  # Initialize replay buffer with fixed size
 
     trajectories = []
     
@@ -135,44 +124,26 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
     for i in range(num_episodes):  # For each episode
 
-        paths = []
-        charges_needed = []
-        local_paths = []
+
         distributions = []
         distributions_unmodified = []
         states = []
-        traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
-
-        traffic[:, 0] = unique_chargers['id']
-
+        environment.reset_episode(chargers, routes, unique_chargers)
+        
         time_start_paths = time.time()
 
         # Build path for each EV
-        for agent_idx in range(num_of_agents): # For each agent
-
-            agents_chargers = chargers[agent_idx, :, 0]
-            agents_unique_chargers = [charger for charger in unique_chargers if charger[0] in agents_chargers]
-            agents_unique_traffic = np.array([[t[0], t[1]] for t in traffic if t[0] in agents_chargers])
-
-            # Get distances from origin to each charging station
-            org_lat, org_long, dest_lat, dest_long = routes[agent_idx]
-            dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long)\
-                              for (id, charge_lat, charge_long) in agents_unique_chargers])
-            route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
-
-            ########### GENERATE AGENT OUTPUT ###########
+        for agent_idx in range(environment.num_of_agents): # For each agent
+            ########### Starting environment rutting
+            state = environment.reset_agent(agent_idx)
+            states.append(state)  # Track states
 
             t1 = time.time()
-
-            # Traffic level and distance of each station plus total charger num, total distance,
-            # number of EVs, and car model index
-            state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1),\
-                               np.array([num_of_charges * 3]), np.array([route_dist]),\
-                               np.array([num_of_agents]), np.array([model_indices[agent_idx]])))
-            states.append(state)  # Track states
-            state = torch.tensor(state, dtype=dtype, device=device_agents)  # Convert state to tensor
+            
+            ####### Getting actions from agents
+            state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
             action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx,\
-                                        device_agents, nn_by_zone)  # Get the action values from the agent
+                                        device, nn_by_zone)  # Get the action values from the agent
 
             t2 = time.time()
 
@@ -183,71 +154,22 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
             t3 = time.time()
 
-            ########### GENERATE GRAPH ###########
-
-            # Build graph of possible paths from chargers to each other, the origin, and destination
-            ev_info = environment.get_ev_info()
-            graph = build_graph(agent_idx, environment.step_size, ev_info, agents_unique_chargers, org_lat,\
-                                org_long, dest_lat, dest_long)
-            charges_needed.append(copy.deepcopy(graph))
+            environment.generate_paths(distribution, fixed_attributes)
 
             t4 = time.time()
-
-            ########### REDEFINE WEIGHTS IN GRAPH ###########
-
-            for v in range(graph.shape[0] - 2):
-                # Get multipliers from neural network
-                if not fixed_attributes:
-                    traffic_mult = 1 - distribution[v]
-                    distance_mult = distribution[v]
-                else:
-                    traffic_mult = fixed_attributes[0]
-                    distance_mult = fixed_attributes[1]
-
-                # Distance * distance_mult + Traffic * traffic_mult
-                graph[:, v] = graph[:, v] * distance_mult + agents_unique_traffic[v, 1] * traffic_mult
-
-            # Set last column to zero so long as it's not infinity for every row except the last 2
-            mask = (graph[:-2, -1] != np.inf)
-            graph[:-2, -1][mask] = 0
-
-            t5 = time.time()
-
-            ########### SOLVE WEIGHTED GRAPH ###########
-
-            path = dijkstra(graph, agent_idx)
-
-            local_paths.append(copy.deepcopy(path))
-
-            # Get stop ids from global list instead of only local to agent
-            stop_ids = np.array([agents_unique_traffic[step, 0] for step in path])
-            global_paths = np.where(np.isin(traffic[:, 0], stop_ids))[0]
-
-            paths.append(global_paths)
-
-            t7 = time.time()
-
-            ########### UPDATE TRAFFIC ###########
-            for step in global_paths:
-                traffic[step, 1] += 1
-
-            t8 = time.time()
 
             if agent_idx == 0 and display_training_times:
                 print_time("Get actions", (t2 - t1))
                 print_time("Get distributions", (t3 - t2))
-                print_time("Build graph", (t4 - t3))
-                print_time("Redefine weights",(t5 - t4))
-                print_time("Solve graph and build path", (t7 - t5))
-                print_time("Update traffic",(t8 - t7))
-
+                print_time("Generate paths in environment", (t4 - t3))
 
         if num_episodes == 1 and fixed_attributes is None:
             if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
                 paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy',\
                                 allow_pickle=True).tolist()
 
-        paths_copy = copy.deepcopy(paths)
+        
+        paths_copy = copy.deepcopy(environment.paths)
 
         # Calculate the average values of the output neurons for this episode
         episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
@@ -261,17 +183,11 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         ########### GET SIMULATION RESULTS ###########
 
-        #Initialize environment data
-        environment.init_data(paths, routes, unique_chargers, charges_needed, local_paths)
-        
         # Run simulation    
         environment.simulate_routes()
         
         #Get results from environment
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.get_results()
-
-        
-        # sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.simulate(paths, routes, unique_chargers, charges_needed, local_paths)
 
         # Used to evaluate simulation
         metric = {
@@ -290,7 +206,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d].append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+            buffers[d].append(experience(states[d], distributions_unmodified[d], rewards[d], \
+                                         states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
             # Offline data recording for ODT
             if save_offline_data:
@@ -308,7 +225,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         trained = False
 
-        for agent_ind in range(num_of_agents):
+        for agent_ind in range(environment.num_of_agents):
 
             if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
 
@@ -320,10 +237,10 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 # Update networks
                 if nn_by_zone:
                     agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
-                                optimizers[0], device_agents)  
+                                optimizers[0], device)  
                 else:
                     agent_learn(experiences, discount_factor, q_networks[agent_ind],\
-                                target_q_networks[agent_ind], optimizers[agent_ind], device_agents)  
+                                target_q_networks[agent_ind], optimizers[agent_ind], device)  
         
         et = time.time() - st
 
@@ -385,7 +302,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
             # Open the file in write mode (use 'a' for append mode)
             if verbose:
-                print_time("Zone: {zone_index + 1} - Episode: {i}", elapsed_time)
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
                     print(f"Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
 
