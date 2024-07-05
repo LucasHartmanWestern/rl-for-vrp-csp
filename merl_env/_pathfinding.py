@@ -1,4 +1,3 @@
-import copy
 import numpy as np
 
 def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):

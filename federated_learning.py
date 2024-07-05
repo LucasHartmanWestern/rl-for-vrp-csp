@@ -7,7 +7,7 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
 
     Parameters:
         zone_weights (list): A list of weights for each zone.
-        ev_info (list): A list of dictionaries containing information about the electric vehicles.
+        env_list (list): A list of environment classes containing information about the electric vehicles.
         city_multiplier (float): The multiplier for city-level aggregation.
         zone_multiplier (float): The multiplier for zone-level aggregation.
         model_multiplier (float): The multiplier for model-level aggregation.

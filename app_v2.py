@@ -1,7 +1,6 @@
-from train import train
+from train_v2 import train
 from data_loader import *
 from visualize import *
-import random
 import os
 import argparse
 import warnings
@@ -14,6 +13,8 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
+# from merl_env.env_class_v1_ import environment_class
+from merl_env.environment import EnvironmentClass
 
 mp.set_sharing_strategy('file_system')
 
@@ -59,18 +60,20 @@ def train_rl_vrp_csp(date, args):
     #can be improved to run with multiple gpus in future
     gpus_count = len(args.list_gpus)
     if gpus_count == 0:
-        devices = 'cpu' # no gpus assigned, then everything running on cpu
+        devices_arg = ['cpu'] # no gpus assigned, then everything running on cpu
         print(f'Woring with CPUs for environment and model tranning')
     elif gpus_count == 1:
-        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
-        print(f'Woring with one GPU, bothg environment and model tranning running with {devices[0]}')
+        devices_arg = [f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with one GPU, bothg environment and model tranning running with {devices_arg[0]}')
 
     elif gpus_count == 2:
-        devices = [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[1]}']
-        print(f'Woring with two GPUs, running environment with {devices[0]} and model trainning with {devices[1]}')
+        devices_arg = [f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with two GPUs, running environment with {devices_arg[0]} and model trainning with {devices_arg[1]}')
     else:
         warnings.warn("**FUTURE WORK**\n Use of multiple GPUs for environment not implemented yet. Only the first GPU in given list of GPUs will be used")
-        devices =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
+        devices_arg =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
+        
+    devices = [devices_arg[0] for _ in range(len(env_c['coords']))]
 
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
@@ -81,42 +84,17 @@ def train_rl_vrp_csp(date, args):
         # Generating sub seeds to run on each environment
         chargers_seeds = rng.integers(low=0, high=10000, size=len(env_c['coords']))
 
-        # Assign seed
-        random.seed(seed)
-
+        # Initializing list of enviroments
+        environment_list = []
         ev_info = []
-
-        for _ in env_c['coords']:
-            # Generate a random model index for each agent
-            model_indices = np.array([random.randrange(3) for agent in range(env_c['num_of_agents'])], dtype=int)
-
-            # Use the indices to select the model type and corresponding configurations
-            model_type = np.array([env_c['models'][index] for index in model_indices], dtype=str)
-            usage_per_hour = np.array([env_c['usage_per_hour'][index] for index in model_indices], dtype=int)
-            max_charge = np.array([env_c['max_charge'][index] for index in model_indices], dtype=int)
-
-            start_time = time.time()
-            # Random charge between 0.5-x%, where x scales between 1-25% as sessions continue
-            starting_charge = env_c['starting_charge'] + 2000*(rng.random(env_c['num_of_agents'])-0.5)
-            elapsed_time = time.time() - start_time
-
-            # Define a structured array
-            dtypes = [('starting_charge', float),
-                      ('max_charge', int),
-                      ('usage_per_hour', int),
-                      ('model_type', 'U50'),  # Adjust string length as needed
-                      ('model_indices', int)]
-            info = np.zeros(env_c['num_of_agents'], dtype=dtypes)
-
-            # Assign values
-            info['starting_charge'] = starting_charge
-            info['max_charge'] = max_charge
-            info['usage_per_hour'] = usage_per_hour
-            info['model_type'] = model_type
-            info['model_indices'] = model_indices
-
-            ev_info.append(info)
-
+        start_time = time.time()
+        for area_idx in range(len(env_c['coords'])):
+            environment = EnvironmentClass(environment_config_fname, chargers_seeds[area_idx], devices[area_idx], dtype=torch.float32)
+            environment_list.append(environment)
+            ev_info.append(environment.get_ev_info())
+        
+        elapsed_time = time.time() - start_time
+        
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
@@ -139,7 +117,7 @@ def train_rl_vrp_csp(date, args):
         start_time = time.time()
 
         chargers = np.zeros(shape=[len(all_routes), env_c['num_of_agents'], env_c['num_of_chargers'] * 3, 3])
-
+        
         for route_id,  route in enumerate(all_routes):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
                 data = get_charger_data()
@@ -153,119 +131,116 @@ def train_rl_vrp_csp(date, args):
 
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
-        user_input = ""
+            
+        if eval_c['train_model']:
 
-        while user_input != 'Done':
-            if eval_c['train_model']:
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
 
-                if user_input != "":
-                    nn_c['num_episodes'] = int(user_input)
-                    nn_c['epsilon'] = 0.1
+            print(f"Training using Deep-Q Learning - Seed {seed}")
+
+            metrics = []  # Used to track all metrics
+            rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
+            output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
+            trajectories = []
+            global_weights = None
+
+            for aggregate_step in range(nn_c['aggregation_count']):
+
+                manager = mp.Manager()
+                local_weights_list = manager.list([None for _ in range(len(chargers))])
+                process_rewards = manager.list()
+                process_output_values = manager.list()
+                process_metrics = manager.list()
+                process_trajectories = manager.list()
+
+                # Barrier for synchronization
+                barrier = mp.Barrier(len(chargers))
+
+                # Creating output directory
+                folder = 'outputs/best_paths/'
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+
+                processes = []
+                for ind, charger_list in enumerate(chargers):
+                    process = mp.Process(target=train_route, args=(
+                        charger_list, environment_list[ind], all_routes[ind], date, action_dim,
+                        global_weights, aggregate_step, ind, chargers_seeds[ind], seed, nn_c['epsilon'],
+                        nn_c['epsilon_decay'], nn_c['discount_factor'], nn_c['learning_rate'],
+                        nn_c['num_episodes'], batch_size, buffer_limit, process_trajectories, nn_c['layers'],
+                        eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
+                        process_output_values, barrier, devices[ind], eval_c['verbose'], 
+                        eval_c['display_training_times'], nn_c['nn_by_zone'], eval_c['save_offline_data']))
+                    processes.append(process)
+                    process.start()
+
+                print("Join Processes")
+
+                for process in processes:
+                    process.join()
+
+                print("Join Weights")
+
+                # Aggregate the weights from all local models
+                global_weights = get_global_weights(local_weights_list, ev_info, nn_c['city_multiplier'], nn_c['zone_multiplier'], nn_c['model_multiplier'], nn_c['nn_by_zone'])
+
+                # Extend the main lists with the contents of the process lists
+                sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
+                print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
+                rewards.extend(process_rewards)
+                output_values.extend(process_output_values)
+                metrics.extend(process_metrics)
+                trajectories.extend(process_trajectories)
 
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
+                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n", file=file)
 
-                print(f"Training using Deep-Q Learning - Seed {seed}")
+                print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n",)
 
-                metrics = []  # Used to track all metrics
-                rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-                output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-                trajectories = []
-                global_weights = None
+            # Plot the aggregated data
+            if eval_c['save_aggregate_rewards']:
+                save_to_csv(rewards, 'outputs/rewards.csv')
+                save_to_csv(output_values, 'outputs/output_values.csv')
 
-                for aggregate_step in range(nn_c['aggregation_count']):
+                loaded_rewards = load_from_csv('outputs/rewards.csv')
+                loaded_output_values = load_from_csv('outputs/output_values.csv')
 
-                    manager = mp.Manager()
-                    local_weights_list = manager.list([None for _ in range(len(chargers))])
-                    process_rewards = manager.list()
-                    process_output_values = manager.list()
-                    process_metrics = manager.list()
-                    process_trajectories = manager.list()
+                plot_aggregate_reward_data(loaded_rewards)
+                plot_aggregate_output_values_per_route(loaded_output_values)
 
-                    # Barrier for synchronization
-                    barrier = mp.Barrier(len(chargers))
 
-                    # Creating output directory
-                    folder = 'outputs/best_paths/'
-                    if not os.path.exists(folder):
-                        os.makedirs(folder)
-                        
-                    processes = []
-                    for ind, charger_list in enumerate(chargers):
-                        process = mp.Process(target=train_route, args=(
-                            charger_list, ev_info[ind], all_routes[ind], date, action_dim, global_weights, aggregate_step,
-                            ind, chargers_seeds[ind], seed, nn_c['epsilon'], nn_c['epsilon_decay'], nn_c['discount_factor'],
-                            nn_c['learning_rate'], nn_c['num_episodes'], batch_size, buffer_limit,
-                            env_c['num_of_agents'], env_c['num_of_chargers'], process_trajectories, nn_c['layers'],
-                            eval_c['fixed_attributes'], local_weights_list, process_rewards, process_metrics,
-                            process_output_values, barrier, devices, eval_c['verbose'], eval_c['display_training_times'], nn_c['nn_by_zone'], eval_c['save_offline_data']))
-                        processes.append(process)
-                        process.start()
 
-                    print("Join Processes")
+        if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
+            attr_label = 'learned'
+        else:
+            fixed_attributes = eval_c['fixed_attributes']
+            attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-                    for process in processes:
-                        process.join()
+        # Save all metrics from training into a file
+        if eval_c['save_data'] and eval_c['train_model']:
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
-                    print("Join Weights")
+        # Generate the plots for the various metrics
+        if eval_c['generate_plots']:
+            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
 
-                    # Aggregate the weights from all local models
-                    global_weights = get_global_weights(local_weights_list, ev_info, nn_c['city_multiplier'], nn_c['zone_multiplier'], nn_c['model_multiplier'], nn_c['nn_by_zone'])
+        if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
+            user_input = input("More Episodes? ")
+        else:
+            user_input = 'Done'
 
-                    # Extend the main lists with the contents of the process lists
-                    sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
-                    print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
-                    rewards.extend(process_rewards)
-                    output_values.extend(process_output_values)
-                    metrics.extend(process_metrics)
-                    trajectories.extend(process_trajectories)
+        # Save offline data to pkl file
+        if eval_c['save_offline_data']:
+            dataset_path = f'data/offline-data.pkl'
+            with open(dataset_path, 'wb') as f:
+                pickle.dump(trajectories, f)
+                print('Offline Dataset Saved')
 
-                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                        print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n", file=file)
-
-                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{nn_c['aggregation_count']} ############\n\n",)
-
-                # Plot the aggregated data
-                if eval_c['save_aggregate_rewards']:
-                    save_to_csv(rewards, 'outputs/rewards.csv')
-                    save_to_csv(output_values, 'outputs/output_values.csv')
-
-                    loaded_rewards = load_from_csv('outputs/rewards.csv')
-                    loaded_output_values = load_from_csv('outputs/output_values.csv')
-
-                    plot_aggregate_reward_data(loaded_rewards)
-                    plot_aggregate_output_values_per_route(loaded_output_values)
-
-            if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
-                attr_label = 'learned'
-            else:
-                fixed_attributes = eval_c['fixed_attributes']
-                attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
-
-            # Save all metrics from training into a file
-            if eval_c['save_data'] and eval_c['train_model']:
-                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
-
-            # Generate the plots for the various metrics
-            if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', nn_c['num_episodes'], f"metrics/metrics_{env_c['num_of_agents']}_{nn_c['num_episodes']}_{seed}_{attr_label}")
-
-            if nn_c['num_episodes'] != 1 and eval_c['continue_training']:
-                user_input = input("More Episodes? ")
-            else:
-                user_input = 'Done'
-
-            # Save offline data to pkl file
-            if eval_c['save_offline_data']:
-                dataset_path = f'data/offline-data.pkl'
-                with open(dataset_path, 'wb') as f:
-                    pickle.dump(trajectories, f)
-                    print('Offline Dataset Saved')
-
-def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
+def train_route(chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
                 discount_factor, learning_rate, num_episodes, batch_size,
-                buffer_limit, num_of_agents, num_of_chargers, trajectories, layers, fixed_attributes,
+                buffer_limit, trajectories, layers, fixed_attributes,
                 local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, nn_by_zone, save_offline_data):
 
@@ -274,7 +249,7 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
 
     Parameters:
         chargers (array): Array of charger locations and their properties.
-        ev_info (dict): Information about the electric vehicles.
+        environment (class): Class containing information about the environment.
         routes (array): Array containing route information for each EV.
         date (str): Date string for logging purposes.
         action_dim (int): Dimension of the action space.
@@ -313,9 +288,10 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
         chargers_copy = copy.deepcopy(chargers)
 
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
-            train(chargers_copy, ev_info, routes, date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed,
-                  epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size, buffer_limit, num_of_agents,
-                  num_of_chargers, layers, fixed_attributes, devices, verbose, display_training_times, torch.float32, nn_by_zone, save_offline_data)
+            train(chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
+                  ind, sub_seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, \
+                  num_episodes, batch_size, buffer_limit, layers, devices, fixed_attributes, verbose,\
+                  display_training_times, torch.float32, nn_by_zone, save_offline_data)
 
         # Save results of training
         st = time.time()

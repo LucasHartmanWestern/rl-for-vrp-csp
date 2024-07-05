@@ -21,3 +21,6 @@ environment_settings:
     models: ['Tesla Model Y', 'BYD Song', 'Tesla Model 3'] # The 3 most popular EV models
     usage_per_hour: [9840, 8460, 9360] # Average usage per hour for each model in Wh/60 km
     max_charge: [170000, 90000, 170000] # in Watts
+    step_size: 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
+    increase_rate: 12500 
+    max_sim_steps: 500

@@ -1,70 +1,9 @@
-import matplotlib.pyplot as plt
-import matplotlib
-import warnings
+# Created by Lucas
+# Restructure by Santiago 03/07/2024
+
+#Helper functions to route and update to simulate routing in the environment class
 import torch
-from visualize import visualize_stats, visualize_simulation
 import numpy as np
-
-warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
-
-# Token (Nx2)
-T = torch.tensor([[43.02120034946083, -81.28349087468504],
-              [43.004969336049854, -81.18631870502043],
-              [42.95923445066671, -81.26016049362336],
-              [42.98111190139387, -81.30953935839466],
-              [42.9819404397449, -81.2508736429095],
-              ])
-
-# Battery percentage (Nx2)
-B = torch.tensor([0.20, 0.15, 0.11, 0.26, 0.21])
-
-# Destinations (Mx2) (note M > N and the first N entries are the destinations of the Tokens)
-D = torch.tensor([[42.96477210152778, -81.20994279529941],
-              [42.986248881938806, -81.17904374824452],
-              [43.006964980419085, -81.33422562900907],
-              [43.00432877393533, -81.16393754746214],
-              [43.03294439058604, -81.26350114352788],
-              [42.97520298007788, -81.3206637664334],
-              [42.95950149646455, -81.2600673019313],
-              [43.01217983061826, -81.27053864527043]
-              ])
-
-# Maximum amount of cars at each station before charging rate decreases
-Cap = torch.tensor([5, 10, 3])
-
-# Traffic level (Mx1)
-Tr = torch.zeros(D.shape[0])
-
-# Track which cars are going to move each timestep
-Mov = torch.ones(T.shape[0])
-
-# Actions for step k (NxM)
-A = torch.zeros((T.shape[0], D.shape[0]))
-
-# Target battery level
-Tar = np.array([[0, 0, 0],
-                [0.5, 0, 0],
-                [0.3, 0.5, 0],
-                [0.2, 0, 0],
-                [0.4, 0, 0]
-                ])
-
-# Stops NxP (P is the number of stops that are required for the route with the most stops)
-S = torch.tensor([[1, 0, 0],
-              [7, 2, 0],
-              [7, 8, 3],
-              [7, 4, 0],
-              [6, 5, 0]
-              ])
-
-# Step size (fixed distance)
-step_size = 0.001
-
-# Rate of battery increase
-ir = 0.01
-
-# Rate of battery decrease
-dr = 0.001
 
 def get_actions(actions, stops, dtype):
 
@@ -206,7 +145,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     rates_by_car -= decrease_rates
 
     # Zero-out charging rate for cars already at their destination
-    diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=torch.float32, device=capacity.device))
+    diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=dtype, device=capacity.device))
     rates_by_car = torch.matmul(rates_by_car.to(dtype), diag_matrix.to(dtype))
 
     #Cleaning unused tensors
@@ -329,130 +268,3 @@ def update_stops(stops, ready_to_leave, dtype):
             updated_stops[i] = torch.zeros(K)
    
     return updated_stops
-
-def simulate_matrix_env(tokens, battery, destinations, actions, moving, traffic_level, capacity,
-                        target_battery_level, stops, step_size, increase_rate, decrease_rates, k_steps, dtype=torch.float64):
-
-    """
-    Simulates the environment for a matrix of tokens (vehicles) as they move towards their destinations,
-    update their battery levels, and interact with charging stations.
-
-    Parameters:
-        tokens (torch.Tensor): A tensor containing the initial positions of the tokens.
-        battery (torch.Tensor): A tensor containing the initial battery levels of the tokens.
-        destinations (torch.Tensor): A tensor containing the coordinates of the possible destinations.
-        actions (torch.Tensor): A tensor indicating the possible actions for each token.
-        moving (torch.Tensor): A tensor indicating whether each token is moving (1 if moving, 0 otherwise).
-        traffic_level (torch.Tensor): A tensor indicating the initial traffic level at each charging station.
-        capacity (torch.Tensor): A tensor containing the capacity of each charging station.
-        target_battery_level (numpy.ndarray): An array containing the target battery levels required at each stop.
-        stops (torch.Tensor): A tensor containing the initial stops for each tcapacityoken.
-        step_size (float): The maximum step size for each movement.
-        increase_rate (float): The maximum rate at which charging can increase.
-        decrease_rates (torch.Tensor): The rate at which charging decreases by model.
-        k_steps (int): The maximum number of steps for the simulation.
-
-    Returns:
-        tuple: A tuple containing:
-            - paths (list): List of token positions at each timestep.
-            - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
-            - battery_levels (list): List of battery levels at each timestep.
-            - distances_per_car (list): List of distances traveled by each token at each timestep.
-    """
-    
-    # Pre-process capacity array
-    capacity = torch.concatenate((torch.zeros(tokens.shape[0],device=capacity.device), capacity))
-
-    step_count = 0
-
-    tokens_size = tokens.shape
-    paths = torch.empty((0,tokens_size[0],tokens_size[1]))
-    traffic_per_charger = torch.empty((0, destinations.shape[0]))
-    battery_levels = torch.empty((0, battery.shape[0]))
-    distances_per_car = torch.zeros(1,tokens.shape[0]) #TODO: Needs improvement to work with tensors instead of list
-
-
-    init_stops = max(stops[:,0])
-    while max(stops[:,0]) > 0 and step_count <= k_steps:
-
-        stops[:, 0] -= 1
-
-        # Get NxM matrix of actions
-        actions = get_actions(actions, stops, dtype=dtype)
-
-        # Move the tokens and get the update position
-        tokens, distance_travelled = move_tokens(tokens, moving, actions, destinations, step_size)
-
-        # Track token position at each timestep and how far they travelled
-        paths = torch.cat([paths,tokens.cpu().unsqueeze(0)], dim=0)
-        distances_per_car = torch.cat([distances_per_car, distance_travelled.cpu().unsqueeze(0) + distances_per_car[-1,:]],dim=0)
-
-        # Get Nx1 matrix of distances
-        distances = get_distance(tokens, destinations, actions)
-
-        # Get Nx1 matrix of 0s or 1s that indicate if a car has arrived at current stop
-        arrived = get_arrived(distances, step_size)
-
-        # Accumulate traffic level of each station as Mx1 matrix
-        traffic_level = get_traffic(stops, destinations, arrived)
-
-        # Track traffic for each timestep
-        traffic_per_charger = torch.cat([traffic_per_charger, traffic_level.cpu().unsqueeze(0)], dim=0)
-
-        # Get charging or discharging rate for each car as Nx1 matrix
-        charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, increase_rate, dtype)
-
-        # Update the battery level of each car
-        battery = update_battery(battery, charging_rates)
-
-        if torch.min(battery) < 0:
-            print(distances)
-            visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
-            visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
-            visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
-            raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
-
-        battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
-
-        # Check if the car is at their target battery level
-        battery_charged = get_battery_charged(battery, target_battery_level)
-
-        # Charging but ready to leave
-        ready_to_leave = battery_charged * arrived
-
-        # Charging and not ready to leave
-        not_ready_to_leave = arrived - ready_to_leave
-
-        # Update which cars will move
-        moving = (not_ready_to_leave - 1) * -1
-
-        # Zero-out tokens that are already at their stop
-        diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in stops[:, 0]], dtype=dtype, device=stops.device))
-        moving = torch.matmul(moving.to(dtype), diag_matrix)
-
-        stops[:, 0] += 1
-
-        # Change the stops array to shift over the next stop if the token is ready to leave
-        stops = update_stops(stops, ready_to_leave, dtype)
-        target_battery_level = update_stops(target_battery_level, ready_to_leave, dtype)
-
-        # Increase step count
-        step_count += 1
-        
-    return paths, traffic_per_charger, battery_levels, distances_per_car
-
-
-if __name__ == '__main__':
-
-    # Use this to test the environment with sample data
-
-    # Run simulation
-    paths, traffic, battery_levels, distances = simulate_matrix_env(T, B, D, A, Mov, Tr, Cap, Tar, S, step_size, ir, dr, 500)
-
-    # Show the paths of each car
-    #visualize_simulation(paths, D)
-
-    # Plot the various stats
-    visualize_stats(traffic, 'Change in Traffic Levels Over Time', 'Traffic Level')
-    visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
-    visualize_stats(distances, 'Distance Travelled Over Time', 'Distance Travelled')
