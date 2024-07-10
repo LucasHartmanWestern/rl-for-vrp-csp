@@ -1,6 +1,21 @@
 import numpy as np
 import torch
+import os
+import sys
+import importlib.util
 
+# Define the path to the train.py file
+module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'train.py')
+
+# Load the module
+spec = importlib.util.spec_from_file_location("train", module_path)
+train_module = importlib.util.module_from_spec(spec)
+sys.modules["train"] = train_module
+spec.loader.exec_module(train_module)
+
+# Now you can use the functions from train.py
+state_generation = train_module.state_generation
+get_reward = train_module.get_reward
 
 def evaluate_episode(
         env,
@@ -20,11 +35,12 @@ def evaluate_episode(
 
     state_mean = torch.from_numpy(state_mean).to(device=device)
     state_std = torch.from_numpy(state_std).to(device=device)
-
+    
+    #Resets enviornment to initial state, returns first agent observation for an episode and information, i.e. metrics, debug info
     state = env.reset()
 
     # we keep all the histories on the device
-    # note that the latest action and reward will be "padding"
+    # note that the latest action and rewad will be "padding"
     states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
     actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
@@ -47,6 +63,7 @@ def evaluate_episode(
         actions[-1] = action
         action = action.detach().cpu().numpy()
 
+        # Updates an enviornment with actions returning the next agent observation, the reward for taking that actions...
         state, reward, done, _ = env.step(action)
 
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
@@ -63,7 +80,10 @@ def evaluate_episode(
 
 
 def evaluate_episode_rtg(
-        env,
+        chargers,
+        routes,
+        num_of_charges,
+        ev_info,
         state_dim,
         act_dim,
         model,
@@ -85,7 +105,15 @@ def evaluate_episode_rtg(
     state_mean = torch.from_numpy(state_mean).to(device=device)
     state_std = torch.from_numpy(state_std).to(device=device)
 
-    state = env.reset()
+    # Resets the environment to an initial state, required before calling step. Returns the first agent observation for an episode and information
+   # state = env.reset()
+    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
+
+    
+    model_indices = [entry['model_indices'] for entry in ev_info]
+    state, *intermediary = state_generation(chargers, routes, unique_chargers, model_indices, num_of_charges)
+    #returns state.numpy(), agents_unique_chargers, org_lat, org_long, dest_lat, dest_long, agents_unique_traffic, traffic, time_start_paths, unique_chargers, charges_needed
+
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
@@ -98,13 +126,12 @@ def evaluate_episode_rtg(
     ep_return = target_return
     target_return = torch.tensor(ep_return, device=device, dtype=torch.float32).reshape(1, 1)
     timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
-
+    
     sim_states = []
 
     episode_return, episode_length = 0, 0
     for t in range(max_ep_len):
 
-            
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
         action = model.get_action(
@@ -119,7 +146,24 @@ def evaluate_episode_rtg(
         actions[-1] = action
         action = action.detach().cpu().numpy()
 
-        state, reward, done, _ = env.step(action)
+        #State = array of floats, reward = float, done = boolean
+        #state, reward, done, _ = env.step(action)
+
+        done = True
+        #State is always the same for an episode
+        
+        dtype = [('starting_charge', '<f8'), ('max_charge', '<i8'), ('usage_per_hour', '<i8'), ('model_type', '<U50'), ('model_indices', '<i8')]
+        
+        # Convert the list of tuples to a structured NumPy array
+        #ev_info = np.array(ev_info, dtype=dtype)
+        #print(f'(evinfo: {ev_info}')
+        #FIND BETTER WAY TO HANDLE EVINFO
+        metrics = get_reward(action, ev_info[0], intermediary[0],intermediary[1], intermediary[2], intermediary[3], intermediary[4], intermediary[5], intermediary[6], intermediary[7], intermediary[8], intermediary[9], routes, main_seed=1234)
+
+        for metric in metrics:
+            rewards = metric["rewards"]
+            reward = rewards[0] 
+        print(f'reward{reward}')
 
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)

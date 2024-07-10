@@ -74,8 +74,8 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
         dqn_rng = np.random.default_rng(seed)
     
     # Set devices for environment and agent
-    device_environment = 'cpu'
-    device_agents = 'cpu'
+    device_environment = devices[0]
+    device_agents = devices[1]
         
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
@@ -370,6 +370,161 @@ def train(chargers, ev_info, routes, date, action_dim, global_weights, aggregati
     #print(f'Trajectories {trajectories}')
 
     return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories
+
+#Should reset enviornment to intial state and return first agent observation
+def state_generation(chargers, routes, unique_chargers, model_indices,  num_of_charges, dtype=torch.float32, device_agents='cpu'):
+
+    #for i in range(num_episodes):  # For each episode
+
+    charges_needed = []
+    states = []
+    num_of_agents = 1
+    traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
+
+    traffic[:, 0] = unique_chargers['id']
+
+    time_start_paths = time.time()
+
+        # Build path for each EV
+    for j in range(num_of_agents): # For each agent
+
+        agents_chargers = chargers[j, 0, :]
+        agents_unique_chargers = [charger for charger in unique_chargers if charger[0] in agents_chargers]
+        agents_unique_traffic = np.array([[t[0], t[1]] for t in traffic if t[0] in agents_chargers])
+
+        # Get distances from origin to each charging station
+        org_lat, org_long, dest_lat, dest_long = routes[j]
+        dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agents_unique_chargers])
+        route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
+
+    ########### GENERATE AGENT OUTPUT ###########
+
+        t1 = time.time()
+
+        # Traffic level and distance of each station plus total charger num, total distance, number of EVs, and car model index
+        state = np.hstack((np.vstack((agents_unique_traffic[:, 1], dists)).reshape(-1), np.array([num_of_charges * 3]), np.array([route_dist]), np.array([num_of_agents]), np.array([model_indices[j][0]])))
+        states.append(state)  # Track states
+        state = torch.tensor(state, dtype=dtype, device=device_agents)  # Convert state to tensor
+        print(f'State: {state}')
+        
+    return state.numpy(), agents_unique_chargers, org_lat, org_long, dest_lat, dest_long,agents_unique_traffic, traffic, time_start_paths, unique_chargers, charges_needed
+
+def get_reward(action_values, ev_info, agents_unique_chargers, org_lat, org_long, dest_lat, dest_long, agents_unique_traffic, traffic, time_start_paths, unique_chargers, charges_needed, routes, main_seed, display_training_times=False, fixed_attributes=None, device_environment='cpu'  ):
+
+    aggregation_num = 0
+    step_size = 0.01
+    metrics = []
+    avg_output_values = []
+    num_episodes = 1
+    for i in range(num_episodes):  # For each episode
+        paths = []
+        local_paths = []
+        distributions = []
+        distributions_unmodified = []
+        
+        
+        num_of_agents = 1
+        zone_index = 1
+        
+        for j in range(num_of_agents): # For each agent
+            t2 = time.time()
+        
+            distribution = action_values
+            distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
+            distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
+            distributions.append(distribution.tolist())  # Convert back to list and append
+    
+            t3 = time.time()
+    
+            ########### GENERATE GRAPH ###########
+    
+            # Build graph of possible paths from chargers to each other, the origin, and destination
+            graph = build_graph(j, step_size, ev_info, agents_unique_chargers, org_lat, org_long, dest_lat, dest_long)
+            charges_needed.append(copy.deepcopy(graph))
+    
+            t4 = time.time()
+    
+            ########### REDEFINE WEIGHTS IN GRAPH ###########
+    
+            for v in range(graph.shape[0] - 2):
+                # Get multipliers from neural network
+                if not fixed_attributes:
+                    traffic_mult = 1 - distribution[v]
+                    distance_mult = distribution[v]
+                else:
+                    traffic_mult = fixed_attributes[0]
+                    distance_mult = fixed_attributes[1]
+    
+                # Distance * distance_mult + Traffic * traffic_mult
+                graph[:, v] = graph[:, v] * distance_mult + agents_unique_traffic[v, 1] * traffic_mult
+    
+            # Set last column to zero so long as it's not infinity for every row except the last 2
+            mask = (graph[:-2, -1] != np.inf)
+            graph[:-2, -1][mask] = 0
+    
+            t5 = time.time()
+    
+            ########### SOLVE WEIGHTED GRAPH ###########
+    
+            path = dijkstra(graph, j)
+    
+            local_paths.append(copy.deepcopy(path))
+    
+            # Get stop ids from global list instead of only local to agent
+            stop_ids = np.array([agents_unique_traffic[step, 0] for step in path])
+            global_paths = np.where(np.isin(traffic[:, 0], stop_ids))[0]
+    
+            paths.append(global_paths)
+    
+            t7 = time.time()
+    
+            ########### UPDATE TRAFFIC ###########
+            for step in global_paths:
+                traffic[step, 1] += 1
+    
+            t8 = time.time()
+    
+            if j == 0 and display_training_times:
+                print(f"Get actions - {int((t2 - t1) // 3600)}h, {int(((t2 - t1) % 3600) // 60)}m, {int((t2 - t1) % 60)}s, {int(((t2 - t1) % 1) * 1000)}ms")
+                print(f"Get distributions - {int((t3 - t2) // 3600)}h, {int(((t3 - t2) % 3600) // 60)}m, {int((t3 - t2) % 60)}s, {int(((t3 - t2) % 1) * 1000)}ms")
+                print(f"Build graph - {int((t4 - t3) // 3600)}h, {int(((t4 - t3) % 3600) // 60)}m, {int((t4 - t3) % 60)}s, {int(((t4 - t3) % 1) * 1000)}ms")
+                print(f"Redefine weights - {int((t5 - t4) // 3600)}h, {int(((t5 - t4) % 3600) // 60)}m, {int((t5 - t4) % 60)}s, {int(((t5 - t4) % 1) * 1000)}ms")
+                print(f"Solve graph and build path - {int((t7 - t5) // 3600)}h, {int(((t7 - t5) % 3600) // 60)}m, {int((t7 - t5) % 60)}s, {int(((t7 - t5) % 1) * 1000)}ms")
+                print(f"Update traffic - {int((t8 - t7) // 3600)}h, {int(((t8 - t7) % 3600) // 60)}m, {int((t8 - t7) % 60)}s, {int(((t8 - t7) % 1) * 1000)}ms")
+    
+    
+        if num_episodes == 1 and fixed_attributes is None:
+            if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
+                paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy', allow_pickle=True).tolist()
+    
+        paths_copy = copy.deepcopy(paths)
+    
+        # Calculate the average values of the output neurons for this episode
+        episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
+        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
+    
+        time_end_paths = time.time() - time_start_paths
+    
+        if display_training_times:
+            print(f"Get Paths - {int(time_end_paths // 3600)}h, {int((time_end_paths % 3600) // 60)}m, {int(time_end_paths % 60)}s")
+    
+        ########### GET SIMULATION RESULTS ###########
+    
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = simulate(paths, step_size, routes, ev_info, unique_chargers, charges_needed, local_paths, device_environment)
+    
+        # Used to evaluate simulation
+        metric = {
+            "zone": zone_index,
+            "episode": i,
+            "aggregation": aggregation_num,
+            "paths": sim_path_results,
+            "traffic": sim_traffic,
+            "batteries": sim_battery_levels,
+            "distances": sim_distances,
+            "rewards": rewards
+        }
+        metrics.append(metric)
+    return metrics
 
 def simulate(paths, step_size, ev_routes, ev_info, unique_chargers, charge_needed, local_paths, device, dtype=torch.float64):
 

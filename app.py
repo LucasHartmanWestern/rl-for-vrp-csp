@@ -176,7 +176,8 @@ def train_rl_vrp_csp(date, args):
 
                 if algo_c['algorithm'] == 'ODT':
                     print(f"Training using ODT - Seed {seed}")
-                    train_odt(devices)
+                    chargers_copy = copy.deepcopy(chargers)
+                    train_odt(devices, chargers_copy, all_routes[0], ev_info, env_c['num_of_chargers'])
                     
                 else:
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
@@ -360,6 +361,10 @@ def train_route(chargers, ev_info, routes, date, action_dim, global_weights,
 
 def train_odt(
     device,
+    chargers,
+    routes,
+    ev_info,
+    num_chargers,
     exp_prefix = 'placeholder',
     variant = {
     'env': 'hopper',
@@ -405,7 +410,7 @@ def train_odt(
         return discount_cumsum
 
     
-    # device = variant['device']
+    device = device[0]
     log_to_wandb = variant.get('log_to_wandb', False)
 
     # FIX THIS CODE - Needs an actual enviornment object 
@@ -421,13 +426,15 @@ def train_odt(
         os.makedirs(model_dir)
 
     #FIX THIS CODE
+    #state_dim = (num_chargers * 3 * 2) + 4
     state_dim = 22
     act_dim = 9
     scale = 1
 
+    #variant['K'] = variant['K']*state_dim
 
     # load dataset
-    dataset_path = f'data/dummy-data.pkl'
+    dataset_path = f'data/offline-data.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -510,6 +517,7 @@ def train_odt(
                 traj = trajectories[int(sorted_inds[batch_inds[i]])]
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
+           # print(f"Shape of sliced observations: {traj['observations'][si:si + max_len]}")
             # get sequences from dataset
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
@@ -563,7 +571,10 @@ def train_odt(
                 with torch.no_grad():
                     if model_type == 'dt':
                         ret, length = evaluate_episode_rtg(
-                            env,
+                            chargers,
+                            routes,
+                            num_chargers,
+                            ev_info,
                             state_dim,
                             act_dim,
                             model,
@@ -638,7 +649,7 @@ def train_odt(
     else:
         raise NotImplementedError
 
-    #model = model.to(device=device)
+    model = model.to(device=device)
     warmup_steps = variant['warmup_steps']
     optimizer = torch.optim.AdamW(
         model.parameters(),

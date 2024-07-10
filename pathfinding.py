@@ -29,6 +29,7 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
 
     # Usage rates
     usage_per_min = usage_per_hour_list[agent_index] / 60
+    print(f'agent {usage_per_hour_list}')
     start_soc = starting_charge_list[agent_index]
     max_soc = max_charge_list[agent_index]
 
@@ -51,6 +52,9 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
             if i != j:
                 # Calculate Euclidean distance between point i and point j
                 distance = np.linalg.norm(all_points[i] - all_points[j])
+                #print(f'distance: {distance}')
+                #print(f'step_size: {step_size}')
+                #print(f'usage per min: {usage_per_min}')
                 # Calculate number of steps and store in graph
                 graph[i, j] = (distance / step_size) * usage_per_min
 
