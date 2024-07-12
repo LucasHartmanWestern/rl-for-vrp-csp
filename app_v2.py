@@ -58,24 +58,30 @@ def train_rl_vrp_csp(date, args):
     action_dim = nn_c['action_dim'] * env_c['num_of_chargers']
     
     #initializing GPUs for training
-    #gpu initialization implemented to run everythin on one gpu for now. 
-    #can be improved to run with multiple gpus in future
-    gpus_count = len(args.list_gpus)
-    if gpus_count == 0:
-        devices_arg = ['cpu'] # no gpus assigned, then everything running on cpu
-        print(f'Working with CPUs for environment and model training')
-    elif gpus_count == 1:
-        devices_arg = [f'cuda:{args.list_gpus[0]}']
-        print(f'Working with one GPU, both environment and model training running with {devices_arg[0]}')
+    n_gpus = len(args.list_gpus)
+    n_zones = len(env_c['coords'])
 
-    elif gpus_count == 2:
-        devices_arg = [f'cuda:{args.list_gpus[0]}']
-        print(f'Working with two GPUs, running environment with {devices_arg[0]} and model training with {devices_arg[1]}')
+    if n_gpus == 0:
+        gpus = ['cpu'] # no gpus assigned, then everything running on cpu
+        print(f'Woring with CPUs for all zones, with following configuration for zones and devices:')
+    elif n_gpus == 1:
+        gpus = [f'cuda:{args.list_gpus[0]}']
+        print(f'Woring with one GPU -> {gpus[0]} for all zones, with following configuration for zones and devices:')
+
+    elif (n_gpus > 1) & (n_gpus < torch.cuda.device_count()+1):
+        gpus = [f'cuda:{args.list_gpus[i]}' for i in range(n_gpus)]
+        print(f'Woring with {n_gpus} GPUs, with following configuration for zones and devices:')
     else:
-        warnings.warn("**FUTURE WORK**\n Use of multiple GPUs for environment not implemented yet. Only the first GPU in given list of GPUs will be used")
-        devices_arg =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
-        
-    devices = [devices_arg[0] for _ in range(len(env_c['coords']))]
+        raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
+
+    # Assign GPUs to zones in a round-robin fashion
+    gpus_size = len(gpus)
+    devices = [gpus[i % gpus_size] for i in range(n_zones)]
+
+    for i, gpu in enumerate(devices):
+        print(f'Zone {i} with {gpu}')
+
+
 
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
@@ -90,7 +96,7 @@ def train_rl_vrp_csp(date, args):
         environment_list = []
         ev_info = []
         start_time = time.time()
-        for area_idx in range(len(env_c['coords'])):
+        for area_idx in range(n_zones):
             environment = EnvironmentClass(environment_config_fname, chargers_seeds[area_idx], devices[area_idx], dtype=torch.float32)
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())
@@ -250,9 +256,7 @@ def train_rl_vrp_csp(date, args):
             with open(dataset_path, 'wb') as f:
                 pickle.dump(trajectories, f)
                 print('Offline Dataset Saved')
-def save_trajectories(trajectories, filename):
-        with open(filename, 'wb') as f:
-        pickle.dump(trajectories, f)
+
 
 def train_route(chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
