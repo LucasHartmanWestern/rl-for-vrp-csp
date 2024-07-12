@@ -1,4 +1,4 @@
-from train_v2 import train
+from train_v2_1 import train
 from data_loader import *
 from visualize import *
 import os

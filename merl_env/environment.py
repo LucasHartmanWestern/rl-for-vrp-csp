@@ -8,6 +8,7 @@ import copy
 from ._helpers_routing import *
 from ._pathfinding import dijkstra, build_graph, haversine
 from .agent_info import agent_info
+from visualize import visualize_stats
 
 from data_loader import load_config_file
 
@@ -184,6 +185,8 @@ class EnvironmentClass:
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
 
+        battery_dead = 0
+
         while max(stops[:, 0]) > 0 and step_count <= self.max_steps:
             stops[:, 0] -= 1
 
@@ -218,10 +221,15 @@ class EnvironmentClass:
             battery = update_battery(battery, charging_rates)
 
             if torch.min(battery) < 0:
-                print(distances)
+                # print(f'distances {distances}')
                 visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
                 visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
                 visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
+                battery_idx = battery < 0 
+                # battery[battery_idx] = 0
+                print(f'battery {battery_idx.sum()}')
+                battery_dead += battery_idx.sum()
+                print(f'step {step_count}, batteries dead {battery_dead}, battery {battery}')
                 raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
 
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
@@ -253,8 +261,11 @@ class EnvironmentClass:
             step_count += 1
 
         # Calculate reward as -(distance * 100 + peak traffic)
-        self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
+        # print(f'step count {step_count}, battery at rewards {battery_dead}, distances {distances_per_car[-1].shape}, traffic {torch.max(traffic_per_charger).shape}')
+        # self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))#  + 10*battery_dead)
+        self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))#  + 10*battery_dead)
 
+        # print(f'line 266 rewards {self.simulation_reward}')
         # Save results in class
         self.path_results = paths.numpy()
         self.traffic_results = traffic_per_charger.numpy()
