@@ -77,12 +77,11 @@ def train_rl_vrp_csp(date, args):
     # Assign GPUs to zones in a round-robin fashion
     gpus_size = len(gpus)
     devices = [gpus[i % gpus_size] for i in range(n_zones)]
-
+    
     for i, gpu in enumerate(devices):
         print(f'Zone {i} with {gpu}')
 
-
-
+    
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
 
