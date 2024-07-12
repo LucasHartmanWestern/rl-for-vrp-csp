@@ -11,6 +11,8 @@ from agent import initialize, agent_learn, get_actions, soft_update, save_model
 
 import collections
 
+from merl_env._pathfinding import haversine
+
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
