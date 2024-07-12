@@ -229,8 +229,9 @@ class EnvironmentClass:
                 # battery[battery_idx] = 0
                 print(f'battery {battery_idx.sum()}')
                 battery_dead += battery_idx.sum()
-                print(f'step {step_count}, batteries dead {battery_dead}, battery {battery}')
-                raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
+                print(f'step {step_count}, batteries dead {battery_dead}, battery {battery}, solutions {self.distribution}')
+                # raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
+                raise Exception(f"Dead batteries {battery_dead}")
 
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
@@ -292,6 +293,7 @@ class EnvironmentClass:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
         """
+        self.distribution = distribution
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,
                             self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long)

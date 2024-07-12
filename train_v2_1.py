@@ -109,7 +109,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     #         target_q_networks.append(target_q_network)
     #         optimizers.append(optimizer)
 
-    decision_maker = CMAAgent(state_dimension, action_dim, dqn_rng, seed)
+    decision_maker = CMAAgent(state_dimension, action_dim, seed)
 
     random_threshold = dqn_rng.random((num_episodes, environment.num_of_agents))
 

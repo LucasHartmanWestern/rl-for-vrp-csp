@@ -4,15 +4,18 @@ import torch
 
 
 class CMAAgent():
-    def __init__(self, state_dimension, action_dimension, rng, seed, model_type="Regression"):
+    def __init__(self, state_dimension, action_dimension, seed, model_type="Regression"):
         # CMA parameters:
         self.population_size= 100
         self.max_generation = 10
-        initial_sigma  = 0.5 
+        initial_sigma  = 0.5
+
+        # Seeding rng
+        rng = np.random.default_rng(seed)
 
         #Select model to optimize with CMA-ES
         if model_type == 'Regression':
-            initial_weights = np.random.randn(action_dimension * state_dimension)
+            initial_weights = rng.random(action_dimension * state_dimension)
             self.model = self.regresion_model
         elif model_type == 'NN_basic':
             # Generating random initia weights in [-1, 1]
