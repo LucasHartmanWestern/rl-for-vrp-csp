@@ -13,6 +13,8 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
+from train_odt import train_odt
+
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
 
@@ -133,7 +135,18 @@ def train_rl_vrp_csp(date, args):
 
             
         if eval_c['train_model']:
-
+            if algo_c['algorithm'] == 'ODT':
+                print(f"Training using ODT - Seed {seed}")
+                chargers_copy = copy.deepcopy(chargers)
+                train_odt(devices,
+                          environment_list[0],
+                          chargers_copy,
+                          all_routes[0],
+                          action_dim,
+                          eval_c['fixed_attributes'],
+                          algo_c
+                         )
+            return
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
 
@@ -232,7 +245,8 @@ def train_rl_vrp_csp(date, args):
 
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
-            dataset_path = f'data/offline-data.pkl'
+            current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+            dataset_path = f'data/offline-data_{current_time}.pkl'
             with open(dataset_path, 'wb') as f:
                 pickle.dump(trajectories, f)
                 print('Offline Dataset Saved')
@@ -315,6 +329,7 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         raise
+
 
 if __name__ == '__main__':
 

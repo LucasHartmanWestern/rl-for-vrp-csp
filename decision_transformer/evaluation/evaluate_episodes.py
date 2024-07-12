@@ -4,19 +4,6 @@ import os
 import sys
 import importlib.util
 
-# Define the path to the train.py file
-module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'train.py')
-
-# Load the module
-spec = importlib.util.spec_from_file_location("train", module_path)
-train_module = importlib.util.module_from_spec(spec)
-sys.modules["train"] = train_module
-spec.loader.exec_module(train_module)
-
-# Now you can use the functions from train.py
-state_generation = train_module.state_generation
-get_reward = train_module.get_reward
-
 def evaluate_episode(
         env,
         state_dim,
@@ -37,7 +24,8 @@ def evaluate_episode(
     state_std = torch.from_numpy(state_std).to(device=device)
     
     #Resets enviornment to initial state, returns first agent observation for an episode and information, i.e. metrics, debug info
-    state = env.reset()
+    #state = env.reset()
+    state = env.reset_state
 
     # we keep all the histories on the device
     # note that the latest action and rewad will be "padding"
@@ -80,12 +68,11 @@ def evaluate_episode(
 
 
 def evaluate_episode_rtg(
+        env,
         chargers,
         routes,
-        num_of_charges,
-        ev_info,
-        state_dim,
         act_dim,
+        fixed_attributes,
         model,
         max_ep_len=1000,
         scale=1000.,
@@ -99,6 +86,8 @@ def evaluate_episode_rtg(
         eval_context=None
     ):
 
+    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
+    env.reset_episode(chargers, routes, unique_chargers)
     model.eval()
     model.to(device=device)
 
@@ -106,20 +95,14 @@ def evaluate_episode_rtg(
     state_std = torch.from_numpy(state_std).to(device=device)
 
     # Resets the environment to an initial state, required before calling step. Returns the first agent observation for an episode and information
-   # state = env.reset()
-    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
-
-    
-    model_indices = [entry['model_indices'] for entry in ev_info]
-    state, *intermediary = state_generation(chargers, routes, unique_chargers, model_indices, num_of_charges)
-    #returns state.numpy(), agents_unique_chargers, org_lat, org_long, dest_lat, dest_long, agents_unique_traffic, traffic, time_start_paths, unique_chargers, charges_needed
+    state = env.reset_agent(0, True)
 
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
-    states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
+    states = torch.from_numpy(state).reshape(1, env.state_dim).to(device=device, dtype=torch.float32)
     actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
 
@@ -146,26 +129,18 @@ def evaluate_episode_rtg(
         actions[-1] = action
         action = action.detach().cpu().numpy()
 
-        #State = array of floats, reward = float, done = boolean
-        #state, reward, done, _ = env.step(action)
-
         done = True
         #State is always the same for an episode
         
         dtype = [('starting_charge', '<f8'), ('max_charge', '<i8'), ('usage_per_hour', '<i8'), ('model_type', '<U50'), ('model_indices', '<i8')]
         
         # Convert the list of tuples to a structured NumPy array
-        #ev_info = np.array(ev_info, dtype=dtype)
-        #print(f'(evinfo: {ev_info}')
-        #FIND BETTER WAY TO HANDLE EVINFO
-        metrics = get_reward(action, ev_info[0], intermediary[0],intermediary[1], intermediary[2], intermediary[3], intermediary[4], intermediary[5], intermediary[6], intermediary[7], intermediary[8], intermediary[9], routes, main_seed=1234)
 
-        for metric in metrics:
-            rewards = metric["rewards"]
-            reward = rewards[0] 
-        print(f'reward{reward}')
+        env.generate_paths(action, fixed_attributes)
+        env.simulate_routes()
+        reward = torch.tensor(env.simulation_reward[0], dtype=torch.float32, device=device)
 
-        cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
+        cur_state = torch.from_numpy(state).to(device=device).reshape(1, env.state_dim)
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward
 

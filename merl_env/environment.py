@@ -45,6 +45,8 @@ class EnvironmentClass:
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
 
+        self.state_dim = (self.num_of_chargers * 3 * 2) + 4
+
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
         Initialize electric vehicle (EV) information based on the configuration.
@@ -318,7 +320,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, is_odt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -328,7 +330,11 @@ class EnvironmentClass:
         Returns:
             np.ndarray: State array for the agent.
         """
-        agent_chargers = self.chargers[agent_idx, :, 0]
+        #Switched 0 and :
+        if is_odt:
+            agent_chargers = self.chargers[agent_idx, 0, :]
+        else:
+            agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
         agent_unique_traffic = np.array([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers])
 
