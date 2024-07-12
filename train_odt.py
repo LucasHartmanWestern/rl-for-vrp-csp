@@ -23,7 +23,6 @@ def train_odt(
     exp_prefix = 'placeholder',
     max_ep_len=1
 ):
-    print(f"Inside train_odt: variant['stochastic'] = {variant['stochastic']}")
     
     def discount_cumsum(x, gamma):
         discount_cumsum = np.zeros_like(x)
@@ -135,7 +134,7 @@ def train_odt(
                 traj = trajectories[int(sorted_inds[batch_inds[i]])]
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
-           # print(f"Shape of sliced observations: {traj['observations'][si:si + max_len]}")
+           
             # get sequences from dataset
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, env.state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))

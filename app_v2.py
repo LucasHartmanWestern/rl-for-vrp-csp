@@ -63,14 +63,14 @@ def train_rl_vrp_csp(date, args):
     gpus_count = len(args.list_gpus)
     if gpus_count == 0:
         devices_arg = ['cpu'] # no gpus assigned, then everything running on cpu
-        print(f'Woring with CPUs for environment and model tranning')
+        print(f'Working with CPUs for environment and model training')
     elif gpus_count == 1:
         devices_arg = [f'cuda:{args.list_gpus[0]}']
-        print(f'Woring with one GPU, bothg environment and model tranning running with {devices_arg[0]}')
+        print(f'Working with one GPU, both environment and model training running with {devices_arg[0]}')
 
     elif gpus_count == 2:
         devices_arg = [f'cuda:{args.list_gpus[0]}']
-        print(f'Woring with two GPUs, running environment with {devices_arg[0]} and model trainning with {devices_arg[1]}')
+        print(f'Working with two GPUs, running environment with {devices_arg[0]} and model training with {devices_arg[1]}')
     else:
         warnings.warn("**FUTURE WORK**\n Use of multiple GPUs for environment not implemented yet. Only the first GPU in given list of GPUs will be used")
         devices_arg =  [f'cuda:{args.list_gpus[0]}', f'cuda:{args.list_gpus[0]}']
@@ -250,6 +250,9 @@ def train_rl_vrp_csp(date, args):
             with open(dataset_path, 'wb') as f:
                 pickle.dump(trajectories, f)
                 print('Offline Dataset Saved')
+def save_trajectories(trajectories, filename):
+        with open(filename, 'wb') as f:
+        pickle.dump(trajectories, f)
 
 def train_route(chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,

@@ -139,27 +139,21 @@ class DecisionTransformer(TrajectoryModel):
 
         action_log_probs = None
         entropies = None
-        print(f'self.stochastic {self.stochastic}')
         if self.stochastic:
-            print("Entering stochastic block")
 
             means = self.predict_action_mean(state_reps)
             log_stds = self.predict_action_logstd(state_reps)
-            print(f"Predicted means: {means}")
-            print(f"Predicted log_stds: {log_stds}")
 
             # Bound log of standard deviations
             log_stds = torch.clamp(log_stds, self.log_std_min, self.log_std_max)
             stds = torch.exp(log_stds)
-            print(f"Clamped log_stds: {log_stds}")
-            print(f"Standard deviations: {stds}")
 
             # Create action distribution
             if self.stochastic_tanh:
                 action_distributions = Independent(TransformedDistribution(Normal(means, stds), TanhTransform(cache_size=1)),1)
             else:
                 action_distributions = Independent(Normal(means, stds),1)
-            print(f"Action distributions: {action_distributions}")
+            #print(f"Action distributions: {action_distributions}")
 
             # Sample from distribution or predict mean
             if use_means:
@@ -181,8 +175,8 @@ class DecisionTransformer(TrajectoryModel):
                 else:
                     entropies = action_distributions.entropy()
                 
-            print(f"Action log probabilities: {action_log_probs}")
-            print(f"Entropies: {entropies}")
+            #print(f"Action log probabilities: {action_log_probs}")
+            #print(f"Entropies: {entropies}")
 
         else:
             action_preds = self.predict_action(x[:,1])  # predict next action given state
