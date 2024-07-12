@@ -261,10 +261,8 @@ class EnvironmentClass:
             step_count += 1
 
         # Calculate reward as -(distance * 100 + peak traffic)
-        # print(f'step count {step_count}, battery at rewards {battery_dead}, distances {distances_per_car[-1].shape}, traffic {torch.max(traffic_per_charger).shape}')
-        # self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))#  + 10*battery_dead)
+        # print(f'step count {step_count}, battery at rewards {battery_dead}, distances {distances_per_car[-1].shape}, traffic {traffic_per_charger.shape}')
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))#  + 10*battery_dead)
-
         # print(f'line 266 rewards {self.simulation_reward}')
         # Save results in class
         self.path_results = paths.numpy()
