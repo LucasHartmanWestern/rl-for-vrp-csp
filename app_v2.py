@@ -151,7 +151,7 @@ def train_rl_vrp_csp(date, args):
                           eval_c['fixed_attributes'],
                           algo_c
                          )
-            return
+                return
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
 
