@@ -8,12 +8,12 @@ algorithm_settings:
 
     #ODT Configurations Offline
     # env: 'hopper'
-    # dataset: 'medium'
+    # dataset: '[2020]-4-2-1-10-20240716_115723'
     # mode: 'normal'
     # K: 20
     # pct_traj: 1.0
     # batch_size: 256
-    # model_type: dt
+    # model_type: 'dt'
     # embed_dim: 512
     # n_layer: 4
     # n_head: 4
@@ -23,7 +23,7 @@ algorithm_settings:
     # weight_decay: 0.0005
     # warmup_steps: 10000
     # num_eval_episodes: 50
-    # max_iters: 2
+    # max_iters: 5
     # num_steps_per_iter: 1000
     # device: 'cuda:1'
     # log_to_wandb: False
@@ -44,12 +44,12 @@ algorithm_settings:
 
     # #ODT Configurations Online
     env: 'hopper'
-    dataset: 'medium'
+    dataset: '[2020]-4-2-1-10-20240716_115723'
     mode: 'normal'
     K: 20
     pct_traj: 1.0
     batch_size: 256
-    model_type: dt
+    model_type: 'dt'
     embed_dim: 128
     n_layer: 3
     n_head: 1
@@ -64,7 +64,7 @@ algorithm_settings:
     device: 'cuda:1'
     log_to_wandb: True
     save_model: False
-    pretrained_model: './saved_networks/dt_medium-115716.pt'
+    pretrained_model: './saved_networks/dt_[2020]-4-2-1-10-20240716_115723-927347.pt'
     stochastic: True
     use_entropy: False
     use_action_means: True

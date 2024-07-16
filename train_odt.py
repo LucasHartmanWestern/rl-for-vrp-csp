@@ -51,7 +51,7 @@ def train_odt(
         os.makedirs(model_dir)
 
     # load dataset
-    dataset_path = f'data/offline-data.pkl'
+    dataset_path = f'data/training_sets/{dataset}.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -132,9 +132,8 @@ def train_odt(
                 traj = trajectories[batch_inds[i]]
             else:
                 traj = trajectories[int(sorted_inds[batch_inds[i]])]
-            si = random.randint(0, traj['rewards'].shape[0] - 1)
-
-           
+                
+            si = random.randint(0, traj['rewards'].shape[0] - 1)          
             # get sequences from dataset
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, env.state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
@@ -421,10 +420,21 @@ def format_data(data):
                     consolidated_dict[key].append(dd[key])
 
     # Convert lists of arrays to single arrays for each key
-    for key in consolidated_dict:
-        consolidated_dict[key] = np.concatenate(consolidated_dict[key], axis=0)
-
-    consolidated_list = []
-    consolidated_list.append(consolidated_dict)
-
-    return consolidated_list
+    # Ensure 'observations', 'actions', and 'rewards' are arrays of arrays with dtype float32
+    for key in ['observations', 'actions', 'rewards']:
+        consolidated_dict[key] = np.array(consolidated_dict[key], dtype=np.float32)
+    
+    # Convert 'terminals' to an array of arrays without specifying dtype
+    consolidated_dict['terminals'] = np.array(consolidated_dict['terminals'], dtype=bool)
+    
+    list_of_dicts = []
+    for i in range(len(consolidated_dict['observations'])):
+        list_of_dicts.append(
+            {
+                'observations': consolidated_dict['observations'][i],
+                'actions': consolidated_dict['actions'][i],
+                'rewards': consolidated_dict['rewards'][i],
+                'terminals': consolidated_dict['terminals'][i]
+            }
+        )
+    return list_of_dicts

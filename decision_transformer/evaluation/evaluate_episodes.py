@@ -91,7 +91,9 @@ def evaluate_episode_rtg(
     model.eval()
     model.to(device=device)
 
+    state_mean = np.atleast_1d(state_mean)
     state_mean = torch.from_numpy(state_mean).to(device=device)
+    state_std = np.atleast_1d(state_std)
     state_std = torch.from_numpy(state_std).to(device=device)
 
     # Resets the environment to an initial state, required before calling step. Returns the first agent observation for an episode and information
