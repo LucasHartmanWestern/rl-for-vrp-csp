@@ -128,86 +128,102 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         distributions = []
         distributions_unmodified = []
         states = []
-        environment.reset_episode(chargers, routes, unique_chargers)
-        
+        rewards = []
+        environment.reset_episode(chargers, routes, unique_chargers)  # Episode includes every car reaching their destination
+
+        sim_done = False
+
+        ending_tokens = None
+        ending_battery = None
+
         time_start_paths = time.time()
 
-        # Build path for each EV
-        for agent_idx in range(environment.num_of_agents): # For each agent
-            ########### Starting environment rutting
-            state = environment.reset_agent(agent_idx)
-            states.append(state)  # Track states
+        timestep_counter = 0
 
-            t1 = time.time()
-            
-            ####### Getting actions from agents
-            state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-            action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx,\
-                                        device, nn_by_zone)  # Get the action values from the agent
+        while not sim_done and timestep_counter < environment.max_steps:  # Keep going until every EV reaches its destination
+            if timestep_counter > 0:
+                environment.clear_paths()  # Clears existing paths
+                environment.update_starting_routes(ending_tokens)  # Sets new routes
+                environment.update_starting_battery(ending_battery)  # Sets starting battery to ending battery of last timestep
 
-            t2 = time.time()
+            # Build path for each EV
+            for agent_idx in range(environment.num_of_agents): # For each agent
+                ########### Starting environment rutting
+                state = environment.reset_agent(agent_idx)
+                states.append(state)  # Track states
 
-            distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
-            distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
-            distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
-            distributions.append(distribution.tolist())  # Convert back to list and append
+                t1 = time.time()
 
-            t3 = time.time()
+                ####### Getting actions from agents
+                state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
+                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx,\
+                                            device, nn_by_zone)  # Get the action values from the agent
 
-            environment.generate_paths(distribution, fixed_attributes)
+                t2 = time.time()
 
-            t4 = time.time()
+                distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
+                distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
+                distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
+                distributions.append(distribution.tolist())  # Convert back to list and append
 
-            if agent_idx == 0 and display_training_times:
-                print_time("Get actions", (t2 - t1))
-                print_time("Get distributions", (t3 - t2))
-                print_time("Generate paths in environment", (t4 - t3))
+                t3 = time.time()
 
-        if num_episodes == 1 and fixed_attributes is None:
-            if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
-                paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy',\
-                                allow_pickle=True).tolist()
+                environment.generate_paths(distribution, fixed_attributes)
 
-        
-        paths_copy = copy.deepcopy(environment.paths)
+                t4 = time.time()
 
-        # Calculate the average values of the output neurons for this episode
-        episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-        avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num,\
-                                  zone_index, main_seed))
+                if agent_idx == 0 and display_training_times:
+                    print_time("Get actions", (t2 - t1))
+                    print_time("Get distributions", (t3 - t2))
+                    print_time("Generate paths in environment", (t4 - t3))
 
-        time_end_paths = time.time() - time_start_paths
+            if num_episodes == 1 and fixed_attributes is None:
+                if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
+                    paths = np.load(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy',\
+                                    allow_pickle=True).tolist()
 
-        if display_training_times:
-            print_time('Get Paths',time_end_paths)
+            paths_copy = copy.deepcopy(environment.paths)
 
-        ########### GET SIMULATION RESULTS ###########
+            # Calculate the average values of the output neurons for this episode
+            episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
+            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
 
-        # Run simulation    
-        environment.simulate_routes()
-        
-        #Get results from environment
-        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.get_results()
+            time_end_paths = time.time() - time_start_paths
 
-        # Used to evaluate simulation
-        metric = {
-            "zone": zone_index,
-            "episode": i,
-            "aggregation": aggregation_num,
-            "paths": sim_path_results,
-            "traffic": sim_traffic,
-            "batteries": sim_battery_levels,
-            "distances": sim_distances,
-            "rewards": rewards
-        }
-        metrics.append(metric)
+            if display_training_times:
+                print_time('Get Paths', time_end_paths)
+
+            ########### GET SIMULATION RESULTS ###########
+
+            # Run simulation
+            sim_done, ending_tokens, ending_battery = environment.simulate_routes()
+
+            # Get results from environment
+            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+            rewards.extend(time_step_rewards)
+
+            # Used to evaluate simulation
+            metric = {
+                "zone": zone_index,
+                "episode": i,
+                "timestep": timestep_counter,
+                "aggregation": aggregation_num,
+                "paths": sim_path_results,
+                "traffic": sim_traffic,
+                "batteries": sim_battery_levels,
+                "distances": sim_distances,
+                "rewards": rewards,
+                "done": sim_done
+            }
+            metrics.append(metric)
+
+            timestep_counter += 1  # Next timestep
 
         ########### STORE EXPERIENCES ###########
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d].append(experience(states[d], distributions_unmodified[d], rewards[d], \
-                                         states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+            buffers[d % environment.num_of_agents].append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
             # Offline data recording for ODT
             if save_offline_data:
@@ -236,11 +252,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 # Update networks
                 if nn_by_zone:
-                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
-                                optimizers[0], device)  
+                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0], optimizers[0], device)
                 else:
-                    agent_learn(experiences, discount_factor, q_networks[agent_ind],\
-                                target_q_networks[agent_ind], optimizers[agent_ind], device)  
+                    agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device)
         
         et = time.time() - st
 
@@ -265,7 +279,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
                 save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
             else:
-                for agent_ind in range(num_of_agents):
+                for agent_ind in range(environment.num_of_agents):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
 
                     # Add this before you save your model

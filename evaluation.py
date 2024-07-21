@@ -29,6 +29,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                     for station_ind in range(len(episode['traffic'][0])):
                         traffic_data.append({
                             "episode": episode['episode'],
+                            "timestep": episode['timestep'],
+                            "done": episode['done'],
                             "zone": episode['zone'] + 1,
                             "aggregation": episode['aggregation'],
                             "simulation_step": step_ind,
@@ -41,6 +43,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
                     distance_data.append({
                         "episode": episode['episode'],
+                        "timestep": episode['timestep'],
+                        "done": episode['done'],
                         "zone": episode['zone'] + 1,
                         "aggregation": episode['aggregation'],
                         "agent_index": agent_ind,
@@ -50,6 +54,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
                     reward_data.append({
                         "episode": episode['episode'],
+                        "timestep": episode['timestep'],
+                        "done": episode['done'],
                         "zone": episode['zone'] + 1,
                         "aggregation": episode['aggregation'],
                         "agent_index": agent_ind,
@@ -61,6 +67,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
                     time_data.append({
                         "episode": episode['episode'],
+                        "timestep": episode['timestep'],
+                        "done": episode['done'],
                         "zone": episode['zone'] + 1,
                         "aggregation": episode['aggregation'],
                         "agent_index": agent_ind,
@@ -72,6 +80,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
                     battery_data.append({
                         "episode": episode['episode'],
+                        "timestep": episode['timestep'],
+                        "done": episode['done'],
                         "zone": episode['zone'] + 1,
                         "aggregation": episode['aggregation'],
                         "agent_index": agent_ind,
@@ -83,7 +93,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
         et = time.time() - st
 
-        if verbose: print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
+        if verbose:
+            print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
 
         st = time.time()
 
