@@ -1,0 +1,6 @@
+#created by Santiago 19/07/2024
+### Configuration file with hyperparemters for CMA-ES agent
+
+############ Hyperparameters ############
+cma_parameters:
+    max_iteractions: 2 #12 #50 # Amount of training episodes per session
