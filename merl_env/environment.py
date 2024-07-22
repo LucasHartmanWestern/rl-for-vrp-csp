@@ -39,12 +39,14 @@ class EnvironmentClass:
         self.init_ev_info(config, rng)
 
         # Store environment parameters
-        self.num_of_agents = config['num_of_agents']
-        self.num_of_chargers = config['num_of_chargers']
+        self.num_cars = config['num_of_cars']
+        self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
         self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60, device=device)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
+
+        self.path_count = 1
 
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
@@ -55,7 +57,7 @@ class EnvironmentClass:
             rng (np.random.Generator): Random number generator.
         """
         # Generating a random model
-        model_indices = rng.integers(len(config['models']), size=config['num_of_agents'])
+        model_indices = rng.integers(len(config['models']), size=config['num_of_cars'])
 
         # Using the indices to select the model type and corresponding configurations
         model_type = np.array([config['models'][index] for index in model_indices], dtype=str)
@@ -63,7 +65,7 @@ class EnvironmentClass:
         max_charge = np.array([config['max_charge'][index] for index in model_indices], dtype=int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
-        starting_charge = config['starting_charge'] + 2000 * (rng.random(config['num_of_agents']) - 0.5)
+        starting_charge = config['starting_charge'] + 2000 * (rng.random(config['num_of_cars']) - 0.5)
 
         # Defining a structured array
         dtypes = [('starting_charge', float),
@@ -71,7 +73,7 @@ class EnvironmentClass:
                   ('usage_per_hour', int),
                   ('model_type', 'U50'),  # Adjust string length as needed
                   ('model_indices', int)]
-        info = np.zeros(config['num_of_agents'], dtype=dtypes)
+        info = np.zeros(config['num_of_cars'], dtype=dtypes)
 
         # Store EVs information
         info['max_charge'] = max_charge
@@ -115,6 +117,7 @@ class EnvironmentClass:
         for agent_index, path in enumerate(self.paths):
             prev_step = self.charges_needed[agent_index].shape[0] - 2
 
+            # print(f'car index {agent_index}/{len(self.paths)}')
             for step_index in range(len(stops[agent_index])):
                 if step_index == len(stops[agent_index]) - 1:  # Go to final destination
                     stops[agent_index][step_index] = agent_index + 1
@@ -222,16 +225,15 @@ class EnvironmentClass:
 
             if torch.min(battery) < 0:
                 # print(f'distances {distances}')
-                visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
-                visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
-                visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
+                # visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
+                # visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
+                # visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
                 battery_idx = battery < 0 
-                # battery[battery_idx] = 0
-                print(f'battery {battery_idx.sum()}')
+                battery[battery_idx] = 0
                 battery_dead += battery_idx.sum()
-                print(f'step {step_count}, batteries dead {battery_dead}, battery {battery}, solutions {self.distribution}')
+                print(f'battery dead {battery_idx.sum()}, total batteries dead {battery_dead}')
                 # raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
-                raise Exception(f"Dead batteries {battery_dead}")
+                # raise Exception(f"Dead batteries {battery_dead}")
 
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
@@ -293,7 +295,6 @@ class EnvironmentClass:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
         """
-        self.distribution = distribution
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,
                             self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long)
@@ -310,6 +311,9 @@ class EnvironmentClass:
                 distance_mult = fixed_attributes[1]
 
             # Distance * distance_mult + Traffic * traffic_mult
+            # if  (count == 6) & (self.path_count == 5517): 
+            #     print(f'v {v}, distance {distance_mult}, traffic {traffic_mult}, graph {graph[:, v]}, unique traffic {self.agent.unique_traffic[v, 1]}, count {self.path_count}')
+            #     # print(f'graph {graph}')
             graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult
 
         # Set last column to zero so long as it's not infinity for every row except the last 2
@@ -328,6 +332,10 @@ class EnvironmentClass:
         # Update traffic
         for step in global_paths:
             self.traffic[step, 1] += 1
+
+        self.path_count +=1
+
+
 
     def reset_agent(self, agent_idx: int) -> np.ndarray:
         """
@@ -351,8 +359,8 @@ class EnvironmentClass:
         # Traffic level and distance of each station plus total charger num, total distance,
         # number of EVs, and car model index
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
-                           np.array([self.num_of_chargers * 3]), np.array([route_dist]),
-                           np.array([self.num_of_agents]), np.array([self.info['model_indices'][agent_idx]])))
+                           np.array([self.num_chargers * 3]), np.array([route_dist]),
+                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]])))
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
@@ -379,3 +387,23 @@ class EnvironmentClass:
         self.unique_chargers = unique_chargers
         self.chargers = chargers
         self.routes = routes
+
+    def cma_store(self):
+        self.store_paths = copy.deepcopy(self.paths)
+        self.store_charges_needed = copy.deepcopy(self.charges_needed)
+        self.store_local_paths = copy.deepcopy(self.local_paths)
+
+    def cma_copy_store(self):
+        self.paths = copy.deepcopy(self.store_paths)
+        self.charges_needed = copy.deepcopy(self.store_charges_needed)
+        self.local_paths = copy.deepcopy(self.store_local_paths)
+
+    def cma_clean(self):
+        self.paths = copy.deepcopy(self.store_paths)
+        self.charges_needed = copy.deepcopy(self.store_charges_needed)
+        self.local_paths = copy.deepcopy(self.store_local_paths)
+        
+        self.store_paths = []
+        self.store_charges_needed = []
+        self.store_local_paths = []
+        
