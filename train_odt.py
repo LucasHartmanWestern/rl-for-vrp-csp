@@ -46,12 +46,12 @@ def train_odt(
     group_name = f'{dataset}'
     exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
-    model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'./saved_networks/')
+    model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/saved_networks/')
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
     # load dataset
-    dataset_path = f'data/training_sets/{dataset}.pkl'
+    dataset_path = f"/storage_1/epigou_storage/{dataset}.pkl"
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -403,7 +403,6 @@ def train_odt(
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
 
 def format_data(data):
-    # Initialize a dictionary to hold all combined data
     consolidated_dict = {
         'observations': [],
         'actions': [],
@@ -419,12 +418,9 @@ def format_data(data):
                 if key in dd:
                     consolidated_dict[key].append(dd[key])
 
-    # Convert lists of arrays to single arrays for each key
-    # Ensure 'observations', 'actions', and 'rewards' are arrays of arrays with dtype float32
     for key in ['observations', 'actions', 'rewards']:
         consolidated_dict[key] = np.array(consolidated_dict[key], dtype=np.float32)
     
-    # Convert 'terminals' to an array of arrays without specifying dtype
     consolidated_dict['terminals'] = np.array(consolidated_dict['terminals'], dtype=bool)
     
     list_of_dicts = []

@@ -222,4 +222,7 @@ class DecisionTransformer(TrajectoryModel):
 
         state_preds, action_preds, return_preds, _, _ = self.forward(
             states, actions, rewards, returns_to_go, timesteps, attention_mask=attention_mask, use_means=use_means, **kwargs)
-        return action_preds[0,-1]
+        action_preds = torch.sigmoid(action_preds)
+    
+        return action_preds[0, -1]
+
