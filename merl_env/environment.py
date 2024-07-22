@@ -115,6 +115,7 @@ class EnvironmentClass:
         charging_stations = []
         station_ids = []
 
+        #print(f'paths: {self.paths}')
         for agent_index, path in enumerate(self.paths):
             prev_step = self.charges_needed[agent_index].shape[0] - 2
 
@@ -298,10 +299,13 @@ class EnvironmentClass:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
         """
+
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,
                             self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long)
         self.charges_needed.append(copy.deepcopy(graph))
+
+
 
         # Redefine weights in graph
         for v in range(graph.shape[0] - 2):
