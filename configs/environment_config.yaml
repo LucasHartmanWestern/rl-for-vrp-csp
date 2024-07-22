@@ -4,7 +4,7 @@
 ############ Environment Settings ############
 environment_settings:
     seeds: [1234] # Used for reproducibility
-    num_of_agents: 100 # Num of cars in simulation
+    num_of_agents: 50 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 
     # Coordinates of city regions in London
@@ -24,3 +24,4 @@ environment_settings:
     step_size: 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
     increase_rate: 12500 
     max_sim_steps: 500
+    max_mini_sim_steps: 10

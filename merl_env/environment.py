@@ -44,6 +44,7 @@ class EnvironmentClass:
         self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60, device=device)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
+        self.max_mini_steps = config['max_mini_sim_steps']
 
         self.state_dim = (self.num_of_chargers * 3 * 2) + 4
 
@@ -71,7 +72,8 @@ class EnvironmentClass:
                   ('max_charge', int),
                   ('usage_per_hour', int),
                   ('model_type', 'U50'),  # Adjust string length as needed
-                  ('model_indices', int)]
+                  ('model_indices', int),
+                  ('episode_starting_charge', float)]
         info = np.zeros(config['num_of_agents'], dtype=dtypes)
 
         # Store EVs information
@@ -80,6 +82,7 @@ class EnvironmentClass:
         info['usage_per_hour'] = usage_per_hour
         info['model_indices'] = model_indices
         info['starting_charge'] = starting_charge
+        info['episode_starting_charge'] = starting_charge
         self.info = info
 
     def get_ev_info(self) -> np.ndarray:
@@ -106,8 +109,7 @@ class EnvironmentClass:
         destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in self.routes])
         destinations = torch.tensor(destinations, dtype=self.dtype, device=self.device)
 
-        stops = torch.zeros((destinations.shape[0], max(len(path) for path in self.paths) + 1),\
-                            dtype=self.dtype, device=self.device)
+        stops = torch.zeros((destinations.shape[0], max(len(path) for path in self.paths) + 1), dtype=self.dtype, device=self.device)
         target_battery_level = torch.zeros_like(stops, device=self.device)
 
         charging_stations = []
@@ -120,6 +122,16 @@ class EnvironmentClass:
                 if step_index == len(stops[agent_index]) - 1:  # Go to final destination
                     stops[agent_index][step_index] = agent_index + 1
                     target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
+                elif len(path) == 0:  # There are no stops to charge at
+                    stops[agent_index][step_index] = agent_index + 1
+                    target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
+
+                    # Zero out values before and after the current step
+                    stops[agent_index, :step_index] = 0
+                    stops[agent_index, step_index + 1:] = 0
+                    target_battery_level[agent_index, :step_index] = 0
+                    target_battery_level[agent_index, step_index + 1:] = 0
+                    break
                 else:  # Go to stop
                     charger_id = self.unique_chargers[path[step_index]][0]
                     try:
@@ -128,24 +140,23 @@ class EnvironmentClass:
                     except ValueError:  # Station not in list, so create a new station
                         station_ids.append(charger_id)
                         station_index = len(station_ids) + destinations.shape[0]
-                        stop = [self.unique_chargers[path[step_index]][1], \
-                                self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
+                        stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
                         charging_stations.append(stop)
 
                     stops[agent_index][step_index] = station_index
                     target_battery_level[agent_index][step_index] = self.charges_needed[agent_index][prev_step][self.local_paths[agent_index][step_index]]
                     prev_step = self.local_paths[agent_index][step_index]
 
-        target_battery_level = target_battery_level[:, 1:]
         charging_stations = np.array(charging_stations)
-        destinations = torch.vstack((destinations, torch.tensor(charging_stations, dtype=self.dtype, device=self.device)))
+
+        if len(charging_stations) != 0:
+            destinations = torch.vstack((destinations, torch.tensor(charging_stations, dtype=self.dtype, device=self.device)))
+
+        capacity = torch.ones(len(charging_stations), dtype=self.dtype, device=self.device) * 10  # Dummy capacity of 10 cars for every station
 
         actions = torch.zeros((tokens.shape[0], destinations.shape[0]), device=self.device)
         move = torch.ones(tokens.shape[0], device=self.device)
         traffic = np.zeros(destinations.shape[0])
-
-        capacity = torch.ones(len(charging_stations), dtype=self.dtype,\
-                              device=self.device) * 10  # Dummy capacity of 10 cars for every station
 
         # Storing in class
         self.move = move
@@ -165,6 +176,7 @@ class EnvironmentClass:
         Returns:
             None
         """
+
         # Initialize routing data
         self.init_data()
 
@@ -179,14 +191,18 @@ class EnvironmentClass:
         # Pre-process capacity array
         capacity = torch.cat((torch.zeros(tokens.shape[0], device=self.device), self.capacity))
 
-        step_count = 0
+        mini_step_count = 0
         tokens_size = tokens.shape
         paths = torch.empty((0, tokens_size[0], tokens_size[1]))
         traffic_per_charger = torch.empty((0, destinations.shape[0]))
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
 
-        while max(stops[:, 0]) > 0 and step_count <= self.max_steps:
+        traffic_level = None
+
+        done = False
+
+        while (not done) and (mini_step_count <= self.max_mini_steps):
             stops[:, 0] -= 1
 
             # Get NxM matrix of actions
@@ -197,8 +213,7 @@ class EnvironmentClass:
 
             # Track token position at each timestep and how far they traveled
             paths = torch.cat([paths, tokens.cpu().unsqueeze(0)], dim=0)
-            distances_per_car = torch.cat([distances_per_car, \
-                                           distance_travelled.cpu().unsqueeze(0) + distances_per_car[-1, :]], dim=0)
+            distances_per_car = torch.cat([distances_per_car, distance_travelled.cpu().unsqueeze(0) + distances_per_car[-1, :]], dim=0)
 
             # Get Nx1 matrix of distances
             distances = get_distance(tokens, destinations, actions)
@@ -218,13 +233,6 @@ class EnvironmentClass:
 
             # Update the battery level of each car
             battery = update_battery(battery, charging_rates)
-
-            if torch.min(battery) < 0:
-                print(distances)
-                visualize_stats(traffic_per_charger, 'Change in Traffic Levels Over Time', 'Traffic Level')
-                visualize_stats(battery_levels, 'Change in Battery Level Over Time', 'Battery Level')
-                visualize_stats(distances_per_car, 'Distance Travelled Over Time', 'Distance Travelled')
-                raise Exception(f"Battery level at {battery} - stepcount: {step_count}")
 
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
@@ -252,7 +260,10 @@ class EnvironmentClass:
             target_battery_level = update_stops(target_battery_level, ready_to_leave, self.dtype)
 
             # Increase step count
-            step_count += 1
+            mini_step_count += 1
+
+            if max(stops[:, 0]) <= 0:
+                done = True
 
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
@@ -262,6 +273,8 @@ class EnvironmentClass:
         self.traffic_results = traffic_per_charger.numpy()
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
+
+        return done, tokens, battery
 
     def get_results(self) -> tuple:
         """
@@ -307,8 +320,11 @@ class EnvironmentClass:
         mask = (graph[:-2, -1] != np.inf)
         graph[:-2, -1][mask] = 0
 
-        # Solve weighted graph
-        path = dijkstra(graph, self.agent.idx)
+        if graph[-2, -1] == np.inf:
+            # Solve weighted graph
+            path = dijkstra(graph, self.agent.idx)
+        else:  # If you can reach the destination from starting point then just go there
+            path = []
         self.local_paths.append(copy.deepcopy(path))
 
         # Get stop ids from global list instead of only local to agent
@@ -354,6 +370,34 @@ class EnvironmentClass:
                                 agent_unique_chargers, agent_unique_traffic)
         return state
 
+    def clear_paths(self):
+        self.paths = []
+        self.charges_needed = []
+        self.local_paths = []
+
+    def update_starting_routes(self, new_starting_positions):
+        # Convert new_starting_positions tensor to a Python list
+        new_starting_positions = new_starting_positions.tolist()
+
+        # Iterate through each route and update the starting positions
+        new_routes = []
+        for i, route in enumerate(self.routes):
+            if i < len(new_starting_positions):
+                # Update starting latitude and longitude
+                new_start_lat = new_starting_positions[i][0]
+                new_start_lon = new_starting_positions[i][1]
+                updated_route = [new_start_lat, new_start_lon, route[2], route[3]]
+                new_routes.append(updated_route)
+            else:
+                # If there are more routes than positions, keep the original route
+                new_routes.append(route)
+
+        # Update self.routes with the new starting positions
+        self.routes = new_routes
+
+    def update_starting_battery(self, new_starting_battery):
+        self.info['starting_charge'] = new_starting_battery.cpu()
+
     def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray):
         """
         Reset the episode with new chargers, routes, and unique chargers.
@@ -370,7 +414,9 @@ class EnvironmentClass:
         traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
         traffic[:, 0] = unique_chargers['id']
 
-        self.traffic = traffic
-        self.unique_chargers = unique_chargers
-        self.chargers = chargers
-        self.routes = routes
+        self.info['starting_charge'] = self.info['episode_starting_charge']  # Reset battery back to base level
+
+        self.traffic = traffic  # [[charger id, traffic_leve],...]
+        self.unique_chargers = unique_chargers  # [(charger id, charger latitude, charger longitude),...]
+        self.chargers = chargers  # [[[charger id, charger latitude, charger longitude],...],...] (chargers[agent index][charger index][charger property index])
+        self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
