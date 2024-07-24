@@ -6,18 +6,19 @@ import torch
 class CMAAgent():
     def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index):
         # CMA parameters:
-        self.population_size= 10
-        self.max_generation = 2
-        initial_sigma  = 0.5
+        self.population_size= 3
+        self.max_generation = 5
+        initial_sigma  = 0.1
         model_type = 'Regression'
+        upper_limit = 0.01
 
         # Seeding rng
         rng = np.random.default_rng(seed)
 
         #Select model to optimize with CMA-ES
         if model_type == 'Regression':
-            initial_weights = rng.random(action_dimension * state_dimension)
-            self.model = self.regresion_model
+            initial_weights = rng.random(action_dimension * state_dimension)*upper_limit
+            self.model = self.regression_model
         elif model_type == 'NN_basic':
             # Generating random initia weights in [-1, 1]
             initial_weights = np.array(rng.random(state_dimension)*2-1)
@@ -25,8 +26,8 @@ class CMAAgent():
         # Initial weights are enought for cma adjustment
         # cma_config = {'maxiter': self.max_generation, 'seed':seed}
         cma_config = {'popsize': self.population_size*num_cars, 'maxiter': self.max_generation,\
-                      'seed':seed}
-        es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma, cma_config)
+                      'bounds':[0, upper_limit], 'seed':seed}
+        es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma*upper_limit, cma_config)
 
         # storing information
         self.es = es
@@ -50,8 +51,8 @@ class CMAAgent():
         self.states = []
         self.actions= []
         
-    def regresion_model(self, state, weights):
-        # Generating a simpler regresion model with random weights for demonstration
+    def regression_model(self, state, weights):
+        # Generating a simpler regression model with random weights for demonstration
         weights_matrix = np.reshape(weights, (self.out_size, self.in_size))
         solutions = np.dot(weights_matrix, state)
         # solutions = torch.nn.functional.sigmoid(torch.from_numpy(solutions)).numpy()
@@ -80,6 +81,8 @@ class CMAAgent():
     #     env.cma_clean()
     #     return self.es.best.x
 
+    def get_actions(self):
+        return self.es.ask()
 
     def run_scenarios(self, env):
         #running cma-es scenarios
@@ -97,7 +100,7 @@ class CMAAgent():
                 for car_idx  in range(self.num_cars):
                     state = env.reset_agent(car_idx)
                     weights = matrix_solutions[pop_idx, car_idx,:]
-                    car_route = self.regresion_model(state, weights)
+                    car_route = self.model(state, weights)
                     env.generate_paths(car_route, None)
                     self.states.append(state)
                     self.actions.append(car_route)
@@ -121,7 +124,7 @@ class CMAAgent():
         for car_idx  in range(self.num_cars):
             state = env.reset_agent(car_idx)
             weights = self.weights_result
-            car_route = self.regresion_model(state, weights)
+            car_route = self.regression_model(state, weights)
             env.generate_paths(car_route, None)
             pseudo_distributions.append(weights)
 

@@ -7,7 +7,7 @@ algorithm_settings:
     #Currently available options DQN, cma_optimizer
     algorithm:  'cma_optimizer'
     # Decision making agent definition
-    agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
+    agent_by_zone: False # True if using one agent for each zone, and false using a agent for each car
 
 federated_learning_settings:
     aggregation_count: 2 #5 # Amount of aggregation steps for federated learning

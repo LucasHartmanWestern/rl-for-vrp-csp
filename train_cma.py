@@ -68,9 +68,12 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
     model_indices = environment.info['model_indices']
 
     if agent_by_zone:
-       num_agents = 1
+        num_agents = 1
+        num_cars = environment.num_cars
     else:
-       num_agents = environment.num_cars
+        num_agents = environment.num_cars
+        num_cars = 1
+
 
 
     # if nn_by_zone:  # Use same NN for each zone
@@ -105,8 +108,9 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
     #         optimizers.append(optimizer)
 
     cma_agents_list = []
+    
     for agent_idx in range(num_agents):
-        cma_agent = CMAAgent(state_dimension, action_dim, environment.num_cars, seed, agent_idx)
+        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx)
         if global_weights != None:
             cma_agent.load_global_weights(global_weights[zone_index][agent_idx])
 
@@ -128,6 +132,53 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
         cma_agent = cma_agents_list[0]
         action_values, trained = cma_agent.run_scenarios(environment)
         distributions = cma_agent.run_routes(environment)
+
+    elif num_agents > 1:
+        cma_info = cma_agents_list[0] 
+        scenario_list = [copy.deepcopy(environment) for i in range(cma_info.population_size)]\
+
+        states = []
+        actions= []
+        fitnesses = np.empty((num_agents, cma_info.population_size,))
+        
+        for generation in range(cma_info.max_generation):
+            agents_solutions = []
+            for agent in cma_agents_list: # For each agent
+                agents_solutions.append(agent.get_actions())
+            
+            print(f'agents solutions {len(agents_solutions), len(agents_solutions[0]), len(agents_solutions[0][0])}')
+
+            for scenario_idx, env in enumerate(scenario_list):
+                state_scenario = []
+                action_scenario= []
+                env.idx = scenario_idx
+                for car_idx in range(num_cars):
+                    state = env.reset_agent(car_idx)
+                    weights = agents_solutions[car_idx][scenario_idx]
+                    car_route = cma_info.model(state,weights)
+                    env.generate_paths(car_route, None)
+                    state_scenario.append(state)
+                    action_scenario.append(car_route)
+
+                
+                env.simulate_routes()
+                _,_,_,_, rewards = env.get_results()
+                print(f' for scenario {scenario_idx}: actions {action_scenario[-num_cars]}, rewards {rewards}')
+                fitnesses[:, scenario_idx] = rewards
+
+                states.append(state_scenario)
+                actions.append(action_scenario)
+
+            print(f'fitnesses {fitnesses}')
+            for idx, agent in enumerate(cma_agents_list): # For each agent
+                agent.es.tell(agents_solutions[idx], fitnesses[idx].flatten())
+                agent.es.logger.add()
+                agent.es.disp()
+
+                    
+
+    print(f'scenarios best {fitnesses}')   
+            
 
 
     # for episode in range(num_episodes):  # For each episode
