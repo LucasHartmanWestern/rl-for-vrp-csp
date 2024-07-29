@@ -198,7 +198,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             # Run simulation
             sim_done, ending_tokens, ending_battery = environment.simulate_routes()
 
-            print(f"SIM DONE: {sim_done}")
+            print(f"Sim Done: {sim_done}")
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
