@@ -48,6 +48,9 @@ def initialize(state_dim, action_dim, layers, device_agents):
     target_q_network.load_state_dict(q_network.state_dict())  # Initialize target Q-network with the same weights as Q-network
     return q_network.to(device_agents), target_q_network.to(device_agents)
 
+def set_seed(seed):
+    torch.manual_seed(seed)
+
 def compute_loss(experiences, gamma, q_network, target_q_network):
 
     """

@@ -7,7 +7,7 @@ from collections import deque
 import time
 import copy
 
-from agent import initialize, agent_learn, get_actions, soft_update, save_model
+from agent import initialize, agent_learn, get_actions, soft_update, save_model, set_seed
 
 import collections
 
@@ -65,6 +65,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     if seed is not None:
         torch.manual_seed(seed)
         dqn_rng = np.random.default_rng(seed)
+        set_seed(seed)
     
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
@@ -198,7 +199,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             # Run simulation
             sim_done, ending_tokens, ending_battery = environment.simulate_routes()
 
-            print(f"Sim Done: {sim_done}")
+            print(f"Sim Done: {sim_done}, tokens {ending_tokens.sum()}")
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
