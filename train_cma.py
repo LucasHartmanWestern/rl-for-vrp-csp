@@ -135,49 +135,110 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
 
     elif num_agents > 1:
         cma_info = cma_agents_list[0] 
-        scenario_list = [copy.deepcopy(environment) for i in range(cma_info.population_size)]\
+        # scenario_list = [copy.deepcopy(environment) for i in range(cma_info.population_size)]
 
         states = []
         actions= []
         fitnesses = np.empty((num_agents, cma_info.population_size,))
         
-        for generation in range(cma_info.max_generation):
-            agents_solutions = []
-            for agent in cma_agents_list: # For each agent
-                agents_solutions.append(agent.get_actions())
-            
-            print(f'agents solutions {len(agents_solutions), len(agents_solutions[0]), len(agents_solutions[0][0])}')
+        
+        # for generation in range(cma_info.max_generation):
+        #     agents_solutions = []
+        #     for agent in cma_agents_list: # For each agent
+        #         agents_solutions.append(agent.get_actions())
 
-            for scenario_idx, env in enumerate(scenario_list):
-                state_scenario = []
-                action_scenario= []
-                env.idx = scenario_idx
-                for car_idx in range(num_cars):
-                    state = env.reset_agent(car_idx)
-                    weights = agents_solutions[car_idx][scenario_idx]
-                    car_route = cma_info.model(state,weights)
-                    env.generate_paths(car_route, None)
-                    state_scenario.append(state)
-                    action_scenario.append(car_route)
+        #     print(f'agents solutions {len(agents_solutions), len(agents_solutions[0]), len(agents_solutions[0][0])}')
+
+        #     for env in scenario_list:
+        #         env.reset_episode(chargers, routes, unique_chargers)
+                
+        #     fitness_scenario = np.empty((len(scenario_list), num_agents))
+        #     for scenario_idx, env in enumerate(scenario_list):
+        #         state_scenario = []
+        #         action_scenario= []
+        #         env.idx = scenario_idx
+
+        #         state = env.reset_agent(0)
+        #         for car_idx in range(num_cars):
+                    
+        #             weights = agents_solutions[car_idx][scenario_idx]
+        #             car_route = cma_info.model(state,weights)
+        #             env.generate_paths(car_route, None)
+        #             state_scenario.append(state)
+        #             action_scenario.append(car_route)
 
                 
-                env.simulate_routes()
-                _,_,_,_, rewards = env.get_results()
-                print(f' for scenario {scenario_idx}: actions {action_scenario[-num_cars]}, rewards {rewards}')
-                fitnesses[:, scenario_idx] = rewards
+        #         env.simulate_routes()
+        #         _,_,_,_, rewards = env.get_results()
+        #         print(f' for scenario {scenario_idx}: actions {action_scenario[-num_cars]}, rewards {rewards}')
+        #         fitness_scenario[ scenario_idx, :] = rewards.sum()
 
-                states.append(state_scenario)
-                actions.append(action_scenario)
+        #         # states.append(state_scenario)
+        #         # actions.append(action_scenario)
 
-            print(f'fitnesses {fitnesses}')
-            for idx, agent in enumerate(cma_agents_list): # For each agent
-                agent.es.tell(agents_solutions[idx], fitnesses[idx].flatten())
+        #     # print(f'fitnesses {fitnesses}')
+        #     print(f'fitness all scenarios {fitness_scenario}')
+        #     for idx, agent in enumerate(cma_agents_list): # For each agent
+        #         # agent.es.tell(agents_solutions[idx], fitnesses[idx].flatten())
+        #         agent.es.tell(agents_solutions[idx], fitness_scenario[:,idx])
+        #         agent.es.logger.add()
+        #         agent.es.disp()
+
+        environment.cma_store()
+
+        
+        matrix_solutions = np.zeros((cma_info.population_size, num_agents, cma_info.out_size))
+        # while not self.es.stop():
+        for generation in range(cma_info.max_generation):
+            print(f'Generation {generation}')
+
+            for agent_idx, agent in enumerate(cma_agents_list): # For each agent
+                matrix_solutions[:, agent_idx, :] = agent.es.ask()
+            
+            # Reshape the 1D array solution to solutions by car matrix shape
+            # matrix_solutions = np.reshape(agents_solutions, (cma_info.population_size, num_agents, -1))
+            
+            fitnesses = np.ones((cma_info.population_size, num_agents))
+            for pop_idx in range(cma_info.population_size):
+                environment.cma_copy_store()
+                
+                for car_idx, agent  in enumerate(cma_agents_list):
+                    state = environment.reset_agent(car_idx)
+                    weights = matrix_solutions[pop_idx, car_idx,:]
+                    car_route = agent.model(state, weights)
+                    environment.generate_paths(car_route, None)
+                    agent.states.append(state)
+                    agent.actions.append(car_route)
+
+                environment.simulate_routes()
+                _,_,_,_, rewards = environment.get_results()
+                fitnesses[pop_idx] = -1*rewards
+
+            for agent_idx, agent in enumerate(cma_agents_list):
+                agent.es.tell(matrix_solutions[:, agent_idx,:], fitnesses[:, agent_idx].flatten())
                 agent.es.logger.add()
                 agent.es.disp()
+                
+        environment.cma_clean()
+        results = np.zeros((num_agents, cma_info.out_size))
+        states = []
+        acitons= []
+        for idx, agent in enumerate(cma_agents_list):
+            # results[idx] = agent.es.best.x
+            state = environment.reset_agent(idx)
+            weights = agent.es.best.x
+            car_route = agent.model(state, weights)
+            environment.generate_paths(car_route, None)
+            agent.weights_result = weights
+            agent.states.append(state)
+            agent.actions.append(car_route)
+
+    
+
 
                     
 
-    print(f'scenarios best {fitnesses}')   
+  
             
 
 
@@ -258,9 +319,12 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
     #     if display_training_times:
     #         print_time('Get Paths',time_end_paths)
 
-    ########### GET SIMULATION RESULTS ###########
+    # ########### GET SIMULATION RESULTS ###########
 
-    # Run simulation    
+    # Run simulation  
+
+
+        
     environment.simulate_routes()
     
     #Get results from environment

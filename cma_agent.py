@@ -6,10 +6,10 @@ import torch
 class CMAAgent():
     def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index):
         # CMA parameters:
-        self.population_size= 3
+        self.population_size= 10
         self.max_generation = 5
-        initial_sigma  = 0.1
-        model_type = 'Regression'
+        initial_sigma  = 0.5
+        model_type = 'CMA_optimizer' #'Regression'
         upper_limit = 0.01
 
         # Seeding rng
@@ -18,7 +18,12 @@ class CMAAgent():
         #Select model to optimize with CMA-ES
         if model_type == 'Regression':
             initial_weights = rng.random(action_dimension * state_dimension)*upper_limit
+            bounds = [0, upper_limit]
             self.model = self.regression_model
+        elif model_type == 'CMA_optimizer':
+            initial_weights = rng.random(action_dimension)
+            bounds = [0, 1]
+            self.model = self.cma_model
         elif model_type == 'NN_basic':
             # Generating random initia weights in [-1, 1]
             initial_weights = np.array(rng.random(state_dimension)*2-1)
@@ -26,7 +31,7 @@ class CMAAgent():
         # Initial weights are enought for cma adjustment
         # cma_config = {'maxiter': self.max_generation, 'seed':seed}
         cma_config = {'popsize': self.population_size*num_cars, 'maxiter': self.max_generation,\
-                      'bounds':[0, upper_limit], 'seed':seed}
+                      'bounds':bounds, 'seed':seed}
         es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma*upper_limit, cma_config)
 
         # storing information
@@ -58,6 +63,13 @@ class CMAAgent():
         # solutions = torch.nn.functional.sigmoid(torch.from_numpy(solutions)).numpy()
         #Temporla fix: Limiting simgoid output to not be either 1 or 0
         solutions = 0.9999*(torch.nn.functional.sigmoid(torch.from_numpy(solutions)).numpy()+0.0001)
+        return solutions
+
+    def cma_model(self, state, weights):
+        solutions = weights
+        # solutions = torch.nn.functional.sigmoid(torch.from_numpy(solutions)).numpy()
+        #Temporla fix: Limiting simgoid output to not be either 1 or 0
+        # solutions = 0.9999*(torch.nn.functional.sigmoid(torch.from_numpy(solutions)).numpy()+0.0001)
         return solutions
         
     # def get_actions(self, state, env):
