@@ -260,7 +260,7 @@ def update_stops(stops, ready_to_leave, dtype):
     ready_to_leave = ready_to_leave.reshape(-1, 1)
 
     # I'm not sure how this works tbh...
-    updated_stops = torch.matmul((stops * ready_to_leave.to(dtype)), transform_matrix.to(dtype)) + stops * (1 - ready_to_leave)
+    updated_stops = torch.matmul((stops * ready_to_leave), transform_matrix) + stops * (1 - ready_to_leave)
     
     # Set rows to zeros if there is only one nonzero element in the row and ready_to_leave is 1
     for i in range(len(stops)):
