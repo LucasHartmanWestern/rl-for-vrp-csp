@@ -199,11 +199,13 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             # Run simulation
             sim_done, ending_tokens, ending_battery = environment.simulate_routes()
 
-            print(f"Sim Done: {sim_done}, tokens {ending_tokens.sum()}")
+            print(f"seed {seed}, step {timestep_counter}, Sim Done: {sim_done}, tokens {ending_tokens.sum()} ")
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
             rewards.extend(time_step_rewards)
+
+            print(f'Rewards {time_step_rewards.sum()}')
 
             # Used to evaluate simulation
             metric = {
