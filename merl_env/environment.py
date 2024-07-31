@@ -16,7 +16,7 @@ class EnvironmentClass:
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, sub_seed: int, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, seed: int, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
@@ -33,7 +33,9 @@ class EnvironmentClass:
         config = load_config_file(config_fname)['environment_settings']
 
         # Seeding environment random generator
-        rng = np.random.default_rng(sub_seed)
+        rng = np.random.default_rng(seed)
+        # torch.manual_seed(seed)
+        # set_seed(seed)
 
         self.init_ev_info(config, rng)
 
@@ -260,9 +262,13 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if max(stops[:, 0]) <= 0:
+            # print(f' max stops {max(stops[:, 0])} \n stops {stops[:, 0]}')
+            # if max(stops[:, 0]) <= 0:
+            if stops.shape[1] <= 1: # to confirm with Lucas
                 done = True
 
+        # for debug
+        self.stops = stops # to remove
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
 

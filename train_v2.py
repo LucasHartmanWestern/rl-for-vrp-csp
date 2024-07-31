@@ -1,15 +1,18 @@
 import torch
-import torch.optim as optim
 import numpy as np
-from collections import namedtuple
-import os
-from collections import deque
-import time
 import copy
+import torch.optim as optim
+import os
+import time
 
 from agent import initialize, agent_learn, get_actions, soft_update, save_model, set_seed
 
 import collections
+from collections import namedtuple
+from collections import deque
+
+DEBUG = True
+DEBUG_VERBOSE = 0
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -199,13 +202,16 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             # Run simulation
             sim_done, ending_tokens, ending_battery = environment.simulate_routes()
 
-            print(f"seed {seed}, step {timestep_counter}, Sim Done: {sim_done}, tokens {ending_tokens.sum()} ")
-
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
             rewards.extend(time_step_rewards)
 
-            print(f'Rewards {time_step_rewards.sum()}')
+            if DEBUG:
+                print(f"seed {seed}, step {timestep_counter}, Sim Done: {sim_done}, tokens {ending_tokens.sum()} ")
+                if DEBUG_VERBOSE == 1:
+                    print(f'stops shape {environment.stops.shape}')
+                    print(f'stops all {environment.stops}')
+                    print(f'Rewards {time_step_rewards.sum()}')
 
             # Used to evaluate simulation
             metric = {
