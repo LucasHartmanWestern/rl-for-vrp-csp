@@ -157,7 +157,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     # Return Nx1 charging rate for each car
     return rates_by_car
 
-def update_battery(battery, charge_rate):
+def update_battery(battery, charge_rate, arrived_at_final):
 
     """
     Updates the battery levels of vehicles based on the charging rates.
@@ -165,12 +165,15 @@ def update_battery(battery, charge_rate):
     Parameters:
         battery (torch.Tensor): A tensor containing the current battery levels of the vehicles.
         charge_rate (torch.Tensor): A tensor containing the charging rates for the vehicles.
+        arrived_at_final (torch.Tensor): A tensor of 1s and 0s where 1 indicates the car has reached its final destination
 
     Returns:
         torch.Tensor: A tensor containing the updated battery levels.
     """
 
-    return battery + charge_rate
+    mask = (arrived_at_final - 1) * -1  # Now it's 0 if arrived and 1 otherwise
+
+    return (battery + (charge_rate * mask))[0]
 
 def get_battery_charged(battery, target):
 
@@ -185,7 +188,12 @@ def get_battery_charged(battery, target):
         torch.Tensor: A tensor containing 1s and 0s where 1 indicates the battery level is sufficient and 0 indicates it is not.
     """
     # Return if the battery level is above the needed level to depart from charging station
-    return (battery >= target[:, 0]).int()
+    try:
+        return (battery >= target[:, 0]).int()
+    except Exception as e:
+        print(f"Battery: {battery}")
+        print(f"Target battery: {target}")
+        raise Exception(e)
 
 def move_tokens(tokens, moving, actions, destinations, step_size):
 
@@ -261,10 +269,13 @@ def update_stops(stops, ready_to_leave, dtype):
 
     # I'm not sure how this works tbh...
     updated_stops = torch.matmul((stops * ready_to_leave), transform_matrix) + stops * (1 - ready_to_leave)
-    
+
     # Set rows to zeros if there is only one nonzero element in the row and ready_to_leave is 1
     for i in range(len(stops)):
         if ready_to_leave[i] == 1 and torch.count_nonzero(stops[i]) == 1:
             updated_stops[i] = torch.zeros(K)
-   
+
+    if torch.any(torch.isinf(stops[:, 0])):
+        raise Exception("Infinite battery required!!!")
+
     return updated_stops

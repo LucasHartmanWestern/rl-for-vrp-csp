@@ -117,7 +117,9 @@ class EnvironmentClass:
             prev_step = self.charges_needed[agent_index].shape[0] - 2
 
             for step_index in range(len(stops[agent_index])):
-                if step_index == len(stops[agent_index]) - 1:  # Go to final destination
+                if step_index > len(path):
+                    break
+                elif step_index == len(path):  # Go to final destination
                     stops[agent_index][step_index] = agent_index + 1
                     target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
                 elif len(path) == 0:  # There are no stops to charge at
@@ -132,6 +134,7 @@ class EnvironmentClass:
                     break
                 else:  # Go to stop
                     charger_id = self.unique_chargers[path[step_index]][0]
+
                     try:
                         station_index = station_ids.index(charger_id)
                         station_index += destinations.shape[0] + 1
@@ -145,6 +148,7 @@ class EnvironmentClass:
                     target_battery_level[agent_index][step_index] = self.charges_needed[agent_index][prev_step][self.local_paths[agent_index][step_index]]
                     prev_step = self.local_paths[agent_index][step_index]
 
+        target_battery_level = target_battery_level[:, 1:]  # Ignore the battery it takes to get from the origin to the first stop
         charging_stations = np.array(charging_stations)
 
         if len(charging_stations) != 0:
@@ -184,6 +188,10 @@ class EnvironmentClass:
         actions = self.actions
         moving = self.move
         target_battery_level = self.target_battery_level
+
+        if target_battery_level.size(1) == 0:
+            target_battery_level = torch.zeros(target_battery_level.size(0)).unsqueeze(1)
+
         stops = self.stops
 
         # Pre-process capacity array
@@ -229,9 +237,12 @@ class EnvironmentClass:
             charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity,\
                                                 self.decrease_rates, self.increase_rate, self.dtype)
 
-            # Update the battery level of each car
-            battery = update_battery(battery, charging_rates)
+            # Track which cars have reached their final destination
+            distance_from_final = tokens - destinations[:len(tokens)]
+            arrived_at_final = (distance_from_final[:, 0] == 0) & (distance_from_final[:, 1] == 0).int().unsqueeze(0)
 
+            # Update the battery level of each car
+            battery = update_battery(battery, charging_rates, arrived_at_final)
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
             # Check if the car is at their target battery level
@@ -242,6 +253,12 @@ class EnvironmentClass:
 
             # Charging and not ready to leave
             not_ready_to_leave = arrived - ready_to_leave
+
+            print(f"Battery: {battery}")
+            print(f"Target Battery: {target_battery_level}")
+            print(f"Arrived: {arrived}")
+            print(f"Ready to Leave: {ready_to_leave}")
+            print(f"Not Ready to Leave: {not_ready_to_leave}")
 
             # Update which cars will move
             moving = (not_ready_to_leave - 1) * -1
@@ -272,7 +289,7 @@ class EnvironmentClass:
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
 
-        return done, tokens, battery
+        return done, tokens, battery, not_ready_to_leave
 
     def get_results(self) -> tuple:
         """
@@ -288,17 +305,19 @@ class EnvironmentClass:
         """
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results, self.simulation_reward
 
-    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list):
+    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, still_charging: int):
         """
         Generate paths for the agents based on distribution and fixed attributes.
 
         Parameters:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
+            still_charging (int): 1 if car is still charging and 0 if not
         """
+
         # Generate graph of possible paths from chargers to each other, the origin, and destination
-        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,
-                            self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long)
+        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers, self.agent.org_lat,
+                            self.agent.org_long, self.agent.dest_lat, self.agent.dest_long, still_charging)
         self.charges_needed.append(copy.deepcopy(graph))
 
         # Redefine weights in graph
@@ -314,15 +333,8 @@ class EnvironmentClass:
             # Distance * distance_mult + Traffic * traffic_mult
             graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult
 
-        # Set last column to zero so long as it's not infinity for every row except the last 2
-        mask = (graph[:-2, -1] != np.inf)
-        graph[:-2, -1][mask] = 0
+        path = dijkstra(graph, self.agent.idx)
 
-        if graph[-2, -1] == np.inf:
-            # Solve weighted graph
-            path = dijkstra(graph, self.agent.idx)
-        else:  # If you can reach the destination from starting point then just go there
-            path = []
         self.local_paths.append(copy.deepcopy(path))
 
         # Get stop ids from global list instead of only local to agent

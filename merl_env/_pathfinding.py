@@ -1,6 +1,6 @@
 import numpy as np
 
-def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
+def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging):
     """
     Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
 
@@ -14,6 +14,7 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
         org_long (float): Longitude of the origin.
         dest_lat (float): Latitude of the destination.
         dest_long (float): Longitude of the destination.
+        still_charging (int): 1 if the car was charging in the previous timestep and 0 otherwise
 
     Returns:
         numpy.ndarray: A graph represented as a 2D numpy array where each element represents the distance between points.
@@ -55,8 +56,10 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
 
     # Apply thresholds
     graph[graph > max_soc] = np.inf
-    graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = np.inf  # Origin is capped based on the starting battery
-    graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > start_soc, np.inf, graph[:, len(unique_chargers)])
+
+    if still_charging != 1:  # The car did not end the previous timestep charging (and therefore can remain charging)
+        graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = np.inf  # Origin is capped based on the starting battery
+        graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > start_soc, np.inf, graph[:, len(unique_chargers)])
 
     return graph
 

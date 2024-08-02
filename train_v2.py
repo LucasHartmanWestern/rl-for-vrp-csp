@@ -135,6 +135,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         ending_tokens = None
         ending_battery = None
+        not_ready_to_leave = None
 
         time_start_paths = time.time()
 
@@ -156,8 +157,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx,\
-                                            device, nn_by_zone)  # Get the action values from the agent
+                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx, device, nn_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -168,7 +168,10 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 t3 = time.time()
 
-                environment.generate_paths(distribution, fixed_attributes)
+                if not_ready_to_leave != None:  # Continuing from last timestep
+                    environment.generate_paths(distribution, fixed_attributes, not_ready_to_leave[agent_idx])
+                else:
+                    environment.generate_paths(distribution, fixed_attributes, 0)
 
                 t4 = time.time()
 
@@ -196,9 +199,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, ending_tokens, ending_battery = environment.simulate_routes()
+            sim_done, ending_tokens, ending_battery, not_ready_to_leave = environment.simulate_routes()
 
-            print(f"Sim Done: {sim_done}")
+            print(f"\n\n\n---\n\n\nSim Done: {sim_done}\n\n\n---\n\n\n")
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
