@@ -144,7 +144,7 @@ class EnvironmentClass:
                             stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
                             charging_stations.append(stop)
 
-                        stops[agent_index][(len(path) - 1) - step_index] = station_index
+                        stops[agent_index][step_index] = station_index
                         target_battery_level[agent_index][step_index] = self.charges_needed[agent_index][prev_step][self.local_paths[agent_index][step_index]]
                         prev_step = self.local_paths[agent_index][step_index]
 
@@ -320,7 +320,7 @@ class EnvironmentClass:
 
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers, self.agent.org_lat,
-                            self.agent.org_long, self.agent.dest_lat, self.agent.dest_long, still_charging)
+                            self.agent.org_long, self.agent.dest_lat, self.agent.dest_long, still_charging, self.debug)
         self.charges_needed.append(copy.deepcopy(graph))
 
         if self.debug:
