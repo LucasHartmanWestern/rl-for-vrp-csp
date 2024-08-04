@@ -47,6 +47,7 @@ class EnvironmentClass:
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
+        self.debug = config['debug']
 
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
@@ -118,35 +119,38 @@ class EnvironmentClass:
         for agent_index, path in enumerate(self.paths):
             prev_step = self.charges_needed[agent_index].shape[0] - 2
 
-            for step_index in range(len(stops[agent_index])):
-                if step_index == len(stops[agent_index]) - 1:  # Go to final destination
-                    stops[agent_index][step_index] = agent_index + 1
-                    target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
-                elif len(path) == 0:  # There are no stops to charge at
-                    stops[agent_index][step_index] = agent_index + 1
-                    target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
+            if len(path) == 0:  # There are no stops to charge at
+                stops[agent_index][0] = agent_index + 1
+                target_battery_level[agent_index, 0] = self.charges_needed[agent_index][-2, -1]
 
-                    # Zero out values before and after the current step
-                    stops[agent_index, :step_index] = 0
-                    stops[agent_index, step_index + 1:] = 0
-                    target_battery_level[agent_index, :step_index] = 0
-                    target_battery_level[agent_index, step_index + 1:] = 0
-                    break
-                else:  # Go to stop
-                    charger_id = self.unique_chargers[path[step_index]][0]
-                    try:
-                        station_index = station_ids.index(charger_id)
-                        station_index += destinations.shape[0] + 1
-                    except ValueError:  # Station not in list, so create a new station
-                        station_ids.append(charger_id)
-                        station_index = len(station_ids) + destinations.shape[0]
-                        stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
-                        charging_stations.append(stop)
+                # Zero out values after the current step
+                stops[agent_index, 1:] = 0
+                target_battery_level[agent_index, 1:] = 0
+            else:
+                for step_index in range(len(stops[agent_index])):
+                    if step_index > len(path):
+                        break
+                    elif step_index == len(path):  # Go to final destination
+                        stops[agent_index][step_index] = agent_index + 1
+                        target_battery_level[agent_index, step_index] = self.charges_needed[agent_index][prev_step, -1]
+                    else:  # Go to stop
+                        charger_id = self.unique_chargers[path[step_index]][0]
 
-                    stops[agent_index][step_index] = station_index
-                    target_battery_level[agent_index][step_index] = self.charges_needed[agent_index][prev_step][self.local_paths[agent_index][step_index]]
-                    prev_step = self.local_paths[agent_index][step_index]
+                        try:
+                            station_index = station_ids.index(charger_id)
+                            station_index += destinations.shape[0] + 1
 
+                        except ValueError:  # Station not in list, so create a new station
+                            station_ids.append(charger_id)
+                            station_index = len(station_ids) + destinations.shape[0]
+                            stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
+                            charging_stations.append(stop)
+
+                        stops[agent_index][step_index] = station_index
+                        target_battery_level[agent_index][step_index] = self.charges_needed[agent_index][prev_step][self.local_paths[agent_index][step_index]]
+                        prev_step = self.local_paths[agent_index][step_index]
+
+        target_battery_level = target_battery_level[:, 1:]  # Ignore the battery it takes to get from the origin to the first stop
         charging_stations = np.array(charging_stations)
 
         if len(charging_stations) != 0:
@@ -186,6 +190,10 @@ class EnvironmentClass:
         actions = self.actions
         moving = self.move
         target_battery_level = self.target_battery_level
+
+        if target_battery_level.size(1) == 0:
+            target_battery_level = torch.zeros(target_battery_level.size(0)).unsqueeze(1)
+
         stops = self.stops
 
         # Pre-process capacity array
@@ -228,22 +236,34 @@ class EnvironmentClass:
             traffic_per_charger = torch.cat([traffic_per_charger, traffic_level.cpu().unsqueeze(0)], dim=0)
 
             # Get charging or discharging rate for each car as Nx1 matrix
-            charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity,\
-                                                self.decrease_rates, self.increase_rate, self.dtype)
+            charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, self.decrease_rates, self.increase_rate, self.dtype)
+
+            # Track which cars have reached their final destination
+            distance_from_final = tokens - destinations[:len(tokens)]
+            arrived_at_final = (distance_from_final[:, 0] == 0) & (distance_from_final[:, 1] == 0).int().unsqueeze(0)
 
             # Update the battery level of each car
-            battery = update_battery(battery, charging_rates)
-
+            battery = update_battery(battery, charging_rates, arrived_at_final)
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
             # Check if the car is at their target battery level
-            battery_charged = get_battery_charged(battery, target_battery_level)
+            battery_charged = get_battery_charged(battery, target_battery_level, self.device)
 
             # Charging but ready to leave
             ready_to_leave = battery_charged * arrived
 
             # Charging and not ready to leave
             not_ready_to_leave = arrived - ready_to_leave
+
+            if self.debug:
+                print(f"STOPS:\n{stops}")
+                print(f"TOKENS:\n{tokens}")
+                print(f"DESTINATIONS:\n{destinations}")
+                print(f"BATTERY:\n{battery}")
+                print(f"TARGET BATTERY:\n{target_battery_level}")
+
+            # if torch.any(battery <= 0):
+            #     raise Exception("NEGATIVE BATTERY!")
 
             # Update which cars will move
             moving = (not_ready_to_leave - 1) * -1
@@ -256,8 +276,8 @@ class EnvironmentClass:
             stops[:, 0] += 1
 
             # Change the stops array to shift over the next stop if the token is ready to leave
-            stops = update_stops(stops, ready_to_leave, self.dtype)
-            target_battery_level = update_stops(target_battery_level, ready_to_leave, self.dtype)
+            stops = update_stops(stops, ready_to_leave, self.dtype, self.device)
+            target_battery_level = update_stops(target_battery_level, ready_to_leave, self.dtype, self.device)
 
             # Increase step count
             mini_step_count += 1
@@ -278,7 +298,7 @@ class EnvironmentClass:
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
 
-        return done, tokens, battery
+        return done, tokens, battery, not_ready_to_leave
 
     def get_results(self) -> tuple:
         """
@@ -294,18 +314,24 @@ class EnvironmentClass:
         """
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results, self.simulation_reward
 
-    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list):
+    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, still_charging: int, agent_index: int):
         """
         Generate paths for the agents based on distribution and fixed attributes.
 
         Parameters:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
+            still_charging (int): 1 if car is still charging and 0 if not
         """
+
         # Generate graph of possible paths from chargers to each other, the origin, and destination
-        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,
-                            self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long)
+        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers, self.agent.org_lat,
+                            self.agent.org_long, self.agent.dest_lat, self.agent.dest_long, still_charging, self.debug)
         self.charges_needed.append(copy.deepcopy(graph))
+
+        if self.debug:
+            print("-------------")
+            print(f"{agent_index} - CHARGES NEEDED - {graph}")
 
         # Redefine weights in graph
         for v in range(graph.shape[0] - 2):
@@ -320,20 +346,22 @@ class EnvironmentClass:
             # Distance * distance_mult + Traffic * traffic_mult
             graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult
 
-        # Set last column to zero so long as it's not infinity for every row except the last 2
-        mask = (graph[:-2, -1] != np.inf)
-        graph[:-2, -1][mask] = 0
+        path = dijkstra(graph, self.agent.idx)
 
-        if graph[-2, -1] == np.inf:
-            # Solve weighted graph
-            path = dijkstra(graph, self.agent.idx)
-        else:  # If you can reach the destination from starting point then just go there
-            path = []
+        if self.debug:
+            print(f"{agent_index} - PATH - {path}")
+
         self.local_paths.append(copy.deepcopy(path))
 
         # Get stop ids from global list instead of only local to agent
         stop_ids = np.array([self.agent.unique_traffic[step, 0] for step in path])
-        global_paths = np.where(np.isin(self.traffic[:, 0], stop_ids))[0]
+
+        # Create a dictionary to map stop ids to their indices in self.traffic[:, 0]
+        traffic_dict = {stop_id: idx for idx, stop_id in enumerate(self.traffic[:, 0])}
+
+        # Create global_paths by preserving the order from the original path
+        global_paths = np.array([traffic_dict[stop_id] for stop_id in stop_ids if stop_id in traffic_dict])
+
         self.paths.append(global_paths)
 
         # Update traffic

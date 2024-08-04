@@ -128,7 +128,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
     for i in range(num_episodes):  # For each episode
 
-
         distributions = []
         distributions_unmodified = []
         states = []
@@ -139,12 +138,16 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         ending_tokens = None
         ending_battery = None
+        not_ready_to_leave = None
 
         time_start_paths = time.time()
 
         timestep_counter = 0
 
-        while not sim_done and timestep_counter < environment.max_steps:  # Keep going until every EV reaches its destination
+        while not sim_done:  # Keep going until every EV reaches its destination
+            if timestep_counter >= environment.max_steps:
+                raise Exception("MAX TIME-STEPS EXCEEDED!")
+
             if timestep_counter > 0:
                 environment.clear_paths()  # Clears existing paths
                 environment.update_starting_routes(ending_tokens)  # Sets new routes
@@ -160,8 +163,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx,\
-                                            device, nn_by_zone)  # Get the action values from the agent
+                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx, device, nn_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -172,7 +174,10 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 t3 = time.time()
 
-                environment.generate_paths(distribution, fixed_attributes)
+                if not_ready_to_leave != None:  # Continuing from last timestep
+                    environment.generate_paths(distribution, fixed_attributes, not_ready_to_leave[agent_idx], agent_idx)
+                else:
+                    environment.generate_paths(distribution, fixed_attributes, 0, agent_idx)
 
                 t4 = time.time()
 
@@ -200,7 +205,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, ending_tokens, ending_battery = environment.simulate_routes()
+            sim_done, ending_tokens, ending_battery, not_ready_to_leave = environment.simulate_routes()
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
@@ -312,8 +317,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             if avg_reward > best_avg:
                 best_avg = avg_reward
                 best_paths = paths_copy
-                if verbose:
-                    print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
+                # if verbose:
+                #     print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
             avg_ir = 0
             ir_count = 0
@@ -330,7 +335,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
                     print(f"Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
 
-                print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+                print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - {timestep_counter} Time-steps - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
