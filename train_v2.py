@@ -11,7 +11,7 @@ import collections
 from collections import namedtuple
 from collections import deque
 
-DEBUG = True
+DEBUG = False
 DEBUG_VERBOSE = 0
 
 # Define the experience tuple
