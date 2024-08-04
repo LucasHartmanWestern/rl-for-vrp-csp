@@ -124,7 +124,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
     for i in range(num_episodes):  # For each episode
 
-
         distributions = []
         distributions_unmodified = []
         states = []
@@ -169,9 +168,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 t3 = time.time()
 
                 if not_ready_to_leave != None:  # Continuing from last timestep
-                    environment.generate_paths(distribution, fixed_attributes, not_ready_to_leave[agent_idx])
+                    environment.generate_paths(distribution, fixed_attributes, not_ready_to_leave[agent_idx], agent_idx)
                 else:
-                    environment.generate_paths(distribution, fixed_attributes, 0)
+                    environment.generate_paths(distribution, fixed_attributes, 0, agent_idx)
 
                 t4 = time.time()
 
@@ -200,8 +199,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
             # Run simulation
             sim_done, ending_tokens, ending_battery, not_ready_to_leave = environment.simulate_routes()
-
-            print(f"\n\n\n---\n\n\nSim Done: {sim_done}\n\n\n---\n\n\n")
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()

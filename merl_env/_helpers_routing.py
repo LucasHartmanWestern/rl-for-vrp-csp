@@ -175,7 +175,7 @@ def update_battery(battery, charge_rate, arrived_at_final):
 
     return (battery + (charge_rate * mask))[0]
 
-def get_battery_charged(battery, target):
+def get_battery_charged(battery, target, device):
 
     """
     Determines whether each vehicle's battery level is sufficient to depart from the charging station.
@@ -189,6 +189,9 @@ def get_battery_charged(battery, target):
     """
     # Return if the battery level is above the needed level to depart from charging station
     try:
+        battery = battery.to(device)
+        target = target.to(device)
+
         return (battery >= target[:, 0]).int()
     except Exception as e:
         print(f"Battery: {battery}")
@@ -247,7 +250,7 @@ def move_tokens(tokens, moving, actions, destinations, step_size):
 
     return new_tokens, distance_travelled
 
-def update_stops(stops, ready_to_leave, dtype):
+def update_stops(stops, ready_to_leave, dtype, device):
 
     """
     Updates the stops for each vehicle based on their readiness to leave the current stop.
@@ -266,6 +269,10 @@ def update_stops(stops, ready_to_leave, dtype):
     transform_matrix[torch.arange(1, K), torch.arange(K - 1)] = 1
 
     ready_to_leave = ready_to_leave.reshape(-1, 1)
+
+    stops = stops.to(device)
+    ready_to_leave = ready_to_leave.to(device)
+    transform_matrix = transform_matrix.to(device)
 
     # I'm not sure how this works tbh...
     updated_stops = torch.matmul((stops * ready_to_leave), transform_matrix) + stops * (1 - ready_to_leave)
