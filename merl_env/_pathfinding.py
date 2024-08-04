@@ -54,7 +54,7 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
                 # Calculate Euclidean distance between point i and point j
                 distance = np.linalg.norm(all_points[i] - all_points[j])
                 # Calculate number of steps and store in graph
-                graph[i, j] = (distance / step_size) * usage_per_min
+                graph[i, j] = ((distance / step_size) * usage_per_min) + usage_per_min
 
     # Apply thresholds
     graph[graph > max_soc] = np.inf

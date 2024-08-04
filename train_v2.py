@@ -140,7 +140,10 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         timestep_counter = 0
 
-        while not sim_done and timestep_counter < environment.max_steps:  # Keep going until every EV reaches its destination
+        while not sim_done:  # Keep going until every EV reaches its destination
+            if timestep_counter >= environment.max_steps:
+                raise Exception("MAX TIME-STEPS EXCEEDED!")
+
             if timestep_counter > 0:
                 environment.clear_paths()  # Clears existing paths
                 environment.update_starting_routes(ending_tokens)  # Sets new routes
