@@ -260,8 +260,8 @@ class EnvironmentClass:
                 print(f"BATTERY:\n{battery}")
                 print(f"TARGET BATTERY:\n{target_battery_level}")
 
-            if torch.any(battery <= 0):
-                raise Exception("NEGATIVE BATTERY!")
+            # if torch.any(battery <= 0):
+            #     raise Exception("NEGATIVE BATTERY!")
 
             # Update which cars will move
             moving = (not_ready_to_leave - 1) * -1
