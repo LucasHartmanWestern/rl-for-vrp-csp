@@ -145,9 +145,9 @@ def train_rl_vrp_csp(date, args):
         if eval_c['train_model']:
 
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
+                print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
 
-            print(f"Training using Deep-Q Learning - Seed {seed}")
+            print(f"Training using {algorithm_dm} - Seed {seed}")
 
             metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
