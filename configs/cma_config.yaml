@@ -3,4 +3,8 @@
 
 ############ Hyperparameters ############
 cma_parameters:
-    max_iteractions: 2 #12 #50 # Amount of training episodes per session
+    population_dimension: 25
+    initial_sigma: 0.1
+    max_generations: 10 # Amount of training episodes per session
+    #submodel inside cma agent
+    model_type: 'optimizer'

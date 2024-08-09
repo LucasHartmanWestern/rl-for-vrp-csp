@@ -50,9 +50,9 @@ def train_rl_vrp_csp(date, args):
     if algorithm_dm == "DQN":
         c = load_config_file('configs/neural_network_config.yaml')
         num_episodes = c['nn_hyperparameters']['num_episodes']
-    elif algorithm_dm == 'cma_optimizer':
+    elif algorithm_dm == 'CMA_optimizer':
         c = load_config_file('configs/cma_config.yaml')
-        num_episodes = c['cma_parameters']['max_iteractions']
+        num_episodes = c['cma_parameters']['max_generations']
 
     
 
@@ -282,8 +282,11 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         if algorithm_dm == 'DQN':
             from train_dqn import train_dqn as train
             
-        elif algorithm_dm == 'cma_optimizer':
+        elif algorithm_dm == 'CMA_optimizer':
             from train_cma import train_cma as train
+        
+        else:
+            raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
             
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
                 train(chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
