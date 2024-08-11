@@ -46,6 +46,7 @@ class EnvironmentClass:
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
+        self.state_dim = (self.num_of_chargers * 3 * 2) + 4
 
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
@@ -304,7 +305,7 @@ class EnvironmentClass:
                 - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
                 - battery_levels (list): List of battery levels at each timestep.
                 - distances_per_car (list): List of distances traveled by each token at each timestep.
-                - simulation_rewards (float): Reward for the simulation.
+                - simulats (float): Reward for the simulation.
         """
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results, self.simulation_reward
 
@@ -372,7 +373,10 @@ class EnvironmentClass:
         Returns:
             np.ndarray: State array for the agent.
         """
-        agent_chargers = self.chargers[agent_idx, :, 0]
+        if is_odt:
+            agent_chargers = self.chargers[agent_idx, 0, :]
+        else:
+            agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
         agent_unique_traffic = np.array([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers])
 
