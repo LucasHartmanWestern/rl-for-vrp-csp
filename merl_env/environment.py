@@ -260,8 +260,8 @@ class EnvironmentClass:
                 print(f"BATTERY:\n{battery}")
                 print(f"TARGET BATTERY:\n{target_battery_level}")
 
-            # if torch.any(battery <= 0):
-            #     raise Exception("NEGATIVE BATTERY!")
+            if torch.any(battery <= 0):
+                raise Exception("NEGATIVE BATTERY!")
 
             # Update which cars will move
             moving = (not_ready_to_leave - 1) * -1
@@ -280,7 +280,7 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if max(stops[:, 0]) <= 0:
+            if min(arrived_at_final[:, 0]) == 1:
                 done = True
 
         # Calculate reward as -(distance * 100 + peak traffic)
