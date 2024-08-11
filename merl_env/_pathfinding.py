@@ -1,6 +1,6 @@
 import numpy as np
 
-def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long):
+def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging, debug):
     """
     Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
 
@@ -14,6 +14,7 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
         org_long (float): Longitude of the origin.
         dest_lat (float): Latitude of the destination.
         dest_long (float): Longitude of the destination.
+        still_charging (int): 1 if the car was charging in the previous timestep and 0 otherwise
 
     Returns:
         numpy.ndarray: A graph represented as a 2D numpy array where each element represents the distance between points.
@@ -39,6 +40,8 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
     charger_locs = np.array([(lat, lon) for _, lat, lon in unique_chargers])
     all_points = np.vstack((charger_locs, [org_lat, org_long], [dest_lat, dest_long]))
 
+    if debug:
+        print(f"{agent_index} - ALL POINTS - {all_points}")
 
     # Initialize graph matrix
     num_points = len(all_points)
@@ -51,10 +54,11 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
                 # Calculate Euclidean distance between point i and point j
                 distance = np.linalg.norm(all_points[i] - all_points[j])
                 # Calculate number of steps and store in graph
-                graph[i, j] = (distance / step_size) * usage_per_min
+                graph[i, j] = ((distance / step_size) * usage_per_min) + usage_per_min
 
     # Apply thresholds
     graph[graph > max_soc] = np.inf
+
     graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = np.inf  # Origin is capped based on the starting battery
     graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > start_soc, np.inf, graph[:, len(unique_chargers)])
 

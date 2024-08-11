@@ -71,6 +71,7 @@ def train_rl_vrp_csp(date, args):
     elif (n_gpus > 1) & (n_gpus < torch.cuda.device_count()+1):
         gpus = [f'cuda:{args.list_gpus[i]}' for i in range(n_gpus)]
         print(f'Woring with {n_gpus} GPUs, with following configuration for zones and devices:')
+    
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
 
@@ -101,6 +102,7 @@ def train_rl_vrp_csp(date, args):
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
+    
         
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
@@ -154,6 +156,8 @@ def train_rl_vrp_csp(date, args):
                 return
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
+
+            print(f"Training using Deep-Q Learning - Seed {seed}")
 
             print(f"Training using Deep-Q Learning - Seed {seed}")
 
@@ -248,9 +252,6 @@ def train_rl_vrp_csp(date, args):
         else:
             user_input = 'Done'
 
-        traj_format = format_data(trajectories)
-        #traj_format = trajectories
-
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -259,7 +260,6 @@ def train_rl_vrp_csp(date, args):
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
-
 
 def train_route(chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, sub_seed, main_seed, epsilon, epsilon_decay,
@@ -339,7 +339,6 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         raise
-
 
 if __name__ == '__main__':
 

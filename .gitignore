@@ -179,3 +179,7 @@ cython_debug/
 /logs
 /saved_networks
 /metrics
+/data
+/logs
+/logs
+/outputs

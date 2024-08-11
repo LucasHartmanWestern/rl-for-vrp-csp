@@ -4,7 +4,7 @@
 ############ Environment Settings ############
 environment_settings:
     seeds: [1234] # Used for reproducibility
-    num_of_agents: 50 # Num of cars in simulation
+    num_of_agents: 100 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
 
     # Coordinates of city regions in London
@@ -16,7 +16,7 @@ environment_settings:
         - [42.9819404397449, -81.2508736429095] # Central London
     
     radius: 20 # Max radius of the circle containing the entire trip
-    starting_charge: 4000 # 4kw starting charge
+    starting_charge: 6000 # 6kw base starting charge
 
     models: ['Tesla Model Y', 'BYD Song', 'Tesla Model 3'] # The 3 most popular EV models
     usage_per_hour: [9840, 8460, 9360] # Average usage per hour for each model in Wh/60 km
@@ -25,3 +25,5 @@ environment_settings:
     increase_rate: 12500 
     max_sim_steps: 500
     max_mini_sim_steps: 10
+
+    debug: False

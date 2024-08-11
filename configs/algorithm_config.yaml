@@ -76,6 +76,3 @@ algorithm_settings:
     target_entropy: True
     stochastic_tanh: True
     approximate_entropy_samples: 1000
-
-    
-
