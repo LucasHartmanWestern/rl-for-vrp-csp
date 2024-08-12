@@ -4,7 +4,7 @@
 ############ Algorithm ############
 
 algorithm_settings:
-    algorithm: 'ODT' # Select 'DQN' or 'ODT'
+    algorithm: 'DQN' # Select 'DQN' or 'ODT'
 
     #ODT Configurations Offline
     # env: 'hopper'
@@ -43,36 +43,36 @@ algorithm_settings:
 
 
     # #ODT Configurations Online
-    env: 'hopper'
-    dataset: '[2020]-4-2-1-10-20240716_115723'
-    mode: 'normal'
-    K: 20
-    pct_traj: 1.0
-    batch_size: 256
-    model_type: 'dt'
-    embed_dim: 128
-    n_layer: 3
-    n_head: 1
-    activation_function: 'relu'
-    dropout: 0.1
-    learning_rate: 0.0001
-    weight_decay: 0.0001
-    warmup_steps: 10000
-    num_eval_episodes: 50
-    max_iters: 2
-    num_steps_per_iter: 300
-    device: 'cuda:1'
-    log_to_wandb: True
-    save_model: False
-    pretrained_model: './saved_networks/dt_[2020]-4-2-1-10-20240716_115723-927347.pt'
-    stochastic: True
-    use_entropy: False
-    use_action_means: True
-    online_training: True
-    online_buffer_size: 1000
-    eval_only: False
-    remove_pos_embs: False
-    eval_context: 5
-    target_entropy: True
-    stochastic_tanh: True
-    approximate_entropy_samples: 1000
+    # env: 'hopper'
+    # dataset: '[2020]-4-2-1-10-20240716_115723'
+    # mode: 'normal'
+    # K: 20
+    # pct_traj: 1.0
+    # batch_size: 256
+    # model_type: 'dt'
+    # embed_dim: 128
+    # n_layer: 3
+    # n_head: 1
+    # activation_function: 'relu'
+    # dropout: 0.1
+    # learning_rate: 0.0001
+    # weight_decay: 0.0001
+    # warmup_steps: 10000
+    # num_eval_episodes: 50
+    # max_iters: 2
+    # num_steps_per_iter: 300
+    # device: 'cuda:1'
+    # log_to_wandb: True
+    # save_model: False
+    # pretrained_model: './saved_networks/dt_[2020]-4-2-1-10-20240716_115723-927347.pt'
+    # stochastic: True
+    # use_entropy: False
+    # use_action_means: True
+    # online_training: True
+    # online_buffer_size: 1000
+    # eval_only: False
+    # remove_pos_embs: False
+    # eval_context: 5
+    # target_entropy: True
+    # stochastic_tanh: True
+    # approximate_entropy_samples: 1000

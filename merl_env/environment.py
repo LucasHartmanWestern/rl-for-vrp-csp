@@ -363,7 +363,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, is_odt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
