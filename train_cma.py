@@ -117,10 +117,15 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             # Once all cars have routes, simulate routes in environment and get results
             environment.simulate_routes()
             _, _, _, _, rewards = environment.get_results()  # Retrieve rewards
-            fitnesses[pop_idx] = -1 * rewards.mean() if agent_by_zone else -1 * rewards  # Calculate fitness
+            # fitnesses[pop_idx] = -1 * rewards.mean() if agent_by_zone else -1 * rewards  # Calculate fitness
+            if agent_by_zone:
+                fitnesses[pop_idx] = -1 * rewards.mean()
+            else:
+                fitnesses[pop_idx] =  np.array(-1 * rewards.mean())*num_cars
 
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
+            # agent.es.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
             agent.es.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
 
         # Get rewards with best solutions after evolving population
@@ -153,7 +158,9 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             best_paths = copy.deepcopy(environment.paths)
             best_actions = [agent.actions for agent in cma_agents_list]
             if verbose:
-                print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
+                to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation} - New Best: {best_avg:.3f}')
+                print_log(to_print, date, None)
+                # print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
         avg_output_values[generation] = generation_weights.mean(axis=0)  # Store the average weights for the generation
 
@@ -161,7 +168,7 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
 
     # Retrieve and print results for the best population after evolution
     sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.get_results()
-    print(f'Rewards for population evolution: {rewards.mean()} after {cma_info.max_generation} generations')
+    print(f'Rewards for population evolution: {rewards.mean():.3f} after {cma_info.max_generation} generations')
 
     # Save the trained models to disk
     folder_path = 'saved_networks'
@@ -172,8 +179,11 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
     for idx, agent in enumerate(cma_agents_list):
         agent.save_model(f'{fname}_agent{idx}.pkl')  # Save each agent's model
 
-    et = time.time() - start_time  # Calculate total elapsed time for training
-
+    elapsed_time = time.time() - start_time  # Calculate total elapsed time for training
+    # if verbose:
+    #     to_print = (f' Finish Zone: {zone_index + 1} Best reward: {best_avg:.3f}')
+    #     print_log(to_print, date, elapsed_time)
+    
     # Used to evaluate simulation
     metric = {
         "zone": zone_index,
@@ -183,7 +193,8 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
         "traffic": sim_traffic,
         "batteries": sim_battery_levels,
         "distances": sim_distances,
-        "rewards": rewards
+        "rewards": rewards,
+        "best_reward": best_avg
     }
     metrics.append(metric)
 
@@ -213,7 +224,10 @@ def print_log(label, date, et):
         date (str): The current date.
         et (float): Elapsed time since the start of training.
     """
-    to_print = f"{label}\t - et {int(et // 60) % 60}:{int(et % 60)}.{int((et * 1000) % 1000)}"
+    if et != None:
+        to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
+    else:
+        to_print = label
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(to_print, file=file)
     print(to_print)

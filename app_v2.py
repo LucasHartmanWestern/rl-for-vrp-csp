@@ -188,6 +188,15 @@ def train_rl_vrp_csp(date, args):
                 for process in processes:
                     process.join()
 
+                rewards = []
+                for metric in process_metrics:
+                    metric = metric[0]
+                    to_print = 'Zone {} reward proccess {:.3f} for aggregation: {}, best avg reward: {:.3f}'.\
+                        format(metric['zone']+1, metric['rewards'][-1], metric['aggregation']+1, metric['best_reward'])
+                    print(to_print)
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(to_print, file=file)
+                
                 print("Join Weights")
 
                 # Aggregate the weights from all local models
@@ -229,17 +238,25 @@ def train_rl_vrp_csp(date, args):
 
         # Save all metrics from training into a file
         if eval_c['save_data'] and eval_c['train_model']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes,\
+                     f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
         # Generate the plots for the various metrics
         if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes,\
+                     f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
         if num_episodes != 1 and eval_c['continue_training']:
             user_input = input("More Episodes? ")
         else:
             user_input = 'Done'
 
+        et = time.time() - start_time
+        to_print = f"Total time elapsed for this run - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
+
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(to_print, file=file)
+        
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             dataset_path = f'data/offline-data.pkl'
@@ -301,12 +318,12 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         trajectories.append(trajectories_per)
         et = time.time() - st
 
-        if verbose:
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                # Print saving time with 3 decimal places
-                print(f'Spent {et:.3f} seconds saving results', file=file)
+        # if verbose:
+        #     with open(f'logs/{date}-training_logs.txt', 'a') as file:
+        #         # Print saving time with 3 decimal places
+        #         print(f'Spent {et:.3f} seconds saving results', file=file)
                 
-            print(f'Spent {et:.3f} seconds saving results') 
+        #     print(f'Spent {et:.3f} seconds saving results') 
 
         local_weights_list[ind] = local_weights_per_agent
 
