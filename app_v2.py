@@ -13,7 +13,7 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
-from train_odt import train_odt, format_data
+# from train_odt import train_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass

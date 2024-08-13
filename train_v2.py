@@ -1,16 +1,13 @@
 import torch
 import torch.optim as optim
 import numpy as np
-from collections import namedtuple
+import collections
+from collections import namedtuple, deque
 import os
-from collections import deque
 import time
 import copy
 
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
-
-import collections
-
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
@@ -80,6 +77,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     optimizers = []
 
     if nn_by_zone:  # Use same NN for each zone
+        num_agents = 1
         # Initialize networks
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
@@ -95,7 +93,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         optimizers.append(optimizer)
 
     else:  # Assign unique NN for each agent
-        for agent_ind in range(environment.num_of_agents):
+        num_agents = environment.num_of_agents
+        for agent_ind in range(num_agents):
             # Initialize networks
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
 
@@ -104,15 +103,14 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
             optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
-
             # Store individual networks
             q_networks.append(q_network)
             target_q_networks.append(target_q_network)
             optimizers.append(optimizer)
 
-    random_threshold = dqn_rng.random((num_episodes, environment.num_of_agents))
+    random_threshold = dqn_rng.random((num_episodes, num_agents))
 
-    buffers = [deque(maxlen=buffer_limit) for _ in range(environment.num_of_agents)]  # Initialize replay buffer with fixed size
+    buffers = [deque(maxlen=buffer_limit) for _ in range(num_agents)]  # Initialize replay buffer with fixed size
 
     trajectories = []
     
@@ -149,10 +147,11 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             if timestep_counter > 0:
                 environment.clear_paths()  # Clears existing paths
                 environment.update_starting_routes(ending_tokens)  # Sets new routes
-                environment.update_starting_battery(ending_battery)  # Sets starting battery to ending battery of last timestep
+                environment.update_starting_battery(ending_battery)  # Sets starting battery to 
+                                                                     # ending battery of last timestep
 
             # Build path for each EV
-            for agent_idx in range(environment.num_of_agents): # For each agent
+            for agent_idx in range(num_agents): # For each agent
                 ########### Starting environment rutting
                 state = environment.reset_agent(agent_idx)
                 states.append(state)  # Track states
@@ -161,7 +160,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx, device, nn_by_zone)  # Get the action values from the agent
+                action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
+                                            agent_idx, device, nn_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -173,7 +173,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 t3 = time.time()
 
                 if not_ready_to_leave != None:  # Continuing from last timestep
-                    environment.generate_paths(distribution, fixed_attributes, not_ready_to_leave[agent_idx], agent_idx)
+                    environment.generate_paths(distribution, fixed_attributes, \
+                                               not_ready_to_leave[agent_idx], agent_idx)
                 else:
                     environment.generate_paths(distribution, fixed_attributes, 0, agent_idx)
 
@@ -193,7 +194,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
             # Calculate the average values of the output neurons for this episode
             episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
+            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num,\
+                                      zone_index, main_seed))
 
             time_end_paths = time.time() - time_start_paths
 
@@ -230,7 +232,9 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d % environment.num_of_agents].append(experience(states[d], distributions_unmodified[d], rewards[d], states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+            buffers[d % num_agents].append(experience(states[d], distributions_unmodified[d], rewards[d],\
+                                                states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
+                                                                     done))  # Store experience
 
             # Offline data recording for ODT
             if save_offline_data:
@@ -248,7 +252,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
         trained = False
 
-        for agent_ind in range(environment.num_of_agents):
+        for agent_ind in range(num_agents):
 
             if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
 
@@ -259,9 +263,11 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 # Update networks
                 if nn_by_zone:
-                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0], optimizers[0], device)
+                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
+                                optimizers[0], device)
                 else:
-                    agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device)
+                    agent_learn(experiences, discount_factor, q_networks[agent_ind], \
+                                target_q_networks[agent_ind], optimizers[agent_ind], device)
         
         et = time.time() - st
 
@@ -286,7 +292,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
                 save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
             else:
-                for agent_ind in range(environment.num_of_agents):
+                for agent_ind in range(num_agents):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
 
                     # Add this before you save your model
@@ -295,7 +301,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                     # Save the networks at the end of training
                     save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(target_q_networks[agent_ind], \
+                               f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
         # Log every ith episode
         if i % 1 == 0:
@@ -319,22 +326,24 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                     ir_count += 1
             avg_ir /= ir_count
 
-            elapsed_time = time.time() - start_time
+            et = time.time() - start_time
 
             # Open the file in write mode (use 'a' for append mode)
             if verbose:
+                to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
+                f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
+                f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
+                f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
                 with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"Average Reward {round(avg_reward, 3)} - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}", file=file)
+                    print(to_print, file=file)
 
-                print(f"Aggregation: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s - Average Reward {round(avg_reward, 3)} - {timestep_counter} Time-steps - Average IR {round(avg_ir, 3)} - Epsilon: {round(epsilon, 3)}")
+                print(to_print)
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
-
-    #print(f'Trajectories {trajectories}')
 
     return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories
 
 
-def print_time(label,time):
+def print_time(label, time):
     print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
     
