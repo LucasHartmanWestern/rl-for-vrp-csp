@@ -281,8 +281,11 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if min(arrived_at_final[:, 0]) == 1:
+            if torch.all(arrived_at_final == 1):
                 done = True
+
+
+        print(f' Sim Done: {done}, Arrived: {arrived_at_final}
 
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
@@ -293,7 +296,7 @@ class EnvironmentClass:
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
 
-        return done, tokens, battery, not_ready_to_leave
+        return done, tokens, battery, not_ready_to_leave, arrived_at_final
 
     def get_results(self) -> tuple:
         """

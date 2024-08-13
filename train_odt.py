@@ -11,6 +11,7 @@ from decision_transformer.models.decision_transformer import DecisionTransformer
 #from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
+from collections import defaultdict
 
 def train_odt(
     device,
@@ -403,34 +404,27 @@ def train_odt(
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
 
 def format_data(data):
-    consolidated_dict = {
-        'observations': [],
-        'actions': [],
-        'rewards': [],
-        'terminals': []
-    }
+    # Initialize a defaultdict to aggregate data by unique identifiers
+    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_num': None})
     
-    # Iterate through each sublist and each defaultdict to combine data
+    # Iterate over each data entry to aggregate the data
     for sublist in data:
-        for dd in sublist:
-            for key in consolidated_dict.keys():
-                # Append each array to the corresponding key 
-                if key in dd:
-                    consolidated_dict[key].append(dd[key])
-
-    for key in ['observations', 'actions', 'rewards']:
-        consolidated_dict[key] = np.array(consolidated_dict[key], dtype=np.float32)
+        for entry in sublist:
+            # Unique identifier for each car's trajectory
+            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_num'])
+            
+            # Aggregate data for this car's trajectory
+            trajectories[identifier]['observations'].extend(entry['observations'])
+            trajectories[identifier]['actions'].extend(entry['actions'])
+            trajectories[identifier]['rewards'].extend(entry['rewards'])
+            trajectories[identifier]['terminals'].extend(entry['terminals'])
+            trajectories[identifier]['terminals_car'].extend(entry['terminals_car'])  # Aggregate terminals_car
+            trajectories[identifier]['zone'] = entry['zone']
+            trajectories[identifier]['aggregation'] = entry['aggregation']
+            trajectories[identifier]['episode'] = entry['episode']
+            trajectories[identifier]['car_num'] = entry['car_num']
     
-    consolidated_dict['terminals'] = np.array(consolidated_dict['terminals'], dtype=bool)
+    # Convert the defaultdict to a list of dictionaries
+    formatted_trajectories = list(trajectories.values())
     
-    list_of_dicts = []
-    for i in range(len(consolidated_dict['observations'])):
-        list_of_dicts.append(
-            {
-                'observations': consolidated_dict['observations'][i],
-                'actions': consolidated_dict['actions'][i],
-                'rewards': consolidated_dict['rewards'][i],
-                'terminals': consolidated_dict['terminals'][i]
-            }
-        )
-    return list_of_dicts
+    return formatted_trajectories
