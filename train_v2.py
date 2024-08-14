@@ -8,14 +8,15 @@ import time
 import copy
 
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
+from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
-    buffer_limit, layers, device, fixed_attributes=None, verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
+    seed, main_seed, device, fixed_attributes=None, verbose=False, display_training_times=False, 
+          dtype=torch.float32, nn_by_zone=False, save_offline_data=False
 ):
 
     """
@@ -32,14 +33,6 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         zone_index (int): Index of the current zone being processed.
         seed (int): Seed for reproducibility of training.
         main_seed (int): Main seed for initializing the environment.
-        epsilon (float): Initial exploration rate for epsilon-greedy policy.
-        epsilon_decay (float): Decay rate for the exploration rate.
-        discount_factor (float): Discount factor for future rewards.
-        learning_rate (float): Learning rate for the optimizer.
-        num_episodes (int): Number of training episodes.
-        batch_size (int): Size of the mini-batch for experience replay.
-        buffer_limit (int): Maximum size of the experience replay buffer.
-        layers (list, optional): List of integers defining the architecture of the neural networks.
         fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
         devices (list, optional): list of two devices to run the environment and model, default both are cpu. 
                                  device[0] for environment setting, device[1] for model trainning.
@@ -54,7 +47,20 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             - List of average rewards for each episode.
             - List of average output values for each episode.
     """
+    # Getting Neural Network parameters
+    nn_config_fname = 'configs/neural_network_config.yaml'
+    c = load_config_file(nn_config_fname)
+    nn_c = c['nn_hyperparameters']
 
+    epsilon = nn_c['epsilon']
+    epsilon_decay =  nn_c['epsilon_decay']
+    discount_factor = nn_c['discount_factor']
+    learning_rate= nn_c['learning_rate']
+    num_episodes = nn_c['num_episodes']
+    batch_size   = int(nn_c['batch_size'])
+    buffer_limit = int(nn_c['buffer_limit'])
+    layers = nn_c['layers']
+    
     avg_rewards = []
 
     # Carry over epsilon from last aggregation
@@ -128,27 +134,18 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         distributions_unmodified = []
         states = []
         rewards = []
-        environment.reset_episode(chargers, routes, unique_chargers)  # Episode includes every car reaching their destination
+        # Episode includes every car reaching their destination
+        environment.reset_episode(chargers, routes, unique_chargers)  
 
         sim_done = False
-
-        ending_tokens = None
-        ending_battery = None
-        not_ready_to_leave = None
 
         time_start_paths = time.time()
 
         timestep_counter = 0
 
         while not sim_done:  # Keep going until every EV reaches its destination
-            if timestep_counter >= environment.max_steps:
-                raise Exception("MAX TIME-STEPS EXCEEDED!")
 
-            if timestep_counter > 0:
-                environment.clear_paths()  # Clears existing paths
-                environment.update_starting_routes(ending_tokens)  # Sets new routes
-                environment.update_starting_battery(ending_battery)  # Sets starting battery to 
-                                                                     # ending battery of last timestep
+            environment.init_routing()
 
             # Build path for each EV
             for agent_idx in range(num_agents): # For each agent
@@ -172,11 +169,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 t3 = time.time()
 
-                if not_ready_to_leave != None:  # Continuing from last timestep
-                    environment.generate_paths(distribution, fixed_attributes, \
-                                               not_ready_to_leave[agent_idx], agent_idx)
-                else:
-                    environment.generate_paths(distribution, fixed_attributes, 0, agent_idx)
+                environment.generate_paths(distribution, fixed_attributes, agent_idx)
 
                 t4 = time.time()
 
@@ -205,7 +198,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, ending_tokens, ending_battery, not_ready_to_leave = environment.simulate_routes()
+            sim_done = environment.simulate_routes()
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
@@ -227,6 +220,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             metrics.append(metric)
 
             timestep_counter += 1  # Next timestep
+            if timestep_counter >= environment.max_steps:
+                raise Exception("MAX TIME-STEPS EXCEEDED!")
 
         ########### STORE EXPERIENCES ###########
 
@@ -310,7 +305,8 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             for reward in rewards:
                 avg_reward += reward
             avg_reward /= len(rewards)
-            avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) # Track rewards over aggregation steps
+            # Track rewards over aggregation steps
+            avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
             if avg_reward > best_avg:
                 best_avg = avg_reward

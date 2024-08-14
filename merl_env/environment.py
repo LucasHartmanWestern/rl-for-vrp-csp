@@ -47,6 +47,7 @@ class EnvironmentClass:
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
         self.state_dim = (self.num_of_chargers * 3 * 2) + 4
+        self.charging_status = np.zeros(self.num_of_agents)
 
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
@@ -109,7 +110,8 @@ class EnvironmentClass:
         destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in self.routes])
         destinations = torch.tensor(destinations, dtype=self.dtype, device=self.device)
 
-        stops = torch.zeros((destinations.shape[0], max(len(path) for path in self.paths) + 1), dtype=self.dtype, device=self.device)
+        stops = torch.zeros((destinations.shape[0], max(len(path) for path in self.paths) + 1),\
+                            dtype=self.dtype, device=self.device)
         target_battery_level = torch.zeros_like(stops, device=self.device)
 
         charging_stations = []
@@ -142,7 +144,8 @@ class EnvironmentClass:
                         except ValueError:  # Station not in list, so create a new station
                             station_ids.append(charger_id)
                             station_index = len(station_ids) + destinations.shape[0]
-                            stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]  # Lat and long of charging station
+                            # Lat and long of charging station
+                            stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]                        
                             charging_stations.append(stop)
 
                         stops[agent_index][step_index] = station_index
@@ -220,7 +223,8 @@ class EnvironmentClass:
 
             # Track token position at each timestep and how far they traveled
             paths = torch.cat([paths, tokens.cpu().unsqueeze(0)], dim=0)
-            distances_per_car = torch.cat([distances_per_car, distance_travelled.cpu().unsqueeze(0) + distances_per_car[-1, :]], dim=0)
+            distances_per_car = torch.cat([distances_per_car, distance_travelled.cpu().unsqueeze(0) +\
+                                           distances_per_car[-1, :]], dim=0)
 
             # Get Nx1 matrix of distances
             distances = get_distance(tokens, destinations, actions)
@@ -235,7 +239,8 @@ class EnvironmentClass:
             traffic_per_charger = torch.cat([traffic_per_charger, traffic_level.cpu().unsqueeze(0)], dim=0)
 
             # Get charging or discharging rate for each car as Nx1 matrix
-            charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, self.decrease_rates, self.increase_rate, self.dtype)
+            charging_rates = get_charging_rates(stops, traffic_level, arrived, capacity, self.decrease_rates,\
+                                                self.increase_rate, self.dtype)
 
             # Track which cars have reached their final destination
             distance_from_final = tokens - destinations[:len(tokens)]
@@ -252,7 +257,7 @@ class EnvironmentClass:
             ready_to_leave = battery_charged * arrived
 
             # Charging and not ready to leave
-            not_ready_to_leave = arrived - ready_to_leave
+            charging_status = arrived - ready_to_leave
 
             if self.debug:
                 print(f"STOPS:\n{stops}")
@@ -265,7 +270,7 @@ class EnvironmentClass:
                 raise Exception("NEGATIVE BATTERY!")
 
             # Update which cars will move
-            moving = (not_ready_to_leave - 1) * -1
+            moving = (charging_status - 1) * -1
 
             # Zero-out tokens that are already at their stop
             diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in stops[:, 0]],\
@@ -288,12 +293,16 @@ class EnvironmentClass:
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
 
         # Save results in class
+        self.tokens = tokens
+        self.new_starting_battery = battery
+        self.charging_status = charging_status #still_status: 1 if car is still charging and 0 if not
         self.path_results = paths.numpy()
         self.traffic_results = traffic_per_charger.numpy()
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
+        
 
-        return done, tokens, battery, not_ready_to_leave
+        return done
 
     def get_results(self) -> tuple:
         """
@@ -307,21 +316,22 @@ class EnvironmentClass:
                 - distances_per_car (list): List of distances traveled by each token at each timestep.
                 - simulats (float): Reward for the simulation.
         """
-        return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results, self.simulation_reward
+        return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
+                self.simulation_reward
 
-    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, still_charging: int, agent_index: int):
+    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, agent_index: int):
         """
         Generate paths for the agents based on distribution and fixed attributes.
 
         Parameters:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
-            still_charging (int): 1 if car is still charging and 0 if not
         """
 
         # Generate graph of possible paths from chargers to each other, the origin, and destination
-        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers, self.agent.org_lat,
-                            self.agent.org_long, self.agent.dest_lat, self.agent.dest_long, still_charging, self.debug)
+        graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,\
+                            self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long,\
+                            self.charging_status[agent_index], self.debug)
         self.charges_needed.append(copy.deepcopy(graph))
 
         if self.debug:
@@ -396,33 +406,36 @@ class EnvironmentClass:
                                 agent_unique_chargers, agent_unique_traffic)
         return state
 
-    def clear_paths(self):
+    def init_routing(self):
+        # Clearing paths
         self.paths = []
         self.charges_needed = []
         self.local_paths = []
 
-    def update_starting_routes(self, new_starting_positions):
-        # Convert new_starting_positions tensor to a Python list
-        new_starting_positions = new_starting_positions.tolist()
+        # Update starting routes
+        if self.tokens != None:
+            # Convert new_starting_positions tensor to a Python list
+            new_starting_positions = self.tokens.tolist()
+            
+            # Iterate through each route and update the starting positions
+            new_routes = []
+            for i, route in enumerate(self.routes):
+                if i < len(new_starting_positions):
+                    # Update starting latitude and longitude
+                    new_start_lat = new_starting_positions[i][0]
+                    new_start_lon = new_starting_positions[i][1]
+                    updated_route = [new_start_lat, new_start_lon, route[2], route[3]]
+                    new_routes.append(updated_route)
+                else:
+                    # If there are more routes than positions, keep the original route
+                    new_routes.append(route)
+    
+            # Update self.routes with the new starting positions
+            self.routes = new_routes
 
-        # Iterate through each route and update the starting positions
-        new_routes = []
-        for i, route in enumerate(self.routes):
-            if i < len(new_starting_positions):
-                # Update starting latitude and longitude
-                new_start_lat = new_starting_positions[i][0]
-                new_start_lon = new_starting_positions[i][1]
-                updated_route = [new_start_lat, new_start_lon, route[2], route[3]]
-                new_routes.append(updated_route)
-            else:
-                # If there are more routes than positions, keep the original route
-                new_routes.append(route)
+            # Sets starting battery to ending battery of last timestep
+            self.info['starting_charge'] = self.new_starting_battery.cpu()
 
-        # Update self.routes with the new starting positions
-        self.routes = new_routes
-
-    def update_starting_battery(self, new_starting_battery):
-        self.info['starting_charge'] = new_starting_battery.cpu()
 
     def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray):
         """
@@ -436,6 +449,7 @@ class EnvironmentClass:
         self.paths = []
         self.charges_needed = []
         self.local_paths = []
+        self.tokens = None
 
         traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
         traffic[:, 0] = unique_chargers['id']

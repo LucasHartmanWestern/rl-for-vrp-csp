@@ -4,7 +4,18 @@
 ############ Algorithm ############
 
 algorithm_settings:
-    algorithm: 'DQN' # Select 'DQN' or 'ODT'
+    #Currently available options DQN, CMA_optimizer, ODT 
+    algorithm:  'DQN'
+    # Decision making agent definition
+    agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
+
+federated_learning_settings:
+    aggregation_count: 2 # Amount of aggregation steps for federated learning
+    
+    # Multipliers to control aggregation
+    city_multiplier: 0.15 # Importance of city-wide average
+    zone_multiplier: 0.35 # Importance of zone-wide average
+    model_multiplier: 0.50 # Importance of model-wide average
 
     #ODT Configurations Offline
     # env: 'hopper'
