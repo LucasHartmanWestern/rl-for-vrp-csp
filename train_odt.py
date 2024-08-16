@@ -21,8 +21,8 @@ def train_odt(
     act_dim,
     fixed_attributes,
     variant ,
-    exp_prefix = 'placeholder',
-    max_ep_len=1
+    exp_prefix='placeholder',
+    max_ep_len=10
 ):
     
     def discount_cumsum(x, gamma):
@@ -65,7 +65,7 @@ def train_odt(
             path['rewards'][:-1] = 0.
         states.append(path['observations'])
         traj_lens.append(len(path['observations']))
-        returns.append(path['rewards'].sum())
+        returns.append(sum(path['rewards']))
     traj_lens, returns = np.array(traj_lens), np.array(returns)
 
     # used for input normalization
@@ -133,19 +133,24 @@ def train_odt(
                 traj = trajectories[batch_inds[i]]
             else:
                 traj = trajectories[int(sorted_inds[batch_inds[i]])]
-                
-            si = random.randint(0, traj['rewards'].shape[0] - 1)          
+
+            rewards = np.array(traj['rewards'])
+            observations = np.array(traj['observations'])
+            actions = np.array(traj['actions'])
+            terminals = np.array(traj['terminals'])
+            
+            si = random.randint(0, rewards.shape[0] - 1)          
             # get sequences from dataset
-            s.append(traj['observations'][si:si + max_len].reshape(1, -1, env.state_dim))
-            a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
-            r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
+            s.append(observations[si:si + max_len].reshape(1, -1, env.state_dim))
+            a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
+            r.append(rewards[si:si + max_len].reshape(1, -1, 1))
             if 'terminals' in traj:
-                d.append(traj['terminals'][si:si + max_len].reshape(1, -1))
+                d.append(terminals[si:si + max_len].reshape(1, -1))
             else:
                 d.append(traj['dones'][si:si + max_len].reshape(1, -1))
             timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
             timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
-            rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+            rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
             if rtg[-1].shape[1] <= s[-1].shape[1]:
                 rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
 
@@ -368,7 +373,7 @@ def train_odt(
                 print(f'{k}: {v}')
     else:
         if variant['online_training']:
-            for iter in range(variant['max_iters']):
+            for iter in range(variant['max_iters']): # FOR EACH EPISODE
                 # Collect new rollout, using stochastic policy
                 ret, length, traj = evaluate_episode_rtg(
                             env,

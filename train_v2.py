@@ -234,15 +234,10 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
             # Run simulation
             sim_done, ending_tokens, ending_battery, not_ready_to_leave, arrived_at_final = environment.simulate_routes()
-
-            
-           # print(f'arrived_at_final: {i} Zone: {zone_index} Agg: {aggregation_num} Sim Done {sim_done}: {arrived_at_final}') 
             
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
             rewards.extend(time_step_rewards)
-
-            
 
             if save_offline_data:
                 for traj in trajectories:

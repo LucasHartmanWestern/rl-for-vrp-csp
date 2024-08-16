@@ -146,7 +146,7 @@ def train_rl_vrp_csp(date, args):
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
                 train_odt(devices,
-                          environment_list[0],
+                          environment_list[algo_c['zone_index']],
                           chargers_copy,
                           all_routes[0],
                           action_dim,
@@ -252,11 +252,13 @@ def train_rl_vrp_csp(date, args):
         else:
             user_input = 'Done'
 
+        traj_format = format_data(trajectories)
+        #traj_format = trajectories
+
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"/storage_1/epigou_storage/{env_c['seeds']}-{env_c['num_of_agents']}-{env_c['num_of_chargers']}-{nn_c['aggregation_count']}-{nn_c['num_episodes']}-{current_time}.pkl"
-
+            dataset_path = f"/storage_1/epigou_storage/{seed}-{env_c['num_of_agents']}-{env_c['num_of_chargers']}-{nn_c['aggregation_count']}-{nn_c['num_episodes']}-{current_time}.pkl"
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')

@@ -281,11 +281,11 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if torch.all(arrived_at_final == 1):
+            if min(arrived_at_final[:, 0]) == 1:
                 done = True
 
 
-        print(f' Sim Done: {done}, Arrived: {arrived_at_final}
+        #print(f' Sim Done: {done}, Arrived: {arrived_at_final}
 
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
@@ -377,7 +377,7 @@ class EnvironmentClass:
             np.ndarray: State array for the agent.
         """
         if is_odt:
-            agent_chargers = self.chargers[agent_idx, 0, :]
+            agent_chargers = self.chargers[0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
