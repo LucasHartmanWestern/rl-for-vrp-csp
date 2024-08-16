@@ -1,4 +1,3 @@
-from train_v2 import train
 from data_loader import *
 from visualize import *
 import os
@@ -116,7 +115,7 @@ def train_rl_vrp_csp(date, args):
 
         all_routes = [None for route in env_c['coords']]
         for index, (city_lat, city_long) in enumerate(env_c['coords']):
-            array_org_angle = rng.random(env_c['num_of_agents'])*2*np.pi # generating a list of random angles 
+            array_org_angle = rng.random(env_c['num_of_cars'])*2*np.pi # generating a list of random angles 
             all_routes[index] = get_org_dest_coords((city_lat, city_long), env_c['radius'], array_org_angle)
 
         elapsed_time = time.time() - start_time
@@ -128,7 +127,7 @@ def train_rl_vrp_csp(date, args):
 
         start_time = time.time()
 
-        chargers = np.zeros(shape=[len(all_routes), env_c['num_of_agents'], env_c['num_of_chargers'] * 3, 3])
+        chargers = np.zeros(shape=[len(all_routes), env_c['num_of_cars'], env_c['num_of_chargers'] * 3, 3])
         
         for route_id,  route in enumerate(all_routes):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
@@ -158,11 +157,10 @@ def train_rl_vrp_csp(date, args):
                          )
                 return
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f"Training using Deep-Q Learning - Seed {seed}", file=file)
+                print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
 
-            print(f"Training using Deep-Q Learning - Seed {seed}")
+            print(f"Training using {algorithm_dm} - Seed {seed}")
 
-            print(f"Training using Deep-Q Learning - Seed {seed}")
 
             metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
@@ -191,7 +189,7 @@ def train_rl_vrp_csp(date, args):
                 for ind, charger_list in enumerate(chargers):
                     process = mp.Process(target=train_route, args=(charger_list, environment_list[ind],\
                                         all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                        ind, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
+                                        ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
                                         barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
                                         agent_by_zone, eval_c['save_offline_data']))
@@ -203,10 +201,21 @@ def train_rl_vrp_csp(date, args):
                 for process in processes:
                     process.join()
 
+                rewards = []
+                for metric in process_metrics:
+                    metric = metric[0]
+                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                        f" for aggregation: {metric['aggregation']+1}"
+                    print(to_print)
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(to_print, file=file)
+                        
                 print("Join Weights")
 
                 # Aggregate the weights from all local models
-                global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'], federated_c['zone_multiplier'], federated_c['model_multiplier'], agent_by_zone)
+                global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
+                                                    federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                                                    agent_by_zone)
 
                 # Extend the main lists with the contents of the process lists
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -242,29 +251,36 @@ def train_rl_vrp_csp(date, args):
 
         # Save all metrics from training into a file
         if eval_c['save_data'] and eval_c['train_model']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"metrics/metrics_{env_c['num_of_agents']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
         # Generate the plots for the various metrics
         if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"metrics/metrics_{env_c['num_of_agents']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"metrics/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
-        if num_episodes != 1 and eval_c['continue_training']:
-            user_input = input("More Episodes? ")
-        else:
-            user_input = 'Done'
+        # if num_episodes != 1 and eval_c['continue_training']:
+        #     user_input = input("More Episodes? ")
+        # else:
+        #     user_input = 'Done'
+
+        et = time.time() - start_time
+        to_print = f"Total time elapsed for this run"+\
+            f"- et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
+
+        print(to_print)
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(to_print, file=file)
 
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"/storage_1/epigou_storage/{env_c['seeds']}-{env_c['num_of_agents']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            dataset_path = f"/storage_1/epigou_storage/{env_c['seeds']}-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
 
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
 
 def train_route(chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, sub_seed, main_seed, trajectories, fixed_attributes,
-                local_weights_list, rewards, metrics, output_values, barrier, devices,
+                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, agent_by_zone, save_offline_data):
 
     """
@@ -281,7 +297,7 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         ind (int): Index of the current process.
         sub_seed (int): Sub-seed for reproducibility of training.
         main_seed (int): Main seed for initializing the environment.
-        num_of_agents (int): Number of agents (EVs) in the environment.
+        num_of_cars (int): Number of agents (EVs) in the environment.
         num_of_chargers (int): Number of charging stations.
         fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
         local_weights_list (list): List to store the local weights of each agent.
@@ -293,7 +309,6 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         display_training_times (bool): Flag to display training times for different operations.
         agent_by_zone (bool): True if using one agent for each zone, and false if using a agent for each car
 
-
     Returns:
         None
     """
@@ -302,10 +317,19 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
+        if algorithm_dm == 'DQN':
+            from train_dqn import train_dqn as train
+            
+        elif algorithm_dm == 'CMA_optimizer':
+            from train_cma import train_cma as train
+        
+        else:
+            raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
+
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
-                  ind, sub_seed, main_seed, devices, fixed_attributes, verbose,\
-                  display_training_times, torch.float32, agent_by_zone, save_offline_data)
+                  ind, sub_seed, main_seed, devices, agent_by_zone, fixed_attributes, verbose,\
+                  display_training_times, torch.float32, save_offline_data)
 
         # Save results of training
         st = time.time()

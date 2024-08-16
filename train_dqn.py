@@ -14,9 +14,9 @@ from merl_env._pathfinding import haversine
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
-def train(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, nn_by_zone=False, save_offline_data=False
+def train_dqn(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+    seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
+          dtype=torch.float32, save_offline_data=False
 ):
 
     """
@@ -38,7 +38,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                                  device[0] for environment setting, device[1] for model trainning.
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
-        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+        agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
 
 
     Returns:
@@ -74,7 +74,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (environment.num_of_chargers * 3 * 2) + 4
+    state_dimension = (environment.num_chargers * 3 * 2) + 4
 
     model_indices = environment.info['model_indices']
     
@@ -82,7 +82,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     target_q_networks = []
     optimizers = []
 
-    if nn_by_zone:  # Use same NN for each zone
+    if agent_by_zone:  # Use same NN for each zone
         num_agents = 1
         # Initialize networks
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
@@ -158,7 +158,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
                 action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
-                                            agent_idx, device, nn_by_zone)  # Get the action values from the agent
+                                            agent_idx, device, agent_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -215,6 +215,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
                 "rewards": rewards,
+                "best_reward": best_avg,
                 "done": sim_done
             }
             metrics.append(metric)
@@ -257,7 +258,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
                 # Update networks
-                if nn_by_zone:
+                if agent_by_zone:
                     agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
                                 optimizers[0], device)
                 else:
@@ -276,7 +277,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
-            if nn_by_zone:
+            if agent_by_zone:
                 soft_update(target_q_networks[0], q_networks[0])
 
                 # Add this before you save your model

@@ -3,7 +3,7 @@
 
 ############ Hyperparameters ############
 nn_hyperparameters:
-    num_episodes: 10 #100 # Amount of training episodes per session
+    num_episodes: 100 # Amount of training episodes per session
     learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.999 # Present value of future rewards
