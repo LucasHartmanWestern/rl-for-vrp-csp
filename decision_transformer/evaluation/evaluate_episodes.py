@@ -126,7 +126,7 @@ def evaluate_episode_rtg(
     reward_list = []
 
     while not sim_done:
-        print(timestep_counter)
+        #print(timestep_counter)
         if timestep_counter >= env.max_steps:
             raise Exception("MAX TIME-STEPS EXCEEDED!")
     
@@ -176,7 +176,7 @@ def evaluate_episode_rtg(
         timestep_counter += 1  # Next timestep
 
         #print(f'time_step_rewards: {time_step_rewards}')
-        print(f'Reward: {reward}')
+        #print(f'Reward: {reward}')
         #print(f'Reward_list: {reward_list}')
         
         if mode != 'delayed':
@@ -192,7 +192,7 @@ def evaluate_episode_rtg(
         
         episode_length += 1
         episode_return = np.mean(reward_list)
-        print(f'episode_reward: {episode_return}')
+        #print(f'episode_reward: {episode_return}')
         
         
 

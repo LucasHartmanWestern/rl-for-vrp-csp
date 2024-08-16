@@ -5,6 +5,7 @@ import torch
 import pickle
 import pathlib
 import wandb  # optional, only if you use Weights and Biases for logging
+import csv
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
@@ -110,61 +111,81 @@ def train_odt(
         num_trajectories = len(trajectories)
 
     starting_p_sample = p_sample
-    
+
     def get_batch(batch_size=256, max_len=K):
         # Dynamically recompute p_sample if online training
+        state_dim = env.state_dim
         if variant['online_training']:
             traj_lens = np.array([len(path['observations']) for path in trajectories])
             p_sample = traj_lens / sum(traj_lens)
         else:
             p_sample = starting_p_sample
-            
-        
+    
         batch_inds = np.random.choice(
             np.arange(num_trajectories),
             size=batch_size,
             replace=True,
             p=p_sample,  # reweights so we sample according to timesteps
         )
-
+    
         s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-        for i in range(batch_size):
-            if variant['online_training']:
-                traj = trajectories[batch_inds[i]]
-            else:
-                traj = trajectories[int(sorted_inds[batch_inds[i]])]
+    
+        # Open the CSV file to log the data
+        with open('trajectory_logs.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # Write the header
+            writer.writerow(['Trajectory Index', 'Observations', 'Actions', 'Rewards', 'Terminals'])
+    
+            for i in range(batch_size):
+                if variant['online_training']:
+                    traj = trajectories[batch_inds[i]]
+                else:
+                    traj = trajectories[int(sorted_inds[batch_inds[i]])]
+    
+                # Continue with the existing operations on the data
+                rewards = np.array(traj['rewards'])
+                if len(rewards) > 100:
+                    continue  # Skip this trajectory
+                observations = np.array(traj['observations'])
+                actions = np.array(traj['actions'])
+                terminals = np.array(traj['terminals'])
 
-            rewards = np.array(traj['rewards'])
-            observations = np.array(traj['observations'])
-            actions = np.array(traj['actions'])
-            terminals = np.array(traj['terminals'])
-            
-            si = random.randint(0, rewards.shape[0] - 1)          
-            # get sequences from dataset
-            s.append(observations[si:si + max_len].reshape(1, -1, env.state_dim))
-            a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
-            r.append(rewards[si:si + max_len].reshape(1, -1, 1))
-            if 'terminals' in traj:
-                d.append(terminals[si:si + max_len].reshape(1, -1))
-            else:
-                d.append(traj['dones'][si:si + max_len].reshape(1, -1))
-            timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
-            rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
-            if rtg[-1].shape[1] <= s[-1].shape[1]:
-                rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
-
-            # padding and state + reward normalization
-            tlen = s[-1].shape[1]
-            s[-1] = np.concatenate([np.zeros((1, max_len - tlen, env.state_dim)), s[-1]], axis=1)
-            s[-1] = (s[-1] - state_mean) / state_std
-            a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
-            r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-            d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-            rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
-            timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
-            mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
-        
+                # Convert the lists/arrays to a string format suitable for CSV
+                observations_str = str(len(observations))
+                actions_str = str(len(actions))
+                rewards_str = str(len(rewards))
+                terminals_str = str(len(terminals))
+    
+                # Write the trajectory data to the CSV file
+                writer.writerow([batch_inds[i], observations_str, actions_str, rewards_str, terminals_str])
+    
+                si = random.randint(0, rewards.shape[0] - 1)
+    
+                # get sequences from dataset
+                s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
+                a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
+                r.append(rewards[si:si + max_len].reshape(1, -1, 1))
+                if 'terminals' in traj:
+                    d.append(terminals[si:si + max_len].reshape(1, -1))
+                else:
+                    d.append(traj['dones'][si:si + max_len].reshape(1, -1))
+                timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
+                timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+                rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+                if rtg[-1].shape[1] <= s[-1].shape[1]:
+                    rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+    
+                # padding and state + reward normalization
+                tlen = s[-1].shape[1]
+                s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
+                s[-1] = (s[-1] - state_mean) / state_std
+                a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
+                r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
+                d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
+                rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
+                timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
+                mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
+    
         s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
         a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
         r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
@@ -172,8 +193,9 @@ def train_odt(
         rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=device)
         timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=device)
         mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
-
+    
         return s, a, r, d, rtg, timesteps, mask
+
 
 
 
