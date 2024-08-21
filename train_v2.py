@@ -1,16 +1,14 @@
 import torch
 import torch.optim as optim
 import numpy as np
-from collections import namedtuple
+import collections
+from collections import namedtuple, deque
 import os
-from collections import deque
 import time
 import copy
 
 from agent import initialize, agent_learn, get_actions, soft_update, save_model
-
-import collections
-
+from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
@@ -18,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 
 def train(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, epsilon, epsilon_decay, discount_factor, learning_rate, num_episodes, batch_size,
-    buffer_limit, layers, device, fixed_attributes=None, verbose=False, display_training_times=False, dtype=torch.float32, nn_by_zone=False, save_offline_data=False
+    buffer_limit, layers, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, dtype=torch.float32, save_offline_data=False
 ):
 
     """
@@ -48,7 +46,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                                  device[0] for environment setting, device[1] for model trainning.
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
-        nn_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+        agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
 
 
     Returns:
@@ -58,6 +56,20 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             - List of average output values for each episode.
     """
 
+    # Getting Neural Network parameters
+    nn_config_fname = 'configs/neural_network_config.yaml'
+    c = load_config_file(nn_config_fname)
+    nn_c = c['nn_hyperparameters']
+
+    epsilon = nn_c['epsilon']
+    epsilon_decay =  nn_c['epsilon_decay']
+    discount_factor = nn_c['discount_factor']
+    learning_rate= nn_c['learning_rate']
+    num_episodes = nn_c['num_episodes']
+    batch_size   = int(nn_c['batch_size'])
+    buffer_limit = int(nn_c['buffer_limit'])
+    layers = nn_c['layers']
+    
     avg_rewards = []
 
     # Carry over epsilon from last aggregation
@@ -79,7 +91,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
     target_q_networks = []
     optimizers = []
 
-    if nn_by_zone:  # Use same NN for each zone
+    if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
@@ -187,7 +199,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx, device, nn_by_zone)  # Get the action values from the agent
+                action_values = get_actions(state, q_networks, random_threshold, epsilon, i, agent_idx, device, agent_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -233,7 +245,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, ending_tokens, ending_battery, not_ready_to_leave, arrived_at_final = environment.simulate_routes()
+            sim_done = environment.simulate_routes()
             
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
@@ -283,7 +295,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
                 # Update networks
-                if nn_by_zone:
+                if agent_by_zone:
                     agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0], optimizers[0], device)
                 else:
                     agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device)
@@ -300,7 +312,7 @@ def train(chargers, environment, routes, date, action_dim, global_weights, aggre
         epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
-            if nn_by_zone:
+            if agent_by_zone:
                 soft_update(target_q_networks[0], q_networks[0])
 
                 # Add this before you save your model
