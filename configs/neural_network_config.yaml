@@ -13,3 +13,80 @@ nn_hyperparameters:
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
 
+    # Multipliers to control aggregation
+    city_multiplier: 0.15 # Importance of city-wide average
+    zone_multiplier: 0.35 # Importance of zone-wide average
+    model_multiplier: 0.50 # Importance of model-wide average
+
+odt_hyperparameters:
+    #ODT Configurations Offline
+    # env: 'hopper'
+    # dataset: '1234-15-3-2-25-20240813_163205'
+    # mode: 'normal'
+    # K: 20
+    # pct_traj: 1.0
+    # batch_size: 256
+    # model_type: 'dt'
+    # embed_dim: 512
+    # n_layer: 4
+    # n_head: 4
+    # activation_function: 'relu'
+    # dropout: 0.1
+    # learning_rate: 0.0001
+    # weight_decay: 0.0005
+    # warmup_steps: 10000
+    # num_eval_episodes: 50
+    # max_iters: 5
+    # num_steps_per_iter: 1000
+    # device: 'cuda:1'
+    # log_to_wandb: False
+    # save_model: False
+    # pretrained_model: False
+    # stochastic: True
+    # use_entropy: False
+    # use_action_means: True
+    # online_training: False
+    # online_buffer_size: 1000
+    # eval_only: False
+    # remove_pos_embs: True
+    # eval_context: 5
+    # target_entropy: False
+    # stochastic_tanh: True
+    # approximate_entropy_samples: 1000
+    # zone_index: 1 #Second zone
+
+    # ODT Configurations Online
+    env: 'hopper'
+    dataset: '1234-15-3-2-25-20240813_163205'
+    mode: 'normal'
+    K: 10
+    pct_traj: 1.0
+    batch_size: 256
+    model_type: 'dt'
+    embed_dim: 128
+    n_layer: 3
+    n_head: 1
+    activation_function: 'relu'
+    dropout: 0.1
+    learning_rate: 0.0001
+    weight_decay: 0.0001
+    warmup_steps: 10000
+    num_eval_episodes: 50
+    max_iters: 100
+    num_steps_per_iter: 300
+    device: 'cuda:1'
+    log_to_wandb: True
+    save_model: False
+    pretrained_model: '/storage_1/epigou_storage/saved_networks/dt_1234-15-3-2-25-20240813_163205-756799.pt'
+    stochastic: True
+    use_entropy: False
+    use_action_means: True
+    online_training: True
+    online_buffer_size: 1001
+    eval_only: False
+    remove_pos_embs: False
+    eval_context: 5
+    target_entropy: True
+    stochastic_tanh: True
+    approximate_entropy_samples: 1000
+    zone_index: 1 #Second zone

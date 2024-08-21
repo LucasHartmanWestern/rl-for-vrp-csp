@@ -384,7 +384,7 @@ class EnvironmentClass:
             np.ndarray: State array for the agent.
         """
         if is_odt:
-            agent_chargers = self.chargers[agent_idx, 0, :]
+            agent_chargers = self.chargers[ 0,agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]

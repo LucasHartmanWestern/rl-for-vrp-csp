@@ -145,17 +145,21 @@ def train_rl_vrp_csp(date, args):
             
         if eval_c['train_model']:
             if algorithm_dm == 'ODT':
+                c = load_config_file('configs/neural_network_config.yaml')
+                nn_c = c['odt_hyperparameters']               
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
                 train_odt(devices,
-                          environment_list[0],
+                          environment_list[nn_c['zone_index']],
                           chargers_copy,
                           all_routes[0],
                           action_dim,
                           eval_c['fixed_attributes'],
-                          algo_c
+                          nn_c
                          )
                 return
+
+            
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
 
