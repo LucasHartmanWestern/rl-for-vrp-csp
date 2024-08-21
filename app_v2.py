@@ -12,7 +12,7 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
-# from train_odt import train_odt, format_data
+from train_odt import train_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -279,6 +279,7 @@ def train_rl_vrp_csp(date, args):
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
             dataset_path = f"/storage_1/epigou_storage/{env_c['seeds']}-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
 
+            traj_format = format_data(trajectories)
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')

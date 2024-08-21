@@ -126,17 +126,10 @@ def evaluate_episode_rtg(
     reward_list = []
 
     while not sim_done:
-        #print(timestep_counter)
-        if timestep_counter >= env.max_steps:
-            raise Exception("MAX TIME-STEPS EXCEEDED!")
-    
-        if timestep_counter > 0:
-            env.clear_paths()  # Clears existing paths
-            env.update_starting_routes(ending_tokens)  # Sets new routes
-            env.update_starting_battery(ending_battery)  # Sets starting battery to ending battery of last timestep
         
-        for car in range (env.num_of_agents):# THIS WILL RUN FOR EVERY CAR
-            #print(f'car: {car}')
+        env.init_routing()
+        
+        for car in range (env.num_cars):# THIS WILL RUN FOR EVERY CAR
             state = env.reset_agent(car , True)
             actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
             rewards = torch.cat([rewards, torch.zeros(1, device=device)])
@@ -152,32 +145,23 @@ def evaluate_episode_rtg(
             actions[-1] = action
             action = action.detach().cpu().numpy()
     
-            if not_ready_to_leave != None:  # Continuing from last timestep
-                env.generate_paths(action, None, not_ready_to_leave[car], car)
-            else:
-                env.generate_paths(action, None, 0, car)
+            env.generate_paths(action, None, car)
 
     
             cur_state = torch.from_numpy(state).to(device=device).reshape(1, env.state_dim)
             states = torch.cat([states, cur_state], dim=0)
 
-
-
-        sim_done, ending_tokens, ending_battery, not_ready_to_leave, arrived_at_final = env.simulate_routes()
+        sim_done, arrived_at_final = env.simulate_routes()
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
 
         time_step_rewards = torch.tensor(time_step_rewards, device=device, dtype=torch.float32)
         rewards[-1] = time_step_rewards[0]
-        rewards = torch.cat([rewards, torch.tensor(time_step_rewards[1:], device=device)])
+        rewards = torch.cat([rewards, time_step_rewards[1:].clone().detach()])
 
         reward = time_step_rewards.mean().item()
         reward_list.append(reward)
             
         timestep_counter += 1  # Next timestep
-
-        #print(f'time_step_rewards: {time_step_rewards}')
-        #print(f'Reward: {reward}')
-        #print(f'Reward_list: {reward_list}')
         
         if mode != 'delayed':
             pred_return = target_return[0,-1] - (reward/scale)

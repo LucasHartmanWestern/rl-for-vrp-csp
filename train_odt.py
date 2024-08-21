@@ -144,11 +144,12 @@ def train_odt(
     
                 # Continue with the existing operations on the data
                 rewards = np.array(traj['rewards'])
-                if len(rewards) != len(observations) or len(rewards) != len(actions):
-                    continue  # Skip this trajectory
                 observations = np.array(traj['observations'])
                 actions = np.array(traj['actions'])
                 terminals = np.array(traj['terminals'])
+
+                if len(rewards) != len(observations) or len(rewards) != len(actions):
+                    continue  # Skip this trajectory
 
                 # Convert the lists/arrays to a string format suitable for CSV
                 observations_str = str(len(observations))

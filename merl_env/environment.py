@@ -302,7 +302,7 @@ class EnvironmentClass:
         self.distances_results = distances_per_car.numpy()
         
 
-        return done
+        return done, arrived_at_final
 
     def get_results(self) -> tuple:
         """

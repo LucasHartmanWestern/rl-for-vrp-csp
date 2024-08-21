@@ -133,7 +133,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     for i in range(num_episodes):  # For each episode
 
         if save_offline_data:
-            for car in range(environment.num_of_agents):
+            for car in range(num_agents):
                 traj = {
                     'observations': [],
                     'actions': [],
@@ -227,7 +227,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done = environment.simulate_routes()
+            sim_done, arrived_at_final = environment.simulate_routes()
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
             rewards.extend(time_step_rewards)
