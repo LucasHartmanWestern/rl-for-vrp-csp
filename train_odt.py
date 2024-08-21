@@ -144,7 +144,7 @@ def train_odt(
     
                 # Continue with the existing operations on the data
                 rewards = np.array(traj['rewards'])
-                if len(rewards) > 100:
+                if len(rewards) != len(observations) or len(rewards) != len(actions):
                     continue  # Skip this trajectory
                 observations = np.array(traj['observations'])
                 actions = np.array(traj['actions'])
