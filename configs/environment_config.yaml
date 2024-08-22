@@ -3,7 +3,7 @@
 
 ############ Environment Settings ############
 environment_settings:
-    seeds: [1234] # Used for reproducibility
+    seeds: [1234, 5555, 2020, 5678, 9101] # Used for reproducibility
     num_of_cars: 100 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     action_dim: 3 # Multiplied by the number of chargers to represent how many output neurons there are for each NN
@@ -12,9 +12,9 @@ environment_settings:
     coords: 
         - [43.02120034946083, -81.28349087468504] # North London
         - [43.004969336049854, -81.18631870502043] # East London
-        - [42.95923445066671, -81.26016049362336] # South London
-        - [42.98111190139387, -81.30953935839466] # West London
-        - [42.9819404397449, -81.2508736429095] # Central London
+#        - [42.95923445066671, -81.26016049362336] # South London
+#        - [42.98111190139387, -81.30953935839466] # West London
+#        - [42.9819404397449, -81.2508736429095] # Central London
     
     radius: 20 # Max radius of the circle containing the entire trip
     starting_charge: 6000 # 6kw base starting charge
@@ -24,7 +24,7 @@ environment_settings:
     max_charge: [170000, 90000, 170000] # in Watts
     step_size: 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
     increase_rate: 12500 
-    max_sim_steps: 500
+    max_sim_steps: 50
     max_mini_sim_steps: 10
 
     debug: False
