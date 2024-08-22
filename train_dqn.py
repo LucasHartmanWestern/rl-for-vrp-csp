@@ -227,7 +227,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, arrived_at_final = environment.simulate_routes()
+            sim_done, ending_tokens, ending_battery, not_ready_to_leave = environment.simulate_routes(timestep_counter)
+
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
             rewards.extend(time_step_rewards)

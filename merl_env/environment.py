@@ -41,13 +41,15 @@ class EnvironmentClass:
         self.num_cars = config['num_of_cars']
         self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60, device=device)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
         self.state_dim = (self.num_chargers * 3 * 2) + 4
         self.charging_status = np.zeros(self.num_cars)
+
+        self.historical_charges_needed = []
 
     def init_ev_info(self, config: dict, rng: np.random.Generator):
         """
@@ -174,7 +176,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self):
+    def simulate_routes(self, timestep):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -267,6 +269,15 @@ class EnvironmentClass:
                 print(f"TARGET BATTERY:\n{target_battery_level}")
 
             if torch.any(battery <= 0):
+                # Print the graph for the car that ran out of battery
+                negative_index = torch.where(battery <= 0)[0][0].item()
+                print(f"\n\n---\n\nCharge graph of {negative_index} who died on time-step {timestep + 1} mini-step {mini_step_count}:\n{self.charges_needed[negative_index]}")
+
+                print(f"\n\n---\n\nHistorical charge graphs:")
+                for row in self.historical_charges_needed:
+                    # Use slicing to print every X-th column
+                    print(row[negative_index])
+
                 raise Exception("NEGATIVE BATTERY!")
 
             # Update which cars will move
@@ -286,7 +297,7 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if min(arrived_at_final[:, 0]) == 1:
+            if min(arrived_at_final[0, :]) == 1:
                 done = True
 
         # Calculate reward as -(distance * 100 + peak traffic)
@@ -409,6 +420,7 @@ class EnvironmentClass:
     def init_routing(self):
         # Clearing paths
         self.paths = []
+        self.historical_charges_needed.append(self.charges_needed)
         self.charges_needed = []
         self.local_paths = []
 
@@ -448,6 +460,7 @@ class EnvironmentClass:
         """
         self.paths = []
         self.charges_needed = []
+        self.historical_charges_needed = []
         self.local_paths = []
         self.tokens = None
 
