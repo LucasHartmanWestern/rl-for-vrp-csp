@@ -133,7 +133,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     station_rate = torch.minimum(capacity_rate, torch.tensor(increase_rate, dtype=capacity_rate.dtype, device=capacity_rate.device))
 
     # Offset everything by decrease rate
-    station_rate = station_rate.unsqueeze(1) + decrease_rates.unsqueeze(0)
+    station_rate = station_rate.unsqueeze(1) + decrease_rates.to(capacity_rate.device).unsqueeze(0)
 
     # Get charging rates for each car based on target
     rates_by_car = station_rate[target_stop.long(), torch.arange(len(decrease_rates)).long()]
@@ -142,13 +142,13 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     rates_by_car *= arrived.int()
 
     # Undo the offset
-    rates_by_car -= decrease_rates
+    rates_by_car -= decrease_rates.to(capacity_rate.device)
 
     # Zero-out charging rate for cars already at their destination
     diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=dtype, device=capacity.device))
     rates_by_car = torch.matmul(rates_by_car.to(dtype), diag_matrix.to(dtype))
 
-    #Cleaning unused tensors
+    # Cleaning unused tensors
     capacity_rate = None
     station_rate = None
     diag_matrix = None

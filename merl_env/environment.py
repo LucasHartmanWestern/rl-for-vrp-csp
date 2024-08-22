@@ -41,7 +41,7 @@ class EnvironmentClass:
         self.num_of_agents = config['num_of_agents']
         self.num_of_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60, device=device)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
@@ -281,7 +281,7 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if min(arrived_at_final[:, 0]) == 1:
+            if min(arrived_at_final[0, :]) == 1:
                 done = True
 
         # Calculate reward as -(distance * 100 + peak traffic)
