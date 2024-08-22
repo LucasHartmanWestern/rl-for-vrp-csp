@@ -231,6 +231,11 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+
+            if len(rewards) > 0:
+                # Calculate cumulative rewards by adding the last recorded reward for each car
+                time_step_rewards = [time_step_reward + rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
+
             rewards.extend(time_step_rewards)
 
             if save_offline_data:
