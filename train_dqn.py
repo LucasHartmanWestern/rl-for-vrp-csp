@@ -85,6 +85,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     num_cars = environment.num_cars
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
+        num_agents = 1
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
@@ -133,7 +134,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     for i in range(num_episodes):  # For each episode
 
         if save_offline_data:
-            for car in range(num_agents):
+            for car in range(num_cars):
                 traj = {
                     'observations': [],
                     'actions': [],
@@ -168,7 +169,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             for car_idx in range(num_cars): # For each car
     
                 if save_offline_data:
-                    car_traj = next((traj for traj in trajectories if traj['car_num'] == agent_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
+                    car_traj = next((traj for traj in trajectories if traj['car_num'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
                 ########### Starting environment rutting
                 state = environment.reset_agent(car_idx)
@@ -176,8 +177,6 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
                 if save_offline_data:
                     car_traj['observations'].append(state)
-                    #if car_traj['car_num'] == 0 and car_traj['zone'] == 0:
-                       # print(f' {timestep_counter} State: {state}')
 
                 t1 = time.time()
 
