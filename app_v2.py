@@ -12,7 +12,7 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
-from train_odt import train_odt, format_data
+from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -149,7 +149,7 @@ def train_rl_vrp_csp(date, args):
                 nn_c = c['odt_hyperparameters']               
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
-                train_odt(devices,
+                run_odt(devices,
                           environment_list[nn_c['zone_index']],
                           chargers_copy,
                           all_routes[0],
@@ -277,7 +277,7 @@ def train_rl_vrp_csp(date, args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"/storage_1/epigou_storage/{env_c['seeds']}-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            dataset_path = f"/storage_1/epigou_storage/datasets/{env_c['seeds']}-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
 
             traj_format = format_data(trajectories)
             with open(dataset_path, 'wb') as f:
