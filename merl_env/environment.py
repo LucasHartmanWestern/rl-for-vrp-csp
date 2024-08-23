@@ -296,10 +296,11 @@ class EnvironmentClass:
 
             # Increase step count
             mini_step_count += 1
-
+            
             if min(arrived_at_final[0, :]) == 1:
                 done = True
 
+        
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
 

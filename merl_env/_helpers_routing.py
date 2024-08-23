@@ -147,6 +147,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     # Zero-out charging rate for cars already at their destination
     diag_matrix = torch.diag(torch.tensor([0 if x == -1 else 1 for x in target_stop], dtype=dtype, device=capacity.device))
     rates_by_car = torch.matmul(rates_by_car.to(dtype), diag_matrix.to(dtype))
+    
 
     # Cleaning unused tensors
     capacity_rate = None
