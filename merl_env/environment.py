@@ -41,7 +41,7 @@ class EnvironmentClass:
         self.num_cars = config['num_of_cars']
         self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60, device=device)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 60)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
@@ -245,6 +245,7 @@ class EnvironmentClass:
             # Track which cars have reached their final destination
             distance_from_final = tokens - destinations[:len(tokens)]
             arrived_at_final = (distance_from_final[:, 0] == 0) & (distance_from_final[:, 1] == 0).int().unsqueeze(0)
+            print(f' shape {arrived_at_final.shape}')
 
             # Update the battery level of each car
             battery = update_battery(battery, charging_rates, arrived_at_final)
@@ -286,9 +287,10 @@ class EnvironmentClass:
             # Increase step count
             mini_step_count += 1
 
-            if min(arrived_at_final[:, 0]) == 1:
+            if min(arrived_at_final[0, :]) == 1:       
                 done = True
 
+        
         # Calculate reward as -(distance * 100 + peak traffic)
         self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
 

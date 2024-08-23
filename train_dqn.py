@@ -82,8 +82,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     target_q_networks = []
     optimizers = []
 
+    num_cars = environment.num_cars
     if agent_by_zone:  # Use same NN for each zone
-        num_agents = 1
         # Initialize networks
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
@@ -98,8 +98,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         target_q_networks.append(target_q_network)
         optimizers.append(optimizer)
 
-    else:  # Assign unique NN for each agent
-        num_agents = environment.num_of_agents
+    else:  # Assign unique agent for each car
+        num_agents = environment.num_cars
         for agent_ind in range(num_agents):
             # Initialize networks
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
@@ -114,9 +114,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             target_q_networks.append(target_q_network)
             optimizers.append(optimizer)
 
-    random_threshold = dqn_rng.random((num_episodes, num_agents))
+    random_threshold = dqn_rng.random((num_episodes, num_cars))
 
-    buffers = [deque(maxlen=buffer_limit) for _ in range(num_agents)]  # Initialize replay buffer with fixed size
+    buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
 
     trajectories = []
     
@@ -148,9 +148,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             environment.init_routing()
 
             # Build path for each EV
-            for agent_idx in range(num_agents): # For each agent
+            for car_idx in range(num_cars): # For each car
                 ########### Starting environment rutting
-                state = environment.reset_agent(agent_idx)
+                state = environment.reset_agent(car_idx)
                 states.append(state)  # Track states
 
                 t1 = time.time()
@@ -158,7 +158,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
                 action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
-                                            agent_idx, device, agent_by_zone)  # Get the action values from the agent
+                                            car_idx, device, agent_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
@@ -169,11 +169,11 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
                 t3 = time.time()
 
-                environment.generate_paths(distribution, fixed_attributes, agent_idx)
+                environment.generate_paths(distribution, fixed_attributes, car_idx)
 
                 t4 = time.time()
 
-                if agent_idx == 0 and display_training_times:
+                if car_idx == 0 and display_training_times:
                     print_time("Get actions", (t2 - t1))
                     print_time("Get distributions", (t3 - t2))
                     print_time("Generate paths in environment", (t4 - t3))
@@ -228,7 +228,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d % num_agents].append(experience(states[d], distributions_unmodified[d], rewards[d],\
+            buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], rewards[d],\
                                                 states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
                                                                      done))  # Store experience
 
@@ -248,7 +248,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
         trained = False
 
-        for agent_ind in range(num_agents):
+        for agent_ind in range(num_cars):
 
             if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
 
@@ -288,7 +288,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
                 save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
             else:
-                for agent_ind in range(num_agents):
+                for agent_ind in range(num_cars):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
 
                     # Add this before you save your model
