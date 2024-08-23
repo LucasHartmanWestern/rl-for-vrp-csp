@@ -10,80 +10,9 @@ algorithm_settings:
     agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
 
 federated_learning_settings:
-    aggregation_count: 5 # Amount of aggregation steps for federated learning
+    aggregation_count: 2 # Amount of aggregation steps for federated learning
     
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
     zone_multiplier: 0.35 # Importance of zone-wide average
     model_multiplier: 0.50 # Importance of model-wide average
-
-    #ODT Configurations Offline
-    # env: 'hopper'
-    # dataset: '[2020]-4-2-1-10-20240716_115723'
-    # mode: 'normal'
-    # K: 20
-    # pct_traj: 1.0
-    # batch_size: 256
-    # model_type: 'dt'
-    # embed_dim: 512
-    # n_layer: 4
-    # n_head: 4
-    # activation_function: 'relu'
-    # dropout: 0.1
-    # learning_rate: 0.0001
-    # weight_decay: 0.0005
-    # warmup_steps: 10000
-    # num_eval_episodes: 50
-    # max_iters: 5
-    # num_steps_per_iter: 1000
-    # device: 'cuda:1'
-    # log_to_wandb: False
-    # save_model: False
-    # pretrained_model: False
-    # stochastic: True
-    # use_entropy: False
-    # use_action_means: True
-    # online_training: False
-    # online_buffer_size: 1000
-    # eval_only: False
-    # remove_pos_embs: True
-    # eval_context: 5
-    # target_entropy: False
-    # stochastic_tanh: True
-    # approximate_entropy_samples: 1000
-
-
-    # #ODT Configurations Online
-    # env: 'hopper'
-    # dataset: '[2020]-4-2-1-10-20240716_115723'
-    # mode: 'normal'
-    # K: 20
-    # pct_traj: 1.0
-    # batch_size: 256
-    # model_type: 'dt'
-    # embed_dim: 128
-    # n_layer: 3
-    # n_head: 1
-    # activation_function: 'relu'
-    # dropout: 0.1
-    # learning_rate: 0.0001
-    # weight_decay: 0.0001
-    # warmup_steps: 10000
-    # num_eval_episodes: 50
-    # max_iters: 2
-    # num_steps_per_iter: 300
-    # device: 'cuda:1'
-    # log_to_wandb: True
-    # save_model: False
-    # pretrained_model: './saved_networks/dt_[2020]-4-2-1-10-20240716_115723-927347.pt'
-    # stochastic: True
-    # use_entropy: False
-    # use_action_means: True
-    # online_training: True
-    # online_buffer_size: 1000
-    # eval_only: False
-    # remove_pos_embs: False
-    # eval_context: 5
-    # target_entropy: True
-    # stochastic_tanh: True
-    # approximate_entropy_samples: 1000

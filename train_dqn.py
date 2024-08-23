@@ -118,7 +118,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
 
+ 
     trajectories = []
+
     
     start_time = time.time()
     best_avg = float('-inf')
@@ -129,6 +131,21 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     avg_output_values = []  # List to store the average values of output neurons for each episode
 
     for i in range(num_episodes):  # For each episode
+
+        if save_offline_data:
+            for car in range(num_agents):
+                traj = {
+                    'observations': [],
+                    'actions': [],
+                    'rewards': [],
+                    'terminals': [],
+                    'terminals_car': [],
+                    'zone': zone_index,
+                    'aggregation': aggregation_num,
+                    'episode': i,
+                    'car_num': car
+                }
+                trajectories.append(traj)
 
         distributions = []
         distributions_unmodified = []
@@ -149,20 +166,34 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
             # Build path for each EV
             for car_idx in range(num_cars): # For each car
+    
+                if save_offline_data:
+                    car_traj = next((traj for traj in trajectories if traj['car_num'] == agent_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
+
                 ########### Starting environment rutting
                 state = environment.reset_agent(car_idx)
                 states.append(state)  # Track states
+
+                if save_offline_data:
+                    car_traj['observations'].append(state)
+                    #if car_traj['car_num'] == 0 and car_traj['zone'] == 0:
+                       # print(f' {timestep_counter} State: {state}')
 
                 t1 = time.time()
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
+
                 action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
                                             car_idx, device, agent_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
 
                 distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
+
+                if save_offline_data:
+                    car_traj['actions'].append(distribution.tolist()) #Save unmodified action
+                
                 distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
                 distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
                 distributions.append(distribution.tolist())  # Convert back to list and append
@@ -198,11 +229,23 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done = environment.simulate_routes()
+            sim_done, arrived_at_final = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+
+            if len(rewards) > 0:
+                # Calculate cumulative rewards by adding the last recorded reward for each car
+                time_step_rewards = [time_step_reward + rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
+
             rewards.extend(time_step_rewards)
+
+            if save_offline_data:
+                for traj in trajectories:
+                    if traj['episode'] == i:
+                        traj['terminals'].append(sim_done)
+                        traj['rewards'].append(time_step_rewards[traj['car_num']])
+                        traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))                
 
             # Used to evaluate simulation
             metric = {
@@ -231,18 +274,6 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], rewards[d],\
                                                 states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
                                                                      done))  # Store experience
-
-            # Offline data recording for ODT
-            if save_offline_data:
-                traj = collections.defaultdict(list)
-                traj['observations'].append(states[d])
-                traj['actions'].append(distributions_unmodified[d])
-                traj['rewards'].append(rewards[d])
-                traj['terminals'].append(done)
-
-                for key in traj:
-                    traj[key] = np.array(traj[key])
-                trajectories.append(traj)
 
         st = time.time()
 

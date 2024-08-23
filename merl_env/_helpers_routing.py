@@ -149,7 +149,7 @@ def get_charging_rates(stops, traffic_level, arrived, capacity, decrease_rates, 
     rates_by_car = torch.matmul(rates_by_car.to(dtype), diag_matrix.to(dtype))
     
 
-    #Cleaning unused tensors
+    # Cleaning unused tensors
     capacity_rate = None
     station_rate = None
     diag_matrix = None

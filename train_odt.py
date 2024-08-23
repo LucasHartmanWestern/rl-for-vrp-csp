@@ -5,12 +5,14 @@ import torch
 import pickle
 import pathlib
 import wandb  # optional, only if you use Weights and Biases for logging
+import csv
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
 #from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
+from collections import defaultdict
 
 def train_odt(
     device,
@@ -20,8 +22,8 @@ def train_odt(
     act_dim,
     fixed_attributes,
     variant ,
-    exp_prefix = 'placeholder',
-    max_ep_len=1
+    exp_prefix='placeholder',
+    max_ep_len=10
 ):
     
     def discount_cumsum(x, gamma):
@@ -64,7 +66,7 @@ def train_odt(
             path['rewards'][:-1] = 0.
         states.append(path['observations'])
         traj_lens.append(len(path['observations']))
-        returns.append(path['rewards'].sum())
+        returns.append(sum(path['rewards']))
     traj_lens, returns = np.array(traj_lens), np.array(returns)
 
     # used for input normalization
@@ -109,56 +111,82 @@ def train_odt(
         num_trajectories = len(trajectories)
 
     starting_p_sample = p_sample
-    
+
     def get_batch(batch_size=256, max_len=K):
         # Dynamically recompute p_sample if online training
+        state_dim = env.state_dim
         if variant['online_training']:
             traj_lens = np.array([len(path['observations']) for path in trajectories])
             p_sample = traj_lens / sum(traj_lens)
         else:
             p_sample = starting_p_sample
-            
-        
+    
         batch_inds = np.random.choice(
             np.arange(num_trajectories),
             size=batch_size,
             replace=True,
             p=p_sample,  # reweights so we sample according to timesteps
         )
-
+    
         s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-        for i in range(batch_size):
-            if variant['online_training']:
-                traj = trajectories[batch_inds[i]]
-            else:
-                traj = trajectories[int(sorted_inds[batch_inds[i]])]
-                
-            si = random.randint(0, traj['rewards'].shape[0] - 1)          
-            # get sequences from dataset
-            s.append(traj['observations'][si:si + max_len].reshape(1, -1, env.state_dim))
-            a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
-            r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
-            if 'terminals' in traj:
-                d.append(traj['terminals'][si:si + max_len].reshape(1, -1))
-            else:
-                d.append(traj['dones'][si:si + max_len].reshape(1, -1))
-            timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
-            rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
-            if rtg[-1].shape[1] <= s[-1].shape[1]:
-                rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+    
+        # Open the CSV file to log the data
+        with open('trajectory_logs.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # Write the header
+            writer.writerow(['Trajectory Index', 'Observations', 'Actions', 'Rewards', 'Terminals'])
+    
+            for i in range(batch_size):
+                if variant['online_training']:
+                    traj = trajectories[batch_inds[i]]
+                else:
+                    traj = trajectories[int(sorted_inds[batch_inds[i]])]
+    
+                # Continue with the existing operations on the data
+                rewards = np.array(traj['rewards'])
+                observations = np.array(traj['observations'])
+                actions = np.array(traj['actions'])
+                terminals = np.array(traj['terminals'])
 
-            # padding and state + reward normalization
-            tlen = s[-1].shape[1]
-            s[-1] = np.concatenate([np.zeros((1, max_len - tlen, env.state_dim)), s[-1]], axis=1)
-            s[-1] = (s[-1] - state_mean) / state_std
-            a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
-            r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-            d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-            rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
-            timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
-            mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
-        
+                if len(rewards) != len(observations) or len(rewards) != len(actions):
+                    continue  # Skip this trajectory
+
+                # Convert the lists/arrays to a string format suitable for CSV
+                observations_str = str(len(observations))
+                actions_str = str(len(actions))
+                rewards_str = str(len(rewards))
+                terminals_str = str(len(terminals))
+    
+                # Write the trajectory data to the CSV file
+                writer.writerow([batch_inds[i], observations_str, actions_str, rewards_str, terminals_str])
+    
+                si = random.randint(0, rewards.shape[0] - 1)
+    
+                # get sequences from dataset
+                s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
+                a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
+                r.append(rewards[si:si + max_len].reshape(1, -1, 1))
+                if 'terminals' in traj:
+                    d.append(terminals[si:si + max_len].reshape(1, -1))
+                else:
+                    d.append(traj['dones'][si:si + max_len].reshape(1, -1))
+                timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
+                timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+                rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+                if rtg[-1].shape[1] <= s[-1].shape[1]:
+                    rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+    
+                # padding and state + reward normalization
+                tlen = s[-1].shape[1]
+                s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
+                s[-1] = (s[-1] - state_mean) / state_std
+                a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
+                r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
+                d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
+                rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
+                timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
+                mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
+    
         s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
         a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
         r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
@@ -166,8 +194,9 @@ def train_odt(
         rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=device)
         timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=device)
         mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
-
+    
         return s, a, r, d, rtg, timesteps, mask
+
 
 
 
@@ -367,7 +396,7 @@ def train_odt(
                 print(f'{k}: {v}')
     else:
         if variant['online_training']:
-            for iter in range(variant['max_iters']):
+            for iter in range(variant['max_iters']): # FOR EACH EPISODE
                 # Collect new rollout, using stochastic policy
                 ret, length, traj = evaluate_episode_rtg(
                             env,
@@ -403,34 +432,27 @@ def train_odt(
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
 
 def format_data(data):
-    consolidated_dict = {
-        'observations': [],
-        'actions': [],
-        'rewards': [],
-        'terminals': []
-    }
+    # Initialize a defaultdict to aggregate data by unique identifiers
+    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_num': None})
     
-    # Iterate through each sublist and each defaultdict to combine data
+    # Iterate over each data entry to aggregate the data
     for sublist in data:
-        for dd in sublist:
-            for key in consolidated_dict.keys():
-                # Append each array to the corresponding key 
-                if key in dd:
-                    consolidated_dict[key].append(dd[key])
-
-    for key in ['observations', 'actions', 'rewards']:
-        consolidated_dict[key] = np.array(consolidated_dict[key], dtype=np.float32)
+        for entry in sublist:
+            # Unique identifier for each car's trajectory
+            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_num'])
+            
+            # Aggregate data for this car's trajectory
+            trajectories[identifier]['observations'].extend(entry['observations'])
+            trajectories[identifier]['actions'].extend(entry['actions'])
+            trajectories[identifier]['rewards'].extend(entry['rewards'])
+            trajectories[identifier]['terminals'].extend(entry['terminals'])
+            trajectories[identifier]['terminals_car'].extend(entry['terminals_car'])  # Aggregate terminals_car
+            trajectories[identifier]['zone'] = entry['zone']
+            trajectories[identifier]['aggregation'] = entry['aggregation']
+            trajectories[identifier]['episode'] = entry['episode']
+            trajectories[identifier]['car_num'] = entry['car_num']
     
-    consolidated_dict['terminals'] = np.array(consolidated_dict['terminals'], dtype=bool)
+    # Convert the defaultdict to a list of dictionaries
+    formatted_trajectories = list(trajectories.values())
     
-    list_of_dicts = []
-    for i in range(len(consolidated_dict['observations'])):
-        list_of_dicts.append(
-            {
-                'observations': consolidated_dict['observations'][i],
-                'actions': consolidated_dict['actions'][i],
-                'rewards': consolidated_dict['rewards'][i],
-                'terminals': consolidated_dict['terminals'][i]
-            }
-        )
-    return list_of_dicts
+    return formatted_trajectories
