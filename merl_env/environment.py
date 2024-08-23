@@ -247,7 +247,6 @@ class EnvironmentClass:
             # Track which cars have reached their final destination
             distance_from_final = tokens - destinations[:len(tokens)]
             arrived_at_final = (distance_from_final[:, 0] == 0) & (distance_from_final[:, 1] == 0).int().unsqueeze(0)
-            print(f' shape {arrived_at_final.shape}')
 
             # Update the battery level of each car
             battery = update_battery(battery, charging_rates, arrived_at_final)
