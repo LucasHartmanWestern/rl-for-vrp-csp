@@ -233,6 +233,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
 
+            single_step_reward = time_step_rewards
+
             if len(rewards) > 0:
                 # Calculate cumulative rewards by adding the last recorded reward for each car
                 time_step_rewards = [time_step_reward + rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
@@ -243,7 +245,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 for traj in trajectories:
                     if traj['episode'] == i:
                         traj['terminals'].append(sim_done)
-                        traj['rewards'].append(time_step_rewards[traj['car_num']])
+                        traj['rewards'].append(single_step_reward[traj['car_num']])
                         traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))                
 
             # Used to evaluate simulation

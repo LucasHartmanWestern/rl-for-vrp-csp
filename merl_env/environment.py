@@ -412,6 +412,20 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]])))
+        #Global State
+        # global_state = np.hstack((
+        #     np.array([self.num_chargers * 3]), 
+        #     np.array([route_dist]),
+        #     np.array([self.num_cars])
+        # ))
+        
+        # # Local State
+        # local_state = np.hstack((
+        #     np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
+        #     np.array([self.info['model_indices'][agent_idx]])
+        # ))
+        # # Combined State (if needed)
+        # state = np.hstack((local_state, global_state))
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
@@ -474,7 +488,6 @@ class EnvironmentClass:
         self.unique_chargers = unique_chargers  # [(charger id, charger latitude, charger longitude),...]
         self.chargers = chargers  # [[[charger id, charger latitude, charger longitude],...],...] (chargers[agent index][charger index][charger property index])
         self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
-
 
     def cma_store(self):
         self.store_paths = copy.deepcopy(self.paths)
