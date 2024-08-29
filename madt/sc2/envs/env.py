@@ -2,6 +2,7 @@ from .starcraft2.StarCraft2_Env import StarCraft2Env
 from .starcraft2.smac_maps import get_map_params
 from .config import get_config
 from .env_wrappers import ShareSubprocVecEnv
+from Merl_Env_Wrapper import Merl_Env_wrapper
 
 
 def make_eval_env(all_args, n_threads=1):
@@ -9,6 +10,8 @@ def make_eval_env(all_args, n_threads=1):
         def init_env():
             if all_args.env_name == "StarCraft2":
                 env = StarCraft2Env(all_args)
+            elif all_args.env_name == "Merl":
+                env = Merl_Env_Wrapper()
             else:
                 print("Can not support the " + all_args.env_name + "environment.")
                 raise NotImplementedError

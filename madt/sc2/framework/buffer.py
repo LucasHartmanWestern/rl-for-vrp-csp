@@ -7,7 +7,7 @@ from .utils import padding_obs, padding_ava
 
 class StateActionReturnDataset(Dataset):
 
-    def __init__(self, global_state, local_obs, block_size, actions, done_idxs, rewards, v_values, rtgs, rets,
+   def __init__(self, global_state, local_obs, block_size, actions, done_idxs, rewards, avas, v_values, rtgs, rets,
                  advs, timesteps):
         self.block_size = block_size
         self.global_state = global_state
@@ -15,6 +15,7 @@ class StateActionReturnDataset(Dataset):
         self.actions = actions
         self.done_idxs = done_idxs
         self.rewards = rewards
+        self.avas = avas
         self.v_values = v_values
         self.rtgs = rtgs
         self.rets = rets
@@ -67,7 +68,7 @@ class StateActionReturnDataset(Dataset):
         actions = torch.tensor(self.actions[idx:done_idx], dtype=torch.long)
 
         rewards = torch.tensor(self.rewards[idx:done_idx], dtype=torch.float32)
-        #avas = torch.tensor(self.avas[idx:done_idx], dtype=torch.long)
+        avas = torch.tensor(self.avas[idx:done_idx], dtype=torch.long)
         v_values = torch.tensor(self.v_values[idx:done_idx], dtype=torch.float32)
         rtgs = torch.tensor(self.rtgs[idx:done_idx], dtype=torch.float32)
         rets = torch.tensor(self.rets[idx:done_idx], dtype=torch.float32)
@@ -79,7 +80,8 @@ class StateActionReturnDataset(Dataset):
         if done_idx in self.done_idxs:
             dones[-1][0] = 1
 
-        return states, obss, actions, rewards, v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
+        return states, obss, actions, rewards, avas, v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
+
 
 
 class ReplayBuffer:
@@ -100,7 +102,7 @@ class ReplayBuffer:
     def size(self):
         return len(self.data)
 
-    def insert(self, global_obs, local_obs, action, reward, done, v_value):
+    def insert(self, global_obs, local_obs, action, reward, done, available_actions, v_value):
         n_threads, n_agents = np.shape(reward)[0], np.shape(reward)[1]
         for n in range(n_threads):
             if len(self.episodes) < n + 1:
@@ -111,7 +113,7 @@ class ReplayBuffer:
                     if len(self.episodes[n]) < i + 1:
                         self.episodes[n].append([])
                     step = [global_obs[n][i].tolist(), local_obs[n][i].tolist(), action[n][i].tolist(),
-                            reward[n][i].tolist(), done[n][i], v_value[n][i].tolist()]
+                            reward[n][i].tolist(), done[n][i], available_actions[n][i].tolist(), v_value[n][i].tolist()]
                     self.episodes[n][i].append(step)
                 if np.all(done[n]):
                     self.episode_dones[n] = True
@@ -150,6 +152,7 @@ class ReplayBuffer:
                     for step in agent_trajectory:
                         step[0] = padding_obs(step[0], self.global_obs_dim)
                         step[1] = padding_obs(step[1], self.local_obs_dim)
+                        step[5] = padding_ava(step[5], self.action_dim)
 
                 self.data.append(episode)
 
@@ -158,9 +161,9 @@ class ReplayBuffer:
         # adding elements with list will be faster
         global_states = []
         local_obss = []
-        states = []
         actions = []
         rewards = []
+        avas = []
         v_values = []
         rtgs = []
         rets = []
@@ -176,7 +179,7 @@ class ReplayBuffer:
             for agent_trajectory in episode:
                 time_step = 0
                 for step in agent_trajectory:
-                    state, a, r, d, v, rtg, ret, adv = step
+                    state, a, r, d, ava, v, rtg, ret, adv = step
                     for i, element in enumerate(state):
                         if i in range(18, 21):  # Indices 18 to 20 are global state elements
                             global_states.append(element)
@@ -184,6 +187,7 @@ class ReplayBuffer:
                             local_obss.append(element)
                     actions.append(a)
                     rewards.append(r)
+                    avas.append(ava)
                     v_values.append(v)
                     rtgs.append(rtg)
                     rets.append(ret)
@@ -194,7 +198,7 @@ class ReplayBuffer:
                 done_idxs.append(len(global_states))
 
         dataset = StateActionReturnDataset(global_states, local_obss, self.block_size, actions, done_idxs, rewards,
-                                          v_values, rtgs, rets, advs, time_steps)
+                                           avas, v_values, rtgs, rets, advs, time_steps)
         return dataset
 
     # from [g, o, a, r, d, ava]/[g, o, a, r, d, ava, v] to [g, o, a, r, d, ava, v, rtg, ret, adv]

@@ -28,7 +28,7 @@ def get_config():
     parser.add_argument("--use_wandb", action='store_true', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
-    parser.add_argument("--env_name", type=str, default='StarCraft2', help="specify the name of environment")
+    parser.add_argument("--env_name", type=str, default='Merl', help="specify the name of environment")#STARCRAFT@ OR MERL
     parser.add_argument("--use_obs_instead_of_state", action='store_true',
                         default=False, help="Whether to use global state or concatenated obs")
 

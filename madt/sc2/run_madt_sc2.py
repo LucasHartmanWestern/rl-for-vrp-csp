@@ -22,15 +22,15 @@ parser.add_argument('--context_length', type=int, default=1)
 parser.add_argument('--model_type', type=str, default='state_only')
 parser.add_argument('--eval_episodes', type=int, default=32)
 parser.add_argument('--max_timestep', type=int, default=400)
-parser.add_argument('--log_dir', type=str, default='./logs/')
+parser.add_argument('--log_dir', type=str, default='./logs/')#Log storage
 parser.add_argument('--save_log', type=bool, default=True)
-parser.add_argument('--exp_name', type=str, default='easy_trans')
-parser.add_argument('--pre_train_model_path', type=str, default='../../offline_model/')
+parser.add_argument('--exp_name', type=str, default='easy_trans')#Experiment name
+parser.add_argument('--pre_train_model_path', type=str, default='../../offline_model/')#Path to pre-trained model
 
-parser.add_argument('--offline_map_lists', type=list, default=['3s_vs_4z', '2m_vs_1z', '3m', '2s_vs_1sc', '3s_vs_3z'])
+parser.add_argument('--offline_map_lists', type=list, default=['3s_vs_4z', '2m_vs_1z', '3m', '2s_vs_1sc', '3s_vs_3z']) #Specify merl here
 parser.add_argument('--offline_episode_num', type=list, default=[200, 200, 200, 200, 200])
-parser.add_argument('--offline_data_quality', type=list, default=['good'])
-parser.add_argument('--offline_data_dir', type=str, default='../../offline_data/')
+parser.add_argument('--offline_data_quality', type=list, default=['good']) #Data quality
+parser.add_argument('--offline_data_dir', type=str, default='/storage_1/epigou_storage/madt') #Data Directory
 
 parser.add_argument('--offline_epochs', type=int, default=10)
 parser.add_argument('--offline_mini_batch_size', type=int, default=128)
@@ -90,15 +90,17 @@ buffer = ReplayBuffer(block_size, global_obs_dim, local_obs_dim, action_dim)
 rollout_worker = RolloutWorker(model, critic_model, buffer, global_obs_dim, local_obs_dim, action_dim)
 
 used_data_dir = []
+
+#Loads datasets
 for map_name in args.offline_map_lists:
     source_dir = args.offline_data_dir + map_name
     for quality in args.offline_data_quality:
         used_data_dir.append(f"{source_dir}/{quality}/")
-
 buffer.load_offline_data(used_data_dir, args.offline_episode_num, max_epi_length=eval_env.max_timestep)
 offline_dataset = buffer.sample()
 offline_dataset.stats()
 
+#Initialize trainer for offline
 offline_tconf = TrainerConfig(max_epochs=1, batch_size=args.offline_mini_batch_size, learning_rate=args.offline_lr,
                               num_workers=0, mode="offline")
 offline_trainer = Trainer(model, critic_model, offline_tconf)
@@ -107,11 +109,13 @@ offline_trainer = Trainer(model, critic_model, offline_tconf)
 target_rtgs = 20.
 print("offline target_rtgs: ", target_rtgs)
 for i in range(args.offline_epochs):
+    #Train with offline dataset
     offline_actor_loss, offline_critic_loss, _, __, ___ = offline_trainer.train(offline_dataset,
                                                                                 args.offline_train_critic)
     if args.save_log:
         writter.add_scalar('offline/{args.map_name}/offline_actor_loss', offline_actor_loss, i)
         writter.add_scalar('offline/{args.map_name}/offline_critic_loss', offline_critic_loss, i)
+        
     if i % args.offline_eval_interval == 0:
         aver_return, aver_win_rate, _ = rollout_worker.rollout(eval_env, target_rtgs, train=False)
         print("offline epoch: %s, return: %s, eval_win_rate: %s" % (i, aver_return, aver_win_rate))
@@ -129,6 +133,7 @@ for i in range(args.offline_epochs):
         torch.save(critic_model.state_dict(), critic_path + os.sep + str(i) + '.pkl')
 
 
+#ONLINE TRAINING-----------------------------------------------------
 if args.online_epochs > 0 and args.online_pre_train_model_load:
     actor_path = args.pre_train_model_path + args.exp_name + '/actor/' + str(args.online_pre_train_model_id) + '.pkl'
     critic_path = args.pre_train_model_path + args.exp_name + '/critic/' + str(args.online_pre_train_model_id) + '.pkl'
