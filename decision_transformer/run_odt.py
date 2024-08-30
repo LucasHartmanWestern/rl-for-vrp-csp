@@ -16,16 +16,17 @@ from collections import defaultdict
 
 def run_odt(
     device,
-    env,
+    env_list,
     chargers,
     routes,
     act_dim,
     fixed_attributes,
     variant ,
+    seed,
     exp_prefix='placeholder',
     max_ep_len=10
 ):
-    
+
     def discount_cumsum(x, gamma):
         discount_cumsum = np.zeros_like(x)
         discount_cumsum[-1] = x[-1]
@@ -41,7 +42,7 @@ def run_odt(
     scale = 1
 
     device = device[0]
-    log_to_wandb = variant.get('log_to_wandb', False)
+    # log_to_wandb = variant.get('log_to_wandb', False)
 
     dataset =  variant['dataset']
     model_type = variant['model_type']
@@ -54,7 +55,7 @@ def run_odt(
     #     os.makedirs(model_dir)
 
     # load dataset
-    dataset_path = f"/storage_1/epigou_storage/{dataset}.pkl"
+    dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -113,326 +114,347 @@ def run_odt(
 
     starting_p_sample = p_sample
 
-    def get_batch(batch_size=256, max_len=K):
-        # Dynamically recompute p_sample if online training
+    for env_idx, env in enumerate(env_list):
+        print(f'Running in zone {env_idx}')
         state_dim = env.state_dim
-        if variant['online_training']:
-            traj_lens = np.array([len(path['observations']) for path in trajectories])
-            p_sample = traj_lens / sum(traj_lens)
-        else:
-            p_sample = starting_p_sample
-    
-        batch_inds = np.random.choice(
-            np.arange(num_trajectories),
-            size=batch_size,
-            replace=True,
-            p=p_sample,  # reweights so we sample according to timesteps
-        )
-    
-        s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-    
-        # Open the CSV file to log the data
-        with open('trajectory_logs.csv', mode='w', newline='') as file:
-            writer = csv.writer(file)
-            # Write the header
-            writer.writerow(['Trajectory Index', 'Observations', 'Actions', 'Rewards', 'Terminals'])
-    
-            for i in range(batch_size):
-                if variant['online_training']:
-                    traj = trajectories[batch_inds[i]]
-                else:
-                    traj = trajectories[int(sorted_inds[batch_inds[i]])]
-    
-                # Continue with the existing operations on the data
-                rewards = np.array(traj['rewards'])
-                observations = np.array(traj['observations'])
-                actions = np.array(traj['actions'])
-                terminals = np.array(traj['terminals'])
+        group_name = f'{dataset}_env_{env_idx}'
+        exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
+        log_to_wandb = variant.get('log_to_wandb', False)
 
-                if len(rewards) != len(observations) or len(rewards) != len(actions):
-                    continue  # Skip this trajectory
+        if log_to_wandb:
+            # Initialize a new wandb run for each environment
+            wandb.init(
+                name= (f' Seed: {seed} - Zone: {env_idx}'),
+                group=group_name,
+                project='decision-transformer',
+                config=variant
+            )
 
-                # Convert the lists/arrays to a string format suitable for CSV
-                observations_str = str(len(observations))
-                actions_str = str(len(actions))
-                rewards_str = str(len(rewards))
-                terminals_str = str(len(terminals))
-    
-                # Write the trajectory data to the CSV file
-                writer.writerow([batch_inds[i], observations_str, actions_str, rewards_str, terminals_str])
-    
-                si = random.randint(0, rewards.shape[0] - 1)
-    
-                # get sequences from dataset
-                s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
-                a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
-                r.append(rewards[si:si + max_len].reshape(1, -1, 1))
-                if 'terminals' in traj:
-                    d.append(terminals[si:si + max_len].reshape(1, -1))
-                else:
-                    d.append(traj['dones'][si:si + max_len].reshape(1, -1))
-                timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-                timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
-                rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
-                if rtg[-1].shape[1] <= s[-1].shape[1]:
-                    rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
-    
-                # padding and state + reward normalization
-                tlen = s[-1].shape[1]
-                s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
-                s[-1] = (s[-1] - state_mean) / state_std
-                a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
-                r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-                d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-                rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
-                timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
-                mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
-    
-        s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
-        a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
-        r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
-        d = torch.from_numpy(np.concatenate(d, axis=0)).to(dtype=torch.long, device=device)
-        rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=device)
-        timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=device)
-        mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
-    
-        return s, a, r, d, rtg, timesteps, mask
-
-
-
-
-    if variant['online_training']:
-        # If online training, use means during eval, but (not during exploration)
-        variant['use_action_means'] = True
-
-    def eval_episodes(target_rew):
-        def fn(model):
-            returns, lengths = [], []
-            for _ in range(num_eval_episodes):
-                with torch.no_grad():
-                    if model_type == 'dt':
-                        ret, length = evaluate_episode_rtg(
-                            env,
-                            chargers,
-                            routes,
-                            act_dim,
-                            fixed_attributes,
-                            model,
-                            max_ep_len=max_ep_len,
-                            scale=scale,
-                            target_return=target_rew/scale,
-                            mode=mode,
-                            state_mean=state_mean,
-                            state_std=state_std,
-                            device=device,
-                            use_means=variant['use_action_means'],
-                            eval_context=variant['eval_context']
-                        )
+        def get_batch(batch_size=256, max_len=K):
+            # Dynamically recompute p_sample if online training
+            state_dim = env.state_dim
+            if variant['online_training']:
+                traj_lens = np.array([len(path['observations']) for path in trajectories])
+                p_sample = traj_lens / sum(traj_lens)
+            else:
+                p_sample = starting_p_sample
+        
+            batch_inds = np.random.choice(
+                np.arange(num_trajectories),
+                size=batch_size,
+                replace=True,
+                p=p_sample,  # reweights so we sample according to timesteps
+            )
+        
+            s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
+        
+            # Open the CSV file to log the data
+            with open('trajectory_logs.csv', mode='w', newline='') as file:
+                writer = csv.writer(file)
+                # Write the header
+                writer.writerow(['Trajectory Index', 'Observations', 'Actions', 'Rewards', 'Terminals'])
+        
+                for i in range(batch_size):
+                    if variant['online_training']:
+                        traj = trajectories[batch_inds[i]]
                     else:
-                        ret, length = evaluate_episode(
-                            env,
-                            act_dim,
-                            model,
-                            max_ep_len=max_ep_len,
-                            target_return=target_rew/scale,
-                            mode=mode,
-                            state_mean=state_mean,
-                            state_std=state_std,
-                            device=device,
-                        )
-                # Ensure ret and length are moved to CPU before converting to numpy
-                ret = ret.cpu().detach().numpy() if isinstance(ret, torch.Tensor) else ret
-                length = length.cpu().detach().numpy() if isinstance(length, torch.Tensor) else length
-                
-                returns.append(ret)
-                lengths.append(length)
-            return {
-                f'target_{target_rew}_return_mean': np.mean(returns),
-                f'target_{target_rew}_return_std': np.std(returns),
-                f'target_{target_rew}_length_mean': np.mean(lengths),
-                f'target_{target_rew}_length_std': np.std(lengths),
-            }
-        return fn
+                        traj = trajectories[int(sorted_inds[batch_inds[i]])]
+        
+                    # Continue with the existing operations on the data
+                    rewards = np.array(traj['rewards'])
+                    observations = np.array(traj['observations'])
+                    actions = np.array(traj['actions'])
+                    terminals = np.array(traj['terminals'])
+    
+                    # if len(rewards) != len(observations) or len(rewards) != len(actions):
+                    #     continue  # Skip this trajectory
+    
+                    # Convert the lists/arrays to a string format suitable for CSV
+                    observations_str = str(len(observations))
+                    actions_str = str(len(actions))
+                    rewards_str = str(len(rewards))
+                    terminals_str = str(len(terminals))
+        
+                    # Write the trajectory data to the CSV file
+                    writer.writerow([batch_inds[i], observations_str, actions_str, rewards_str, terminals_str])
+        
+                    si = random.randint(0, rewards.shape[0] - 1)
+        
+                    # get sequences from dataset
+                    s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
+                    a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
+                    r.append(rewards[si:si + max_len].reshape(1, -1, 1))
+                    if 'terminals' in traj:
+                        d.append(terminals[si:si + max_len].reshape(1, -1))
+                    else:
+                        d.append(traj['dones'][si:si + max_len].reshape(1, -1))
+                    timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
+                    timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+                    rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+                    if rtg[-1].shape[1] <= s[-1].shape[1]:
+                        rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+        
+                    # padding and state + reward normalization
+                    tlen = s[-1].shape[1]
+                    s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
+                    s[-1] = (s[-1] - state_mean) / state_std
+                    a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
+                    r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
+                    d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
+                    rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
+                    timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
+                    mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
+        
+            s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
+            a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
+            r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=device)
+            d = torch.from_numpy(np.concatenate(d, axis=0)).to(dtype=torch.long, device=device)
+            rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=device)
+            timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=device)
+            mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
+        
+            return s, a, r, d, rtg, timesteps, mask
 
-
-    if model_type == 'dt':
-        if variant['pretrained_model']:
-            model = torch.load(variant['pretrained_model'],map_location='cuda:1')
-            print(model.stochastic)
-            #model.stochastic = variant['stochastic']
-            model.stochastic_tanh = variant['stochastic_tanh']
-            model.approximate_entropy_samples = variant['approximate_entropy_samples']
-            model.to(device)
-
-        else:
-            model = DecisionTransformer(
+        if variant['online_training']:
+            # If online training, use means during eval, but (not during exploration)
+            variant['use_action_means'] = True
+    
+        def eval_episodes(target_rew):
+            def fn(model):
+                returns, lengths = [], []
+                for _ in range(num_eval_episodes):
+                    with torch.no_grad():
+                        if model_type == 'dt':
+                            ret, length = evaluate_episode_rtg(
+                                env,
+                                chargers,
+                                routes,
+                                act_dim,
+                                fixed_attributes,
+                                model,
+                                max_ep_len=max_ep_len,
+                                scale=scale,
+                                target_return=target_rew/scale,
+                                mode=mode,
+                                state_mean=state_mean,
+                                state_std=state_std,
+                                device=device,
+                                use_means=variant['use_action_means'],
+                                eval_context=variant['eval_context']
+                            )
+                        else:
+                            ret, length = evaluate_episode(
+                                env,
+                                act_dim,
+                                model,
+                                max_ep_len=max_ep_len,
+                                target_return=target_rew/scale,
+                                mode=mode,
+                                state_mean=state_mean,
+                                state_std=state_std,
+                                device=device,
+                            )
+                    # Ensure ret and length are moved to CPU before converting to numpy
+                    ret = ret.cpu().detach().numpy() if isinstance(ret, torch.Tensor) else ret
+                    length = length.cpu().detach().numpy() if isinstance(length, torch.Tensor) else length
+                    
+                    returns.append(ret)
+                    lengths.append(length)
+                return {
+                    f'target_{target_rew}_return_mean': np.mean(returns),
+                    f'target_{target_rew}_return_std': np.std(returns),
+                    f'target_{target_rew}_length_mean': np.mean(lengths),
+                    f'target_{target_rew}_length_std': np.std(lengths),
+                }
+            return fn
+    
+    
+        if model_type == 'dt':
+            if variant['pretrained_model']:
+                model = torch.load(variant['pretrained_model'],map_location='cuda:1')
+                print(model.stochastic)
+                #model.stochastic = variant['stochastic']
+                model.stochastic_tanh = variant['stochastic_tanh']
+                model.approximate_entropy_samples = variant['approximate_entropy_samples']
+                model.to(device)
+    
+            else:
+                model = DecisionTransformer(
+                    state_dim=env.state_dim,
+                    act_dim=act_dim,
+                    max_length=K,
+                    max_ep_len=max_ep_len*2,
+                    hidden_size=variant['embed_dim'],
+                    n_layer=variant['n_layer'],
+                    n_head=variant['n_head'],
+                    n_inner=4*variant['embed_dim'],
+                    activation_function=variant['activation_function'],
+                    n_positions=1024,
+                    resid_pdrop=variant['dropout'],
+                    attn_pdrop=variant['dropout'],
+                    stochastic = variant['stochastic'],
+                    remove_pos_embs=variant['remove_pos_embs'],
+                    approximate_entropy_samples = variant['approximate_entropy_samples'],
+                    stochastic_tanh=variant['stochastic_tanh']
+                )
+        elif model_type == 'bc':
+            model = MLPBCModel(
                 state_dim=env.state_dim,
                 act_dim=act_dim,
                 max_length=K,
-                max_ep_len=max_ep_len*2,
                 hidden_size=variant['embed_dim'],
                 n_layer=variant['n_layer'],
-                n_head=variant['n_head'],
-                n_inner=4*variant['embed_dim'],
-                activation_function=variant['activation_function'],
-                n_positions=1024,
-                resid_pdrop=variant['dropout'],
-                attn_pdrop=variant['dropout'],
-                stochastic = variant['stochastic'],
-                remove_pos_embs=variant['remove_pos_embs'],
-                approximate_entropy_samples = variant['approximate_entropy_samples'],
-                stochastic_tanh=variant['stochastic_tanh']
             )
-    elif model_type == 'bc':
-        model = MLPBCModel(
-            state_dim=env.state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            hidden_size=variant['embed_dim'],
-            n_layer=variant['n_layer'],
-        )
-    else:
-        raise NotImplementedError
-
-    model = model.to(device=device)
-    warmup_steps = variant['warmup_steps']
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=variant['learning_rate'],
-        weight_decay=variant['weight_decay'],
-    )
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lambda steps: min((steps+1)/warmup_steps, 1)
-    )
-
-    if variant['online_training']:
-        assert(variant['pretrained_model'] is not None), "Must specify pretrained model to perform online finetuning"
-        variant['use_entropy'] = True
-
-    if variant['online_training'] and variant['target_entropy']:
-        # Setup variable and optimizer for (log of) lagrangian multiplier used for entropy constraint
-        # We optimize the log of the multiplier b/c lambda >= 0
-        log_entropy_multiplier = torch.zeros(1, requires_grad=True, device=device)
-        multiplier_optimizer = torch.optim.AdamW(
-            [log_entropy_multiplier],
+        else:
+            raise NotImplementedError
+    
+        model = model.to(device=device)
+        warmup_steps = variant['warmup_steps']
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
             lr=variant['learning_rate'],
             weight_decay=variant['weight_decay'],
         )
-        # multiplier_optimizer = torch.optim.Adam(
-        #     [log_entropy_multiplier],
-        #     lr=1e-3
-        #     #lr=variant['learning_rate'],
-        # )
-        multiplier_scheduler = torch.optim.lr_scheduler.LambdaLR(
-            multiplier_optimizer,
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
             lambda steps: min((steps+1)/warmup_steps, 1)
         )
-    else:
-        log_entropy_multiplier = None
-        multiplier_optimizer = None
-        multiplier_scheduler = None
-
-    entropy_loss_fn = None
-    if variant['stochastic']:
-        if variant['use_entropy']:
-            if variant['target_entropy']:
-                loss_fn = lambda s_hat, a_hat, rtg_hat,r_hat, s, a, rtg, r, a_log_prob, entropies: -torch.mean(a_log_prob) - torch.exp(log_entropy_multiplier.detach()) * torch.mean(entropies)
-                target_entropy = -act_dim
-                entropy_loss_fn = lambda entropies: torch.exp(log_entropy_multiplier) * (torch.mean(entropies.detach()) - target_entropy)
+    
+        if variant['online_training']:
+            assert(variant['pretrained_model'] is not None), "Must specify pretrained model to perform online finetuning"
+            variant['use_entropy'] = True
+    
+        if variant['online_training'] and variant['target_entropy']:
+            # Setup variable and optimizer for (log of) lagrangian multiplier used for entropy constraint
+            # We optimize the log of the multiplier b/c lambda >= 0
+            log_entropy_multiplier = torch.zeros(1, requires_grad=True, device=device)
+            multiplier_optimizer = torch.optim.AdamW(
+                [log_entropy_multiplier],
+                lr=variant['learning_rate'],
+                weight_decay=variant['weight_decay'],
+            )
+            # multiplier_optimizer = torch.optim.Adam(
+            #     [log_entropy_multiplier],
+            #     lr=1e-3
+            #     #lr=variant['learning_rate'],
+            # )
+            multiplier_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                multiplier_optimizer,
+                lambda steps: min((steps+1)/warmup_steps, 1)
+            )
+        else:
+            log_entropy_multiplier = None
+            multiplier_optimizer = None
+            multiplier_scheduler = None
+    
+        entropy_loss_fn = None
+        if variant['stochastic']:
+            if variant['use_entropy']:
+                if variant['target_entropy']:
+                    loss_fn = lambda s_hat, a_hat, rtg_hat,r_hat, s, a, rtg, r, a_log_prob, entropies: -torch.mean(a_log_prob) - torch.exp(log_entropy_multiplier.detach()) * torch.mean(entropies)
+                    target_entropy = -act_dim
+                    entropy_loss_fn = lambda entropies: torch.exp(log_entropy_multiplier) * (torch.mean(entropies.detach()) - target_entropy)
+                else:
+                    loss_fn = lambda s_hat, a_hat, rtg_hat,r_hat, s, a, rtg, r, a_log_prob, entropies: -torch.mean(a_log_prob) - torch.mean(entropies)
             else:
-                loss_fn = lambda s_hat, a_hat, rtg_hat,r_hat, s, a, rtg, r, a_log_prob, entropies: -torch.mean(a_log_prob) - torch.mean(entropies)
+                loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg,r, a_log_prob, entropies: -torch.mean(a_log_prob)
         else:
-            loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg,r, a_log_prob, entropies: -torch.mean(a_log_prob)
-    else:
-        loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg, r, a_log_prob, entropies: torch.mean((a_hat - a)**2)
-
-    if model_type == 'dt':
-        trainer = SequenceTrainer(
-            model=model,
-            optimizer=optimizer,
-            batch_size=batch_size,
-            get_batch=get_batch,
-            scheduler=scheduler,
-            loss_fn=loss_fn,
-            log_entropy_multiplier=log_entropy_multiplier,
-            entropy_loss_fn=entropy_loss_fn,
-            multiplier_optimizer=multiplier_optimizer,
-            multiplier_scheduler=multiplier_scheduler,
-            eval_fns=[eval_episodes(tar) for tar in env_targets],
-        )
-    elif model_type == 'bc':
-        trainer = ActTrainer(
-            model=model,
-            optimizer=optimizer,
-            batch_size=batch_size,
-            get_batch=get_batch,
-            scheduler=scheduler,
-            loss_fn=loss_fn,
-            eval_fns=[eval_episodes(tar) for tar in env_targets],
-        )
-
-    if log_to_wandb:
-        wandb.init(
-            name=exp_prefix,
-            group=group_name,
-            project='decision-transformer',
-            config=variant
-        )
-        # wandb.watch(model)  # wandb has some bug
-    if variant['eval_only']:
-        model.eval()
-        eval_fns = [eval_episodes(tar) for tar in env_targets]
-
-        for iter_num in range(variant['max_iters']):
-            logs = {}
-            for eval_fn in eval_fns:
-                outputs = eval_fn(model)
-                for k, v in outputs.items():
-                    logs[f'evaluation/{k}'] = v
-
-            print('=' * 80)
-            print(f'Iteration {iter_num}')
-            for k, v in logs.items():
-                print(f'{k}: {v}')
-    else:
-        if variant['online_training']:
-            for iter in range(variant['max_iters']): # FOR EACH EPISODE
-                # Collect new rollout, using stochastic policy
-                ret, length, traj = evaluate_episode_rtg(
-                            env,
-                            chargers,
-                            routes,
-                            act_dim,
-                            fixed_attributes,
-                            model,
-                            max_ep_len=max_ep_len,
-                            scale=scale,
-                            target_return=target_online/scale,
-                            mode=mode,
-                            state_mean=state_mean,
-                            state_std=state_std,
-                            device=device,
-                            use_means=False,
-                            return_traj=True
-                )
-                # Remove oldest trajectory, add new trajectory
-                trajectories = trajectories[1:]
-                trajectories.append(traj)
-
-                # Perform update, eval using deterministic policy
-                outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
-                if log_to_wandb:
-                    wandb.log(outputs)
+            loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg, r, a_log_prob, entropies: torch.mean((a_hat - a)**2)
+    
+        if model_type == 'dt':
+            trainer = SequenceTrainer(
+                model=model,
+                optimizer=optimizer,
+                batch_size=batch_size,
+                get_batch=get_batch,
+                scheduler=scheduler,
+                loss_fn=loss_fn,
+                log_entropy_multiplier=log_entropy_multiplier,
+                entropy_loss_fn=entropy_loss_fn,
+                multiplier_optimizer=multiplier_optimizer,
+                multiplier_scheduler=multiplier_scheduler,
+                eval_fns=[eval_episodes(tar) for tar in env_targets],
+            )
+        elif model_type == 'bc':
+            trainer = ActTrainer(
+                model=model,
+                optimizer=optimizer,
+                batch_size=batch_size,
+                get_batch=get_batch,
+                scheduler=scheduler,
+                loss_fn=loss_fn,
+                eval_fns=[eval_episodes(tar) for tar in env_targets],
+            )
+        if log_to_wandb:
+            wandb.init(
+                name= (f' Seed: {seed} - Zone: {env_idx}'),
+                group=group_name,
+                project='decision-transformer',
+                config=variant
+            )
+            # wandb.watch(model)  # wandb has some bug
+        if variant['eval_only']:
+            model.eval()
+            eval_fns = [eval_episodes(tar) for tar in env_targets]
+    
+            for iter_num in range(variant['max_iters']):
+                logs = {}
+                for eval_fn in eval_fns:
+                    outputs = eval_fn(model)
+                    for k, v in outputs.items():
+                        logs[f'evaluation/{k}'] = v
+    
+                print('=' * 80)
+                print(f'Iteration {iter_num}')
+                for k, v in logs.items():
+                    print(f'{k}: {v}')
         else:
-            for iter in range(variant['max_iters']):
-                outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
-                if log_to_wandb:
-                    wandb.log(outputs)
-        if variant['online_training']:
-            torch.save(model,os.path.join(on_model_dir, model_type + '_' + variant['zone_index'] + exp_prefix + '.pt'))
-        else:
-            torch.save(model,os.path.join(off_model_dir, model_type + '_' + variant['zone_index'] + exp_prefix + '.pt'))
+            if variant['online_training']:
+                for iter in range(variant['max_iters']): # FOR EACH EPISODE
+                    # Collect new rollouts, using stochastic policy
+                    ret, length, new_trajectories = evaluate_episode_rtg(
+                        env,
+                        chargers,
+                        routes,
+                        act_dim,
+                        fixed_attributes,
+                        model,
+                        max_ep_len=max_ep_len,
+                        scale=scale,
+                        target_return=target_online/scale,
+                        mode=mode,
+                        state_mean=state_mean,
+                        state_std=state_std,
+                        device=device,
+                        use_means=False,
+                        return_traj=True
+                    )
+                    
+                    # Update the buffer by removing the oldest trajectories and adding the new ones
+                    num_new_trajectories = len(new_trajectories)
+
+                    print(f'Num New Trajectories {num_new_trajectories}')
+                    
+                    # Ensure the buffer maintains its maximum size by removing the oldest trajectories
+                    if len(trajectories) + num_new_trajectories > variant['online_buffer_size']:
+                        trajectories = trajectories[num_new_trajectories:]  # Remove as many old trajectories as there are new ones         
+                    # Add all the new trajectories to the buffer
+                    trajectories.extend(new_trajectories)
+                    # Perform update, eval using deterministic policy
+                    outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
+                    if log_to_wandb:
+                        wandb.log(outputs)
+            else:
+                for iter in range(variant['max_iters']):
+                    outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
+                    if log_to_wandb:
+                        wandb.log(outputs)
+            if log_to_wandb:
+                wandb.finish()  # Close the current wandb run
+            if variant['online_training']:
+                torch.save(model,os.path.join(on_model_dir, model_type + '_' + exp_prefix + '.pt'))
+            else:
+                torch.save(model,os.path.join(off_model_dir, model_type + '_' + exp_prefix + '.pt'))
 
 def format_data(data):
     # Initialize a defaultdict to aggregate data by unique identifiers

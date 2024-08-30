@@ -150,12 +150,13 @@ def train_rl_vrp_csp(date, args):
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
                 run_odt(devices,
-                          environment_list[nn_c['zone_index']],
+                          environment_list,
                           chargers_copy,
                           all_routes[0],
                           action_dim,
                           eval_c['fixed_attributes'],
-                          nn_c
+                          nn_c, 
+                          seed
                          )
                 return
 
