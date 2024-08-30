@@ -140,14 +140,16 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             agent.es.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
 
         # Get rewards with best solutions after evolving population
-        environment.cma_copy_store()  # Restore environment to its stored state
+        environment.reset_episode(chargers, routes, unique_chargers)
 
         sim_done = False
         timestep_counter = 0
-        while not sim_done:  # Keep going until every EV reaches its destination
 
+        rewards = []
+        while not sim_done:  # Keep going until every EV reaches its destination
+            # environment.cma_copy_store()  # Restore environment to its stored state
             environment.init_routing()
-            reward_timestep = 0
+            
             for car_idx in range(num_cars):
                 state = environment.reset_agent(car_idx)
                 agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
@@ -158,13 +160,19 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
     
             sim_done = environment.simulate_routes()  # Simulate the environment with the best solutions
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.get_results()  # Get the resulting rewards
-            reward_timestep += rewards
+            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()  # Get the resulting rewards
 
-                # Used to evaluate simulation
+            if timestep_counter == 0:
+                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+            else:
+                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+
+            rewards.extend(episode_rewards.sum(axis=0))
+
+            # Used to evaluate simulation
             metric = {
                 "zone": zone_index,
-                "episode": cma_info.max_generation,
+                "episode": generation,
                 "timestep": timestep_counter,
                 "aggregation": aggregation_num,
                 "paths": sim_path_results,
@@ -172,26 +180,25 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
                 "rewards": rewards,
+                # "best_reward": best_avg,
                 "done": sim_done
             }
             metrics.append(metric)
             timestep_counter += 1
 
-        avg_reward = reward_timestep.mean()  # Calculate average reward for this generation
-        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  # Store the average reward
+        avg_reward = episode_rewards.sum(axis=0).mean()
 
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  # Store the average reward
         # Print information at the log and command line
         if verbose:
             elapsed_time = time.time() - start_time
-            to_print = (f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} '
-                        f'Generation: {generation + 1}/{cma_info.max_generation}) - avg reward {avg_rewards[-1][0]:.3f}')
+            to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
+                        f'Generation: {generation + 1}/{cma_info.max_generation}) - avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, date, elapsed_time)
 
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:
             best_avg = avg_reward
-            best_paths = copy.deepcopy(environment.paths)
-            best_actions = [agent.actions for agent in cma_agents_list]
             if verbose:
                 to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation} - New Best: {best_avg:.3f}')
                 print_log(to_print, date, None)
@@ -229,15 +236,9 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
 
         print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
-    # Optionally, save the best paths for later analysis
-    # save_paths(f'route_{zone_index}_seed_{seed}.npy', best_paths)
-
     trajectories = []
-    # weights_list = [agent.get_weights() for agent in cma_agents_list]
     weights_list = [agent.get_weights() for agent in cma_agents_list]
-
-    # print(f'weights list cma {weights_list}')
-    
+  
     return weights_list, avg_rewards, avg_output_values, metrics, trajectories
 
 

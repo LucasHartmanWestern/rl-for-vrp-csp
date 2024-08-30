@@ -176,7 +176,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self, timestep):
+    def simulate_routes(self):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -271,7 +271,7 @@ class EnvironmentClass:
             if torch.any(battery <= 0):
                 # Print the graph for the car that ran out of battery
                 negative_index = torch.where(battery <= 0)[0][0].item()
-                print(f"\n\n---\n\nCharge graph of {negative_index} who died on time-step {timestep + 1} mini-step {mini_step_count}:\n{self.charges_needed[negative_index]}")
+                print(f"\n\n---\n\nCharge graph of {negative_index} who died, mini-step {mini_step_count}:\n{self.charges_needed[negative_index]}")
 
                 print(f"\n\n---\n\nHistorical charge graphs:")
                 for row in self.historical_charges_needed:
@@ -312,9 +312,12 @@ class EnvironmentClass:
         self.traffic_results = traffic_per_charger.numpy()
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
-        
+        self.arrived_at_final = arrived_at_final
 
-        return done, arrived_at_final
+        return done
+
+    def get_odt_info(self):
+        return self.arrived_at_final[0,:]
 
     def get_results(self) -> tuple:
         """
