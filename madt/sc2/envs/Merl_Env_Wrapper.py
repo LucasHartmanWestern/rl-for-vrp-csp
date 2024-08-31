@@ -1,9 +1,14 @@
 from starcraft2.multiagentenv import MultiAgentEnv
-from .merl_env.environment import EnvironmentClass
+from merl_env.environment import EnvironmentClass
+import torch
+
 
 class Merl_Env_Wrapper(MultiAgentEnv):
-    def __init__(self, config_fname, sub_seed, device, dtype=torch.float32):
-        self.env = EnvironmentClass(config_fname, sub_seed, device, dtype)
+    def __init__(self, env, action_dim):
+        self.env = env
+        self.observation_space = 2
+        self.share_observation_space = env.state_dim - 2
+        self.action_space = action_dim
         self.num_agents = self.env.num_cars
         self._episode_steps = 0
         self.episode_limit = self.env.max_steps

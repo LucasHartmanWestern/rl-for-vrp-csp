@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import pickle
+from collections import defaultdict
 import copy, glob
 from torch.utils.data import Dataset
 from .utils import padding_obs, padding_ava
@@ -7,7 +9,7 @@ from .utils import padding_obs, padding_ava
 
 class StateActionReturnDataset(Dataset):
 
-   def __init__(self, global_state, local_obs, block_size, actions, done_idxs, rewards, avas, v_values, rtgs, rets,
+    def __init__(self, global_state, local_obs, block_size, actions, done_idxs, rewards, avas, v_values, rtgs, rets,
                  advs, timesteps):
         self.block_size = block_size
         self.global_state = global_state
@@ -64,11 +66,18 @@ class StateActionReturnDataset(Dataset):
             pre_actions = [[0]] + self.actions[idx:done_idx-1]
         else:
             pre_actions = self.actions[idx-1:done_idx-1]
+
+        avas = self.avas[idx:done_idx]
+        avas = None
         pre_actions = torch.tensor(pre_actions, dtype=torch.long)
         actions = torch.tensor(self.actions[idx:done_idx], dtype=torch.long)
-
         rewards = torch.tensor(self.rewards[idx:done_idx], dtype=torch.float32)
-        avas = torch.tensor(self.avas[idx:done_idx], dtype=torch.long)
+        
+        if avas is not None and len(avas) > 0:
+            avas = torch.tensor(avas, dtype=torch.long)
+        else:
+            avas = torch.tensor([], dtype=torch.long)
+            
         v_values = torch.tensor(self.v_values[idx:done_idx], dtype=torch.float32)
         rtgs = torch.tensor(self.rtgs[idx:done_idx], dtype=torch.float32)
         rets = torch.tensor(self.rets[idx:done_idx], dtype=torch.float32)
@@ -76,11 +85,16 @@ class StateActionReturnDataset(Dataset):
         # timesteps = torch.tensor(self.timesteps[idx:idx+1], dtype=torch.int64)
         timesteps = torch.tensor(self.timesteps[idx:done_idx], dtype=torch.int64)
 
+        if actions.shape == '[1,9]':
+            print(f"idx: {idx}, states shape: {states.shape}, obss shape: {obss.shape}, actions shape: {actions.shape}")
         dones = torch.zeros_like(rewards)
+        #print(f'dones shape: {dones}')
         if done_idx in self.done_idxs:
-            dones[-1][0] = 1
-
-        return states, obss, actions, rewards, avas, v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
+            dones[-1] = 1
+        if avas is not None:
+            return states, obss, actions, rewards, avas, v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
+        else:
+            return states, obss, actions, rewards,  v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
 
 
 
@@ -134,27 +148,97 @@ class ReplayBuffer:
             keep_idx = np.random.randint(0, self.size, num_keep)
             self.data = [self.data[idx] for idx in keep_idx]
 
+    def process_merl_data(self, file_path):
+        file_path = file_path + '[1234]-10-3-2-10-20240830_120849.pkl'
+        with open(file_path, 'rb') as file:
+            data = pickle.load(file)
+        
+        # Append available actions as None (if not already included in the data)
+        for entry in data:
+            if 'available_actions' not in entry:
+                entry['available_actions'] = None
+        episodes = defaultdict(lambda: defaultdict(list))
+        
+        # Group trajectories by aggregation and episode number
+        for trajectory in data:
+            aggregation_num = trajectory['aggregation']
+            episode_num = trajectory['episode']
+            episodes[aggregation_num][episode_num].append(trajectory)
+    
+        processed_data = []
+        
+        # Process each episode within each aggregation
+        for aggregation_num, episodes_in_aggregation in episodes.items():
+            for episode_num, trajectories in episodes_in_aggregation.items():
+                episode = []
+                
+                for trajectory in trajectories:
+                    trajectory_steps = []
+                    num_steps = len(trajectory['observations'])
+                    
+                    for step_idx in range(num_steps):
+                        state = trajectory['observations'][step_idx]
+                        action = trajectory['actions'][step_idx]
+                        reward = trajectory['rewards'][step_idx]
+                        terminal_by_car = trajectory['terminals_car'][step_idx]
+                        available_actions = trajectory['available_actions']
+                        
+                        global_states = []
+                        local_obss = []
+                        
+                        # Split state into global and local components
+                        for i, element in enumerate(state):
+                            if i in range(18, 20):  # Indices 18 to 19 are global state elements
+                                global_states.append(element)
+                            else:  # All other indices are part of the local state
+                                local_obss.append(element)
+
+                        # Create the step structure
+                        step = [global_states, local_obss, action, np.atleast_1d(reward), terminal_by_car, available_actions]
+                        
+                        trajectory_steps.append(step)
+                    
+                    episode.append(trajectory_steps)  # Append the full trajectory (all steps) to the episode
+                
+                processed_data.append(episode)  # Append the entire episode to the processed data
+        
+        return processed_data
+
     # offline data size could be large than buffer size
     def load_offline_data(self, data_dir, offline_episode_num, max_epi_length=400):
+
         for j in range(len(data_dir)):
-            path_files = glob.glob(pathname=data_dir[j] + "*")
-            # for file in sorted(path_files):
-            for i in range(offline_episode_num[j]):
-                episode = torch.load(path_files[i])
+            if data_dir == '/storage_1/epigou_storage/madt/merl_data/':
+                path_files = self.process_merl_data(data_dir)
+            else:
+                path_files = glob.glob(pathname=data_dir[j] + "*")
 
-                # if len(episode[0]) > max_epi_length:
-                #     print("file: ", path_files[i])
-                #     print("invalid episode length: ", len(episode[0]))
-                #     continue
-
-                # padding obs
-                for agent_trajectory in episode:
-                    for step in agent_trajectory:
-                        step[0] = padding_obs(step[0], self.global_obs_dim)
-                        step[1] = padding_obs(step[1], self.local_obs_dim)
-                        step[5] = padding_ava(step[5], self.action_dim)
-
-                self.data.append(episode)
+            if isinstance(path_files, list):  # If path_files is processed MERL data
+                episodes = len(path_files)
+                for i in range(episodes):
+                    episode = path_files[i]
+                    for agent_trajectory in episode:
+                        for step in agent_trajectory:
+                            step[0] = padding_obs(step[0], self.global_obs_dim)
+                            step[1] = padding_obs(step[1], self.local_obs_dim)
+                            if step[5] is not None:
+                                step[5] = padding_ava(step[5], self.action_dim)
+                    self.data.append(episode)
+            else:  
+                for i in range(offline_episode_num[j]):          
+                    episode = torch.load(path_files[i])
+    
+                    # padding obs
+                    for agent_trajectory in episode:
+                        print(f'agent: {agent_trajectory}')
+                        for step in agent_trajectory:
+                            print(f"obs before padding: {step}")
+                            step[0] = padding_obs(step[0], self.global_obs_dim)
+                            step[1] = padding_obs(step[1], self.local_obs_dim)
+                            if step[5] is not None:
+                                step[5] = padding_ava(step[5], self.action_dim)
+    
+                    self.data.append(episode)
 
     def sample(self):
         #UPDATE TO HANDLE STATE DIMENSIONS FROM DIFFERING NUMBER OF CHARGERS
@@ -179,12 +263,9 @@ class ReplayBuffer:
             for agent_trajectory in episode:
                 time_step = 0
                 for step in agent_trajectory:
-                    state, a, r, d, ava, v, rtg, ret, adv = step
-                    for i, element in enumerate(state):
-                        if i in range(18, 21):  # Indices 18 to 20 are global state elements
-                            global_states.append(element)
-                        else:  # All other indices are part of the local state
-                            local_obss.append(element)
+                    g, l, a, r, d, ava, v, rtg, ret, adv = step
+                    global_states.append(g)
+                    local_obss.append(l)
                     actions.append(a)
                     rewards.append(r)
                     avas.append(ava)
@@ -217,7 +298,7 @@ class ReplayBuffer:
                     pass  # online nothing to do
                 else:
                     raise NotImplementedError
-
+                #print(f'Traj: {agent_trajectory}')
                 reward = agent_trajectory[i][3][0]
                 rtg += reward
                 agent_trajectory[i].append([rtg])

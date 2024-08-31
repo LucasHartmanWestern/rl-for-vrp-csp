@@ -64,11 +64,18 @@ class Trainer:
             else:
                 raise NotImplementedError
 
+            # Check all actions before the loop starts
+            for batch in loader:
+                a = batch[2]  # Assuming 'a' is the third element in the batch
+                if a.shape == (1, 1):
+                    print(f"Action with shape {a.shape}: {a}")          
+
             loss_info = 0
             pbar = tqdm(enumerate(loader), total=len(loader))
 
             # todo: check these inputs
             for it, (s, o, a, r, v, rtg, ret, adv, t, pre_a, next_s, next_rtg, done) in pbar:
+                        
                 # place data on the correct device
                 s = s.to(self.device)
                 o = o.to(self.device)
