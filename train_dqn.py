@@ -76,7 +76,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (environment.num_chargers * 3 * 2) + 4
+    state_dimension = (environment.num_chargers * 3 * 2) + 5
 
     model_indices = environment.info['model_indices']
     

@@ -156,9 +156,9 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        temperature = get_temperature(config['season'], zone_coords, rng)
+        self.temperature = get_temperature(config['season'], zone_coords, rng)
 
-        self.init_ev_info(config, temperature, rng)
+        self.init_ev_info(config, self.temperature, rng)
 
         # Store environment parameters
         self.num_cars = config['num_of_cars']
@@ -557,10 +557,11 @@ class EnvironmentClass:
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
         # Traffic level and distance of each station plus total charger num, total distance,
-        # number of EVs, and car model index
+        # number of EVs, car model index, and temperature
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
-                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]])))
+                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
+                           np.array([self.temperature])))
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
