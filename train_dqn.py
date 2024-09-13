@@ -16,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 
 def train_dqn(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False
+          dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
     """
@@ -39,6 +39,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+        train_model (bool): True if training the model, False if evaluating
 
 
     Returns:
@@ -52,11 +53,11 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     c = load_config_file(nn_config_fname)
     nn_c = c['nn_hyperparameters']
 
-    epsilon = nn_c['epsilon']
+    epsilon = nn_c['epsilon'] if train_model else 0
     epsilon_decay =  nn_c['epsilon_decay']
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes']
+    num_episodes = nn_c['num_episodes'] if train_model else 1
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
@@ -309,7 +310,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
-        epsilon = max(0.1, epsilon) # Minimal learning threshold
+        if train_model:
+            epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
             if agent_by_zone:
@@ -332,8 +334,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
                     # Save the networks at the end of training
                     save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], \
-                               f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()

@@ -6,8 +6,9 @@ import time
 from data_loader import save_to_json, load_from_json
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
-
     if purpose == 'save':
+        if 'eval_' in base_path:
+            base_path = base_path.replace('metrics/', 'metrics/eval_')
 
         traffic_data = []
         distance_data = []

@@ -8,8 +8,8 @@ nn_hyperparameters:
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.999 # Present value of future rewards
     epsilon_decay: 0.999 # Rate of decrease for training noise
-    batch_size: 100 # Amount of experiences to use when training
-    buffer_limit: 150 # Max number of experiences to store in a buffer
+    batch_size: 50 # Amount of experiences to use when training
+    buffer_limit: 75 # Max number of experiences to store in a buffer
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
 
