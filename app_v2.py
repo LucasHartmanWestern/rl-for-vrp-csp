@@ -100,8 +100,6 @@ def train_rl_vrp_csp(date, args):
         start_time = time.time()
         for area_idx in range(n_zones):
             environment = EnvironmentClass(environment_config_fname, chargers_seeds[area_idx], env_c['coords'][area_idx], devices[area_idx], dtype=torch.float32)
-            
-            print(f"Temperature in environment {area_idx}: {environment.temperature}")
 
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())

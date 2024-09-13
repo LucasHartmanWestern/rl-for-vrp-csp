@@ -156,7 +156,11 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        self.init_ev_info(config, rng)
+        temperature = get_temperature(config['season'], zone_coords, rng)
+
+        print(f"Temperature in environment {temperature}")
+
+        self.init_ev_info(config, temperature, rng)
 
         # Store environment parameters
         self.num_cars = config['num_of_cars']
@@ -170,16 +174,17 @@ class EnvironmentClass:
         self.state_dim = (self.num_chargers * 3 * 2) + 4
         self.charging_status = np.zeros(self.num_cars)
 
-        self.temperature = get_temperature(config['season'], zone_coords, rng)
+        
 
         self.historical_charges_needed = []
 
-    def init_ev_info(self, config: dict, rng: np.random.Generator):
+    def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
         """
         Initialize electric vehicle (EV) information based on the configuration.
 
         Parameters:
             config (dict): Configuration dictionary.
+            temperature (float): Temperature of the zone.
             rng (np.random.Generator): Random number generator.
         """
         # Generating a random model
@@ -187,8 +192,20 @@ class EnvironmentClass:
 
         # Using the indices to select the model type and corresponding configurations
         model_type = np.array([config['models'][index] for index in model_indices], dtype=str)
-        usage_per_hour = np.array([config['usage_per_hour'][index] for index in model_indices], dtype=int)
+        usage_per_hour = np.array([config['usage_per_hour'][index] for index in model_indices], dtype=float)
         max_charge = np.array([config['max_charge'][index] for index in model_indices], dtype=int)
+
+        # Based on https://www.mdpi.com/2032-6653/12/3/115
+        # Efficiency drops significantly below 0°C, gradually above it
+        if temperature < 0:
+            temp_efficiency = 0.5 # 50% efficiency at freezing
+        elif 0 <= temperature <= 25:
+            temp_efficiency =  1 - (25 - temperature) * 0.02 # 2% efficiency drop per degree below 25°C
+        else:
+            temp_efficiency = 1 # Full efficiency at or above 25°C
+
+        # Modify usage_per_hour based on the efficiency factor and convert back to int
+        usage_per_hour = (usage_per_hour * temp_efficiency).astype(int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
         starting_charge = config['starting_charge'] + 2000 * (rng.random(config['num_of_cars']) - 0.5)
