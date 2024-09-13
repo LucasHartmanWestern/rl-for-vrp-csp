@@ -62,25 +62,20 @@ class Trainer:
                                     batch_size=dataset.__len__(),
                                     num_workers=config.num_workers)
             else:
-                raise NotImplementedError
-
-            # Check all actions before the loop starts
-            for batch in loader:
-                a = batch[2]  # Assuming 'a' is the third element in the batch
-                if a.shape == (1, 1):
-                    print(f"Action with shape {a.shape}: {a}")          
+                raise NotImplementedError       
 
             loss_info = 0
             pbar = tqdm(enumerate(loader), total=len(loader))
 
             # todo: check these inputs
-            for it, (s, o, a, r, v, rtg, ret, adv, t, pre_a, next_s, next_rtg, done) in pbar:
+            for it, (s, o, a, r, ava, v, rtg, ret, adv, t, pre_a, next_s, next_rtg, done) in pbar:
                         
                 # place data on the correct device
                 s = s.to(self.device)
                 o = o.to(self.device)
                 a = a.to(self.device)
                 r = r.to(self.device)
+                ava = ava.to(self.device)
                 v = v.to(self.device)
                 rtg = rtg.to(self.device)
                 ret = ret.to(self.device)
@@ -95,6 +90,9 @@ class Trainer:
                 with torch.set_grad_enabled(True):
                     logits = model(o, pre_a, rtg, t)
                     if self.config.mode == "offline":
+                        print(f"logits shape before reshape: {logits.shape}")
+                        print(f"actions shape before reshape: {a.shape}")
+
                         loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), a.reshape(-1))
                         entropy_info = 0.
                         ratio_info = 0.

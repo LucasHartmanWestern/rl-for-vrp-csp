@@ -1,4 +1,4 @@
-from starcraft2.multiagentenv import MultiAgentEnv
+from .starcraft2.multiagentenv import MultiAgentEnv
 from merl_env.environment import EnvironmentClass
 import torch
 

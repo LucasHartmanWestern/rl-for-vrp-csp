@@ -107,16 +107,6 @@ def run_madt(environments, action_dim):
         buffer.load_offline_data(used_data_dir, args.offline_episode_num, max_epi_length=eval_env.max_timestep)
         offline_dataset = buffer.sample()
         offline_dataset.stats()
-
-        dataset_list = []
-        for i in range(len(offline_dataset)):  # Or iterate based on how offline_dataset is structured
-            data = offline_dataset[i]  # Access each item in the dataset
-            data_np = np.hstack([d.cpu().numpy().reshape(-1) for d in data])  # Convert to numpy and flatten
-            dataset_list.append(data_np)
-    
-        # Convert list to DataFrame and save as CSV
-        df = pd.DataFrame(dataset_list)
-        df.to_csv("offline_dataset.csv", index=False)
         
         #Initialize trainer for offline
         offline_tconf = TrainerConfig(max_epochs=1, batch_size=args.offline_mini_batch_size, learning_rate=args.offline_lr,

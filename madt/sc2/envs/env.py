@@ -2,7 +2,7 @@ from .starcraft2.StarCraft2_Env import StarCraft2Env
 from .starcraft2.smac_maps import get_map_params
 from .config import get_config
 from .env_wrappers import ShareSubprocVecEnv
-from Merl_Env_Wrapper import Merl_Env_Wrapper
+from .Merl_Env_Wrapper import Merl_Env_Wrapper
 
 
 
