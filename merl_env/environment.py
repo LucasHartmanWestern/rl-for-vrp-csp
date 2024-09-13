@@ -158,8 +158,6 @@ class EnvironmentClass:
 
         temperature = get_temperature(config['season'], zone_coords, rng)
 
-        print(f"Temperature in environment {temperature}")
-
         self.init_ev_info(config, temperature, rng)
 
         # Store environment parameters
@@ -173,9 +171,6 @@ class EnvironmentClass:
         self.debug = config['debug']
         self.state_dim = (self.num_chargers * 3 * 2) + 4
         self.charging_status = np.zeros(self.num_cars)
-
-        
-
         self.historical_charges_needed = []
 
     def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
@@ -350,6 +345,8 @@ class EnvironmentClass:
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
 
+        energy_used = np.zeros(self.num_cars)  # Initialize energy used for each car
+
         traffic_level = None
 
         done = False
@@ -391,6 +388,9 @@ class EnvironmentClass:
             # Update the battery level of each car
             battery = update_battery(battery, charging_rates, arrived_at_final)
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
+
+            # Track energy used (absolute value of charging rates)
+            energy_used += torch.abs(charging_rates).cpu().numpy()
 
             # Check if the car is at their target battery level
             battery_charged = get_battery_charged(battery, target_battery_level, self.device)
@@ -441,8 +441,14 @@ class EnvironmentClass:
                 done = True
 
         
-        # Calculate reward as -(distance * 100 + peak traffic)
-        self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
+        # Calculate reward as -(distance * 100 + peak traffic + energy used / 100)
+        distance_factor = distances_per_car[-1].numpy() * 100
+        peak_traffic = np.max(traffic_per_charger.numpy())
+        energy_used = energy_used / 100
+        
+        # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
+        
+        self.simulation_reward = -(distance_factor + peak_traffic + energy_used)
 
         # Save results in class
         self.tokens = tokens
