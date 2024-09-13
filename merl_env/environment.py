@@ -4,6 +4,9 @@
 import torch
 import numpy as np
 import copy
+import requests
+import datetime
+from geopy.distance import geodesic
 
 from ._helpers_routing import *
 from ._pathfinding import dijkstra, build_graph, haversine
@@ -11,18 +14,136 @@ from .agent_info import agent_info
 
 from data_loader import load_config_file
 
+# Predefined list of supported cities with their coordinates and WeatherStats URLs
+supported_cities = [
+    {"name": "Charlottetown", "lat": 46.2382, "lon": -63.1311, "url": "https://charlottetown.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Edmonton", "lat": 53.5461, "lon": -113.4938, "url": "https://edmonton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Fredericton", "lat": 45.9636, "lon": -66.6431, "url": "https://fredericton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Halifax (Shearwater)", "lat": 44.6488, "lon": -63.5752, "url": "https://halifax.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Iqaluit", "lat": 63.7467, "lon": -68.5170, "url": "https://iqaluit.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Ottawa (Kanata - Orléans)", "lat": 45.4215, "lon": -75.6972, "url": "https://ottawa.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Québec", "lat": 46.8139, "lon": -71.2082, "url": "https://quebec.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Regina", "lat": 50.4452, "lon": -104.6189, "url": "https://regina.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "St. John's", "lat": 47.5615, "lon": -52.7126, "url": "https://stjohns.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Toronto", "lat": 43.65107, "lon": -79.347015, "url": "https://toronto.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Victoria", "lat": 48.4284, "lon": -123.3656, "url": "https://victoria.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Whitehorse", "lat": 60.7212, "lon": -135.0568, "url": "https://whitehorse.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Winnipeg", "lat": 49.8951, "lon": -97.1384, "url": "https://winnipeg.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Yellowknife", "lat": 62.4540, "lon": -114.3718, "url": "https://yellowknife.weatherstats.ca/data/temperature-daily.json"}
+]
+
+def get_closest_city(lat: float, lon: float) -> dict:
+    """
+    Get the closest supported city for the given coordinates.
+
+    Parameters:
+        lat (float): Latitude of the location.
+        lon (float): Longitude of the location.
+
+    Returns:
+        dict: Information about the closest supported city.
+    """
+    closest_city = None
+    min_distance = float('inf')
+
+    for city in supported_cities:
+        city_lat = city['lat']
+        city_lon = city['lon']
+        distance = geodesic((lat, lon), (city_lat, city_lon)).kilometers
+
+        if distance < min_distance:
+            min_distance = distance
+            closest_city = city
+
+    if closest_city is None:
+        raise Exception("No supported city found")
+
+    return closest_city
+
+def get_temperature(season: str, coords: list, rng: np.random.Generator) -> float:
+    """
+    Get the average temperature for the given season and coordinates.
+
+    Parameters:
+        season (str): Season to get the temperature for.
+        coords (list): Coordinates [latitude, longitude] of the location.
+
+    Returns:
+        float: Average temperature for the given season and location.
+    """
+    # Extract latitude and longitude from coordinates
+    lat, lon = coords
+    
+    # Get the closest supported city
+    closest_city = get_closest_city(lat, lon)
+    
+    # Define the months corresponding to each season
+    season_months = {
+        'spring': [3, 4, 5],
+        'summer': [6, 7, 8],
+        'autumn': [9, 10, 11],
+        'winter': [12, 1, 2]
+    }
+
+    # Get the months for the given season
+    months = season_months.get(season.lower())
+    if not months:
+        raise ValueError("Invalid season provided")
+
+    temperatures = []
+    
+    # Fetch temperature data for a random day in each month of the season
+    for month in months:
+        # Generate a random day within the month
+        day = rng.integers(1, 28)  # Assuming 28 days to avoid issues with different month lengths
+        date = datetime.date(2023, month, day).isoformat()
+        
+        try:
+            response = requests.get(
+                closest_city['url'],
+                params={
+                    'refresh_count': 1,
+                    'browser_zone': 'Eastern Daylight Time',
+                    'date': date
+                }
+            )
+            response.raise_for_status()  # Raise an HTTPError for bad responses
+            data = response.json()
+            
+            # Extract the temperature data
+            if 'rows' in data:
+                for row in data['rows']:
+                    if 'c' in row and len(row['c']) > 1:
+                        temp = row['c'][1]['v']
+                        if temp is not None:
+                            temperatures.append(temp)
+            else:
+                print(f"No temperature data available for date {date}: {data}")
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed for date {date}: {e}")
+        except ValueError as e:
+            print(f"Error processing JSON response for date {date}: {e}")
+
+    # Raise an exception if no temperature data was fetched
+    if not temperatures:
+        raise Exception("Failed to fetch temperature data")
+
+    # Return the average temperature
+    return int(sum(temperatures) / len(temperatures))
+
 class EnvironmentClass:
     """
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, sub_seed: int, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
         Parameters:
             config_fname (str): Path to the configuration file.
             sub_seed (int): Seed for random number generator.
+            zone_coords (list): Coordinates of the center of the zone.
             device (torch.device): Device to run tensor operations (CPU or CUDA).
             dtype (torch.dtype): Data type for tensors.
         """
@@ -48,6 +169,8 @@ class EnvironmentClass:
         self.debug = config['debug']
         self.state_dim = (self.num_chargers * 3 * 2) + 4
         self.charging_status = np.zeros(self.num_cars)
+
+        self.temperature = get_temperature(config['season'], zone_coords, rng)
 
         self.historical_charges_needed = []
 

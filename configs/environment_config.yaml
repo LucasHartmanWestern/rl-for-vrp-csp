@@ -8,6 +8,8 @@ environment_settings:
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     action_dim: 3 # Multiplied by the number of chargers to represent how many output neurons there are for each NN
 
+    season: 'spring' # 'spring', 'summer', 'autumn', 'winter'
+
     # Coordinates of city regions in London
     coords: 
         - [43.02120034946083, -81.28349087468504] # North London

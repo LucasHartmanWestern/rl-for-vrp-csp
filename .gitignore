@@ -182,5 +182,5 @@ cython_debug/
 /logs
 /logs
 /outputs
-/eval
-/train
+eval/
+train/
