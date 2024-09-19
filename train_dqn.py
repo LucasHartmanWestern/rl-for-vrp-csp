@@ -52,7 +52,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     nn_config_fname = 'configs/neural_network_config.yaml'
     eval_config_fname = 'configs/evaluation_config.yaml'
     nn_c = load_config_file(nn_config_fname)['nn_hyperparameters']
-    eval_c = load_config_file(eval_config_fname)['evaluation_hyperparameters']
+    eval_c = load_config_file(eval_config_fname)['eval_config']
 
     epsilon = nn_c['epsilon'] if train_model else 0
     epsilon_decay =  nn_c['epsilon_decay']
