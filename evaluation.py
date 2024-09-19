@@ -299,6 +299,48 @@ def draw_map_of_last_episode(data, seed):
 
         plt.show()
 
+    # Plot all zones together
+    plt.figure(figsize=(20, 16))  # Make the plot larger
+    plt.title(f'Seed {seed} - All Zones - Last Episode Paths')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+
+    paths = []
+
+    for zone in unique_zones:
+        zone_data = last_episode_data[last_episode_data['zone'] == zone]
+
+        for aggregation in unique_aggregations:
+            agg_data = zone_data[zone_data['aggregation'] == aggregation]
+
+            for agent_index in agg_data['agent_index'].unique():
+                agent_data = agg_data[agg_data['agent_index'] == agent_index]
+
+                # Extract combined path, origin, and destination
+                combined_path = np.vstack(agent_data['path'].values)
+                origin = combined_path[0]
+                destination = combined_path[-1]
+
+                # Plot path with smaller dots
+                path_line, = plt.plot(combined_path[:, 0], combined_path[:, 1], marker='o', markersize=3, label=f'Zone {zone} Agent {agent_index} Path')
+                paths.append(path_line)
+
+                # Plot origin and destination
+                plt.scatter(origin[0], origin[1], marker='^', s=100, label=f'Zone {zone} Agent {agent_index} Origin')
+                plt.scatter(destination[0], destination[1], marker='*', s=100, label=f'Zone {zone} Agent {agent_index} Destination')
+
+    # Add interactive cursor for paths
+    cursor = mplcursors.cursor(paths, hover=True)
+
+    @cursor.connect("add")
+    def on_add(sel):
+        for path in paths:
+            path.set_alpha(0.1)  # Make all paths semi-transparent
+        sel.artist.set_alpha(1.0)  # Highlight the selected path
+        plt.draw()
+
+    plt.show()
+
 def evaluate_training_duration(data):
     print("Evaluating Training Time Metrics")
 
