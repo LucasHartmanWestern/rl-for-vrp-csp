@@ -131,6 +131,9 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
 
+    # Filter data to only include the last timestep within each episode
+    df = df[df['done'] == True]
+
     # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
     df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
 
@@ -246,6 +249,9 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
 
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
+
+    # Filter data to only include the last timestep within each episode
+    df = df[df['done'] == True]
 
     # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
     df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
