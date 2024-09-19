@@ -15,3 +15,5 @@ eval_config:
     generate_plots: False # Set to true if you want to generate plots of the simulation environments
     save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
     continue_training: False # Set to true if you want the option to continue training after a full training loop completes
+
+    device_config: 'local' # 'local' or 'server'

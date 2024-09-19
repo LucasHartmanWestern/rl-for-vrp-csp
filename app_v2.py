@@ -59,6 +59,8 @@ def train_rl_vrp_csp(date, args):
 
     action_dim = env_c['action_dim'] * env_c['num_of_chargers']
     
+    metrics_base_path = "../../../storage_1/lhartman_storage/metrics" if eval_c['device_config'] == 'server' else 'metrics'
+
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)
     n_zones = len(env_c['coords'])
@@ -307,15 +309,15 @@ def train_rl_vrp_csp(date, args):
                 fixed_attributes = eval_c['fixed_attributes']
                 attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-            if not os.path.exists('metrics/eval'):
-                os.makedirs('metrics/eval')
 
+            if not os.path.exists(f'{metrics_base_path}/eval'):
+                os.makedirs(f'{metrics_base_path}/eval')
             # Save all metrics from evaluation into a file
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"metrics/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"metrics/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
 
         if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
@@ -324,16 +326,16 @@ def train_rl_vrp_csp(date, args):
             fixed_attributes = eval_c['fixed_attributes']
             attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-        if not os.path.exists('metrics/train'):
-            os.makedirs('metrics/train')
+        if not os.path.exists(f'{metrics_base_path}/train'):
+            os.makedirs(f'{metrics_base_path}/train')
 
         # Save all metrics from training into a file
         if eval_c['save_data'] and eval_c['train_model']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
         # Generate the plots for the various metrics
         if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
 
         # if num_episodes != 1 and eval_c['continue_training']:
         #     user_input = input("More Episodes? ")
