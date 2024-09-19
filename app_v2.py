@@ -90,7 +90,13 @@ def train_rl_vrp_csp(date, args):
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
 
-        print(f'Running experiments with seed -> {seed}')
+        if eval_c['evaluate_on_diff_seed']:
+            print(f'Running experiments with model trained on seed {seed} on new seed {seed*5} (seed * 5)')
+            seed *= 5 # Multiply seed by 5 to get a different seed
+
+        else:
+            print(f'Running experiments with seed -> {seed}')
+
         # Creating and seeding a random generaton from Numpy
         rng = np.random.default_rng(seed)
         # Generating sub seeds to run on each environment

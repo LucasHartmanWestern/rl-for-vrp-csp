@@ -50,8 +50,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     """
     # Getting Neural Network parameters
     nn_config_fname = 'configs/neural_network_config.yaml'
-    c = load_config_file(nn_config_fname)
-    nn_c = c['nn_hyperparameters']
+    eval_config_fname = 'configs/evaluation_config.yaml'
+    nn_c = load_config_file(nn_config_fname)['nn_hyperparameters']
+    eval_c = load_config_file(eval_config_fname)['evaluation_hyperparameters']
 
     epsilon = nn_c['epsilon'] if train_model else 0
     epsilon_decay =  nn_c['epsilon_decay']
@@ -91,8 +92,12 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
-            q_network.load_state_dict(global_weights[zone_index])
-            target_q_network.load_state_dict(global_weights[zone_index])
+            if eval_c['evaluate_on_diff_seed']:
+                q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+                target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+            else:
+                q_network.load_state_dict(global_weights[zone_index])
+                target_q_network.load_state_dict(global_weights[zone_index])
 
         optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
 
@@ -108,8 +113,12 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
 
             if global_weights is not None:
-                q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
-                target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                if eval_c['evaluate_on_diff_seed']:
+                    q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                    target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                else:
+                    q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                    target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
             optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
             # Store individual networks

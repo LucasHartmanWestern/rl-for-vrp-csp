@@ -7,8 +7,6 @@ from data_loader import save_to_json, load_from_json
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
     if purpose == 'save':
-        if 'eval_' in base_path:
-            base_path = base_path.replace('metrics/', 'metrics/eval_')
 
         traffic_data = []
         distance_data = []
@@ -222,6 +220,20 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Aggregation')
     plt.show()
 
+def draw_map_of_last_episode(data):
+    # Get the last episode
+    last_episode = data['episode'].max()
+
+    # Get the data for the last episode
+    last_episode_data = data[data['episode'] == last_episode]
+
+    # TODO:
+    # - Draw a scatter plot of the chargers
+    # - Draw a line for the path each car took
+    # - Display the start and ending locations of each car using a special marker
+    # - Use custom colors for each car and their path
+    
+
 def evaluate_training_duration(data):
     print("Evaluating Training Time Metrics")
 
@@ -345,3 +357,23 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
+
+if __name__ == '__main__': # For debugging
+
+    from data_loader import load_config_file
+    from datetime import datetime
+
+    environment_config_fname = 'configs/environment_config.yaml'
+    nn_config_fname = 'configs/neural_network_config.yaml'
+
+    c = load_config_file(environment_config_fname)
+    env_c = c['environment_settings']
+    c = load_config_file(nn_config_fname)
+    nn_c = c['nn_hyperparameters']
+
+    seed = env_c['seeds'][0]
+    date = datetime.now().strftime('%Y-%m-%d_%H-%M')
+    num_episodes = nn_c['num_episodes']
+    attr_label = 'learned'
+
+    evaluate(None, None, seed, date, True, 'display', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
