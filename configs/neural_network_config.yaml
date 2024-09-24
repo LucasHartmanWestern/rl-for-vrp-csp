@@ -57,7 +57,7 @@ odt_hyperparameters:
 
     # ODT Configurations Online
     env: 'hopper'
-    dataset: '1234-15-3-2-25-20240813_163205'
+    dataset: '[10seeds]-100-3-3-100-North-East'
     mode: 'normal'
     K: 10
     pct_traj: 1.0
@@ -71,13 +71,13 @@ odt_hyperparameters:
     learning_rate: 0.0001
     weight_decay: 0.0001
     warmup_steps: 10000
-    num_eval_episodes: 50
-    max_iters: 100
+    num_eval_episodes: 1
+    max_iters: 2
     num_steps_per_iter: 300
     device: 'cuda:1'
     log_to_wandb: True
     save_model: False
-    pretrained_model: '/storage_1/epigou_storage/saved_networks/dt_1234-15-3-2-25-20240813_163205-756799.pt'
+    pretrained_model: '/storage_1/epigou_storage/offline_networks/dt_0[10seeds]-100-3-3-100-North-East-620076.pt'
     stochastic: True
     use_entropy: False
     use_action_means: True
