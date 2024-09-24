@@ -7,43 +7,43 @@ import numpy as np
 import pandas as pd
 
 from tensorboardX.writer import SummaryWriter
-from framework.utils import set_seed
-from framework.trainer import Trainer, TrainerConfig
-from framework.utils import get_dim_from_space
-from envs.env import Env
-from framework.buffer import ReplayBuffer
-from framework.rollout import RolloutWorker
+from .framework.utils import set_seed
+from .framework.trainer import Trainer, TrainerConfig
+from .framework.utils import get_dim_from_space
+from .envs.env import Env
+from .framework.buffer import ReplayBuffer
+from .framework.rollout import RolloutWorker
 from datetime import datetime, timedelta
-from models.gpt_model import GPT, GPTConfig
+from .models.gpt_model import GPT, GPTConfig
 # from models.mlp_model import GPT, GPTConfig
 
-def run_madt(environments, action_dim):
+def run_madt(environments, action_dim, chargers, routes):
     # args = sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--context_length', type=int, default=1)
     parser.add_argument('--model_type', type=str, default='state_only')
-    parser.add_argument('--eval_episodes', type=int, default=32)
+    parser.add_argument('--eval_episodes', type=int, default=5)
     parser.add_argument('--max_timestep', type=int, default=400)
     parser.add_argument('--log_dir', type=str, default='./logs/')#Log storage
     parser.add_argument('--save_log', type=bool, default=True)
     parser.add_argument('--exp_name', type=str, default='easy_trans')#Experiment name
-    parser.add_argument('--pre_train_model_path', type=str, default='../../offline_model/')#Path to pre-trained model
+    parser.add_argument('--pre_train_model_path', type=str, default='/storage_1/epigou_storage/madt/offline_model/')#Path to pre-trained model
     
     parser.add_argument('--offline_map_lists', type=list, default=['3s_vs_4z', '2m_vs_1z', '3m', '2s_vs_1sc', '3s_vs_3z']) #Specify merl here
     parser.add_argument('--offline_episode_num', type=list, default=[200, 200, 200, 200, 200])
     parser.add_argument('--offline_data_quality', type=list, default=['']) #Data quality
     parser.add_argument('--offline_data_dir', type=str, default='/storage_1/epigou_storage/madt/merl_data/') #Data Directory
     
-    parser.add_argument('--offline_epochs', type=int, default=10)
+    parser.add_argument('--offline_epochs', type=int, default=1)
     parser.add_argument('--offline_mini_batch_size', type=int, default=128)
     parser.add_argument('--offline_lr', type=float, default=5e-4)
     parser.add_argument('--offline_eval_interval', type=int, default=1)
     parser.add_argument('--offline_train_critic', type=bool, default=True)
     parser.add_argument('--offline_model_save', type=bool, default=True)
     
-    parser.add_argument('--online_buffer_size', type=int, default=64)
-    parser.add_argument('--online_epochs', type=int, default=5000)
+    parser.add_argument('--online_buffer_size', type=int, default=10)
+    parser.add_argument('--online_epochs', type=int, default=5)
     parser.add_argument('--online_ppo_epochs', type=int, default=10)
     parser.add_argument('--online_lr', type=float, default=5e-4)
     parser.add_argument('--online_eval_interval', type=int, default=1)
@@ -63,8 +63,8 @@ def run_madt(environments, action_dim):
     writter = SummaryWriter(args.log_dir) if args.save_log else None
 
     for env in environments:
-        eval_env = Env(env, action_dim, args.eval_episodes)
-        online_train_env = Env(env, action_dim, args.online_buffer_size)
+        eval_env = Env(env, action_dim, chargers, routes, args.eval_episodes)
+        online_train_env = Env(env, action_dim, chargers, routes, args.online_buffer_size)
         
         # global_obs_dim = get_dim_from_space(online_train_env.real_env.share_observation_space)
         # local_obs_dim = get_dim_from_space(online_train_env.real_env.observation_space)
@@ -79,13 +79,14 @@ def run_madt(environments, action_dim):
         print("local_obs_dim: ", local_obs_dim)
         print("action_dim: ", action_dim)
         
-        mconf_actor = GPTConfig(local_obs_dim, action_dim, block_size,
-                                n_layer=2, n_head=2, n_embd=32, model_type=args.model_type, max_timestep=args.max_timestep)
+        mconf_actor = GPTConfig(local_obs_dim, action_dim, block_size, action_dim, 
+                                n_layer=2, n_head=2, n_embd=32, model_type='actor', max_timestep=args.max_timestep)
         model = GPT(mconf_actor, model_type='actor')
         
-        mconf_critic = GPTConfig(global_obs_dim, action_dim, block_size,
-                                 n_layer=2, n_head=2, n_embd=32, model_type=args.model_type, max_timestep=args.max_timestep)
+        mconf_critic = GPTConfig(global_obs_dim, action_dim, block_size, action_dim, 
+                                 n_layer=2, n_head=2, n_embd=32, model_type='critic', max_timestep=args.max_timestep)
         critic_model = GPT(mconf_critic, model_type='critic')
+        
         device = 'cpu'
         if torch.cuda.is_available():
             device = torch.cuda.current_device()
@@ -125,11 +126,12 @@ def run_madt(environments, action_dim):
                 writter.add_scalar('offline/{args.map_name}/offline_critic_loss', offline_critic_loss, i)
                 
             if i % args.offline_eval_interval == 0:
-                aver_return, aver_win_rate, _ = rollout_worker.rollout(eval_env, target_rtgs, train=False)
-                print("offline epoch: %s, return: %s, eval_win_rate: %s" % (i, aver_return, aver_win_rate))
+                print("rolling out")
+                aver_return,  _ = rollout_worker.rollout(eval_env, target_rtgs, train=False)
+                print("offline epoch: %s, return: %s" % (i, aver_return))
                 if args.save_log:
                     writter.add_scalar('offline/{args.map_name}/aver_return', aver_return.item(), i)
-                    writter.add_scalar('offline/{args.map_name}/aver_win_rate', aver_win_rate, i)
+                    #writter.add_scalar('offline/{args.map_name}/aver_win_rate', aver_win_rate, i)
             if args.offline_model_save:
                 actor_path = args.pre_train_model_path + args.exp_name + '/actor'
                 if not os.path.exists(actor_path):
@@ -140,7 +142,7 @@ def run_madt(environments, action_dim):
                 torch.save(model.state_dict(), actor_path + os.sep + str(i) + '.pkl')
                 torch.save(critic_model.state_dict(), critic_path + os.sep + str(i) + '.pkl')
         
-        
+        print('Offline training complete')
         #ONLINE TRAINING-----------------------------------------------------
         if args.online_epochs > 0 and args.online_pre_train_model_load:
             actor_path = args.pre_train_model_path + args.exp_name + '/actor/' + str(args.online_pre_train_model_id) + '.pkl'
@@ -155,7 +157,7 @@ def run_madt(environments, action_dim):
         
         total_steps = 0
         for i in range(args.online_epochs):
-            sample_return, _, steps = rollout_worker.rollout(online_train_env, target_rtgs, train=True)
+            sample_return, steps = rollout_worker.rollout(online_train_env, target_rtgs, train=True)
             total_steps += steps
             online_dataset = buffer.sample()
             online_actor_loss, online_critic_loss, entropy, ratio, confidence = online_trainer.train(online_dataset,
@@ -172,11 +174,11 @@ def run_madt(environments, action_dim):
             #     target_rtgs = online_dataset.max_rtgs
             print("sample return: %s, online target_rtgs: %s" % (sample_return, target_rtgs))
             if i % args.online_eval_interval == 0:
-                aver_return, aver_win_rate, _ = rollout_worker.rollout(eval_env, target_rtgs, train=False)
-                print("online steps: %s, return: %s, eval_win_rate: %s" % (total_steps, aver_return, aver_win_rate))
+                aver_return, _ = rollout_worker.rollout(eval_env, target_rtgs, train=False)
+                print("online steps: %s, return: %s" % (total_steps, aver_return,))
                 if args.save_log:
                     writter.add_scalar('online/{args.map_name}/aver_return', aver_return.item(), total_steps)
-                    writter.add_scalar('online/{args.map_name}/aver_win_rate', aver_win_rate, total_steps)
+                    #writter.add_scalar('online/{args.map_name}/aver_win_rate', aver_win_rate, total_steps)
         
         online_train_env.real_env.close()
         eval_env.real_env.close()

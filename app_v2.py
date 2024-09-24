@@ -154,7 +154,7 @@ def train_rl_vrp_csp(date, args):
                 run_odt(devices,
                           environment_list[nn_c['zone_index']],
                           chargers_copy,
-                          all_routes[0],
+                          all_routes[nn_c['zone_index']],
                           action_dim,
                           eval_c['fixed_attributes'],
                           nn_c
@@ -164,7 +164,8 @@ def train_rl_vrp_csp(date, args):
                 c = load_config_file('configs/neural_network_config.yaml')
                 nn_c = c['odt_hyperparameters']  
                 print(f"Training using MADT - Seed {seed}")
-                run_madt(environment_list, action_dim)
+                chargers_copy = copy.deepcopy(chargers)
+                run_madt(environment_list, action_dim, chargers_copy, all_routes[0])
                 
                 return
             

@@ -48,6 +48,7 @@ class StateActionReturnDataset(Dataset):
                 break
         idx = done_idx - context_length
         states = torch.tensor(np.array(self.global_state[idx:done_idx]), dtype=torch.float32)
+        
         obss = torch.tensor(np.array(self.local_obs[idx:done_idx]), dtype=torch.float32)
     
         if done_idx in self.done_idxs:
@@ -69,46 +70,63 @@ class StateActionReturnDataset(Dataset):
             pre_actions = self.actions[idx-1:done_idx-1]
     
         avas = self.avas[idx:done_idx]
-        if avas is None or len(avas) == 1:
+        if avas is None or all(a is None for a in avas):  # If avas is None or all elements are None
             avas = torch.zeros(done_idx - idx, 9, dtype=torch.long)  # Assuming 9 is the action dimension
         else:
             avas = torch.tensor(avas, dtype=torch.long)
-    
+
+        # Check and handle NaNs for pre_actions
+        if np.isnan(pre_actions).any():
+            pre_actions = np.nan_to_num(pre_actions, nan=0)  # Replace NaNs with 0
         pre_actions = torch.tensor(pre_actions, dtype=torch.long)
-        actions = torch.tensor(self.actions[idx:done_idx], dtype=torch.long)
-        rewards = torch.tensor(self.rewards[idx:done_idx], dtype=torch.float32)
         
-        v_values = torch.tensor(self.v_values[idx:done_idx], dtype=torch.float32)
-        rtgs = torch.tensor(self.rtgs[idx:done_idx], dtype=torch.float32)
-        rets = torch.tensor(self.rets[idx:done_idx], dtype=torch.float32)
-        advs = torch.tensor(self.advs[idx:done_idx], dtype=torch.float32)
-        timesteps = torch.tensor(self.timesteps[idx:done_idx], dtype=torch.int64)
+        # Check and handle NaNs for actions
+        actions_slice = self.actions[idx:done_idx]  # Apply the slice only once
+        if np.isnan(actions_slice).any():
+            actions_slice = np.nan_to_num(actions_slice, nan=0)
+        actions = torch.tensor(actions_slice, dtype=torch.long)
+        
+        # Check and handle NaNs for rewards
+        rewards_slice = self.rewards[idx:done_idx]
+        if np.isnan(rewards_slice).any():
+            rewards_slice = np.nan_to_num(rewards_slice, nan=0) + 0.000001
+        rewards = torch.tensor(rewards_slice, dtype=torch.float32)
+        
+        # Check and handle NaNs for v_values
+        v_values_slice = self.v_values[idx:done_idx]
+        if np.isnan(v_values_slice).any():
+            v_values_slice = np.nan_to_num(v_values_slice, nan=0) + 0.000001
+        v_values = torch.tensor(v_values_slice, dtype=torch.float32)
+        
+        # Check and handle NaNs for rtgs
+        rtgs_slice = self.rtgs[idx:done_idx]
+        if np.isnan(rtgs_slice).any():
+            rtgs_slice = np.nan_to_num(rtgs_slice, nan=0) + 0.000001
+        rtgs = torch.tensor(rtgs_slice, dtype=torch.float32)
+        
+        # Check and handle NaNs for rets
+        rets_slice = self.rets[idx:done_idx]
+        if np.isnan(rets_slice).any():
+            rets_slice = np.nan_to_num(rets_slice, nan=0) + 0.000001
+        rets = torch.tensor(rets_slice, dtype=torch.float32)
+        
+        # Check and handle NaNs for advs
+        advs_slice = self.advs[idx:done_idx]
+        if np.isnan(advs_slice).any():
+            advs_slice = np.nan_to_num(advs_slice, nan=0) + 0.000001
+        advs = torch.tensor(advs_slice, dtype=torch.float32)
+        
+        # Check and handle NaNs for timesteps
+        timesteps_slice = self.timesteps[idx:done_idx]
+        if np.isnan(timesteps_slice).any():
+            timesteps_slice = np.nan_to_num(timesteps_slice, nan=0) + 0.000001
+        timesteps = torch.tensor(timesteps_slice, dtype=torch.int64)
     
         dones = torch.zeros_like(rewards)
         if done_idx in self.done_idxs:
             dones[-1] = 1
-    
-        if idx == 0:
-            print(f"Index {idx}:")
-            print(f"  States shape: {states.shape}")
-            print(f"  Observations shape: {obss.shape}")
-            print(f"  Actions shape: {actions.shape}")
-            print(f"  Rewards shape: {rewards.shape}")
-            print(f"  v_values shape: {v_values.shape}")
-            print(f"  RTGs shape: {rtgs.shape}")
-            print(f"  RETs shape: {rets.shape}")
-            print(f"  Advantages shape: {advs.shape}")
-            print(f"  Timesteps shape: {timesteps.shape}")
-            print(f"  Next states shape: {next_states.shape}")
-            print(f"  Next RTGs shape: {next_rtgs.shape}")
-            print(f"  Pre-actions shape: {pre_actions.shape}")
-            print(f"  Dones shape: {dones.shape}")
         
         return states, obss, actions, rewards, avas, v_values, rtgs, rets, advs, timesteps, pre_actions, next_states, next_rtgs, dones
-
-
-
-
 
 class ReplayBuffer:
 
@@ -130,17 +148,24 @@ class ReplayBuffer:
 
     def insert(self, global_obs, local_obs, action, reward, done, available_actions, v_value):
         n_threads, n_agents = np.shape(reward)[0], np.shape(reward)[1]
+        #global_obs = torch.from_numpy(global_obs).to(self.device).expand(-1, env.num_agents, -1, -1)
+        
+        done = np.transpose(done, (0, 2, 1))
+        
         for n in range(n_threads):
             if len(self.episodes) < n + 1:
                 self.episodes.append([])
                 self.episode_dones.append(False)
             if not self.episode_dones[n]:
+                global_obs_for_agents = global_obs[n].tolist()
                 for i in range(n_agents):
                     if len(self.episodes[n]) < i + 1:
                         self.episodes[n].append([])
-                    step = [global_obs[n][i].tolist(), local_obs[n][i].tolist(), action[n][i].tolist(),
-                            reward[n][i].tolist(), done[n][i], available_actions[n][i].tolist(), v_value[n][i].tolist()]
+                    
+                    step = [global_obs_for_agents, local_obs[n][i].tolist(), action[n][i].tolist(),
+                            reward[n][i].tolist(), done[n][i], None, v_value[n][i].tolist()]
                     self.episodes[n][i].append(step)
+                    
                 if np.all(done[n]):
                     self.episode_dones[n] = True
                     if self.size > self.buffer_size:
@@ -148,9 +173,11 @@ class ReplayBuffer:
                     if self.size == self.buffer_size:
                         del self.data[0]
                     self.data.append(copy.deepcopy(self.episodes[n]))
+        
         if np.all(self.episode_dones):
             self.episodes = []
             self.episode_dones = []
+
 
     def reset(self, num_keep=0, buffer_size=5000):
         self.buffer_size = buffer_size
@@ -228,9 +255,7 @@ class ReplayBuffer:
     def load_offline_data(self, data_dir, offline_episode_num, max_epi_length=400):
         output_csv_path = 'processed_data2.csv'
         
-        for j in range(1):
-            print(f'Processing directory {j}: {data_dir}')
-            
+        for j in range(1):        
             if data_dir == '/storage_1/epigou_storage/madt/merl_data/':
                 # Process MERL data if the directory matches the specific path
                 episodes_data = self.process_merl_data(data_dir)
@@ -272,7 +297,6 @@ class ReplayBuffer:
                     for step in trajectory:
                         csv_writer.writerow(step)
         
-        print(f"Processed data saved to {output_csv_path}")
 
     def sample(self):
         # adding elements with list will be faster
@@ -299,7 +323,7 @@ class ReplayBuffer:
                     g, l, a, r, d, ava, v, rtg, ret, adv = step
                     global_states.append(g)
                     local_obss.append(l)
-                    actions.append(a)
+                    actions.append(a[:9])
                     rewards.append(r)
                     avas.append(ava)
                     v_values.append(v)
@@ -313,6 +337,7 @@ class ReplayBuffer:
 
         dataset = StateActionReturnDataset(global_states, local_obss, self.block_size, actions, done_idxs, rewards,
                                            avas, v_values, rtgs, rets, advs, time_steps)
+        #print(f'online actions: {actions}')
         return dataset
 
     # from [g, o, a, r, d, ava]/[g, o, a, r, d, ava, v] to [g, o, a, r, d, ava, v, rtg, ret, adv]
@@ -331,7 +356,6 @@ class ReplayBuffer:
                     pass  # online nothing to do
                 else:
                     raise NotImplementedError
-                #print(f'Traj: {agent_trajectory}')
                 reward = agent_trajectory[i][3][0]
                 rtg += reward
                 agent_trajectory[i].append([rtg])
@@ -352,7 +376,6 @@ class ReplayBuffer:
                 # ret = adv + v
                 ret = reward + self.gamma * ret
                 # ret = reward + self.gamma * next_v
-                # print("reward: %s, v: %s, next_v: %s, adv: %s, ret: %s " % (reward, v, next_v, adv, ret))
 
                 agent_trajectory[i].append([ret])
                 agent_trajectory[i].append([adv])

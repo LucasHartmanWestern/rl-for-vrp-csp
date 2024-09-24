@@ -15,7 +15,6 @@ from torch.nn import functional as F
 
 logger = logging.getLogger(__name__)
 
-
 class GELU(nn.Module):
     def forward(self, input):
         return F.gelu(input)
@@ -30,10 +29,11 @@ class GPTConfig:
     resid_pdrop = 0.
     attn_pdrop = 0.
 
-    def __init__(self, state_size, vocab_size, block_size, **kwargs):
-        self.vocab_size = vocab_size
+    def __init__(self, state_size, action_dim, vocab_size, block_size, **kwargs):
+        self.vocab_size = action_dim
         self.block_size = block_size
         self.state_size = state_size
+        self.action_dim = action_dim
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -113,50 +113,34 @@ class GPT(nn.Module):
         super().__init__()
 
         self.config = config
-
-        self.model_type = config.model_type
+        self.model_type = model_type
         self.state_size = config.state_size
 
         # input embedding stem
-        self.tok_emb = nn.Embedding(config.vocab_size, config.n_embd)
-        # self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size, config.n_embd))
         self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size + 1, config.n_embd))
         self.global_pos_emb = nn.Parameter(torch.zeros(1, config.max_timestep + 1, config.n_embd))
         self.drop = nn.Dropout(config.embd_pdrop)
 
         # transformer
         self.blocks = nn.Sequential(*[Block(config) for _ in range(config.n_layer)])
-        # decoder head
         self.ln_f = nn.LayerNorm(config.n_embd)
-        if model_type == 'actor':
-            self.head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        elif model_type == 'critic':
-            self.head = nn.Linear(config.n_embd, 1, bias=False)
-        else:
-            raise NotImplementedError
 
+        # Actor: continuous actions
+        if model_type == 'actor':
+            # Initialize both mean and log_std heads for continuous actions
+            self.action_mean_head = nn.Linear(config.n_embd, config.action_dim)  # Mean for continuous actions
+            self.action_log_std_head = nn.Linear(config.n_embd, config.action_dim)  # Log std for continuous actions
+        # Critic: state-value prediction
+        elif model_type == 'critic':
+            self.head = nn.Linear(config.n_embd, 1)
+        else:
+            raise NotImplementedError(f"Unsupported model_type: {self.model_type}")
+
+        # For embedding states into the model
+        self.state_encoder = nn.Sequential(nn.Linear(self.state_size, config.n_embd), nn.Tanh())
+        self.ret_emb = nn.Sequential(nn.Linear(1, config.n_embd), nn.Tanh())
         self.block_size = config.block_size
         self.apply(self._init_weights)
-
-        logger.info("number of parameters: %e", sum(p.numel() for p in self.parameters()))
-
-        # self.state_encoder = nn.Sequential(nn.Conv2d(4, 32, 8, stride=4, padding=0), nn.ReLU(),
-        #                                    nn.Conv2d(32, 64, 4, stride=2, padding=0), nn.ReLU(),
-        #                                    nn.Conv2d(64, 64, 3, stride=1, padding=0), nn.ReLU(),
-        #                                    nn.Flatten(), nn.Linear(3136, config.n_embd), nn.Tanh())
-
-        # self.state_encoder = nn.Sequential(nn.Linear(self.state_size, 128), nn.ReLU(),
-        #                                    nn.Linear(128, 64), nn.ReLU(),
-        #                                    nn.Linear(64, config.n_embd), nn.Tanh())
-
-        self.state_encoder = nn.Sequential(nn.Linear(self.state_size, config.n_embd), nn.Tanh())
-
-        self.ret_emb = nn.Sequential(nn.Linear(1, config.n_embd), nn.Tanh())
-
-        self.mask_emb = nn.Sequential(nn.Linear(1, config.n_embd), nn.Tanh())
-
-        self.action_embeddings = nn.Sequential(nn.Embedding(config.vocab_size, config.n_embd), nn.Tanh())
-        nn.init.normal_(self.action_embeddings[0].weight, mean=0.0, std=0.02)
 
     def get_block_size(self):
         return self.block_size
@@ -221,67 +205,24 @@ class GPT(nn.Module):
 
     # state, action, and return
     def forward(self, states, pre_actions, rtgs=None, timesteps=None):
-        # states: (batch, context_length, 4*84*84)
-        # actions: (batch, context_length, 1)
-        # targets: (batch, context_length, 1)
-        # rtgs: (batch, context_length, 1)
-        # timesteps: (batch, context_length, 1)
+        
+   
+        # Encode states, ensuring compatibility with the state_encoder's input requirements
+        state_embeddings = self.state_encoder(states.reshape(-1, self.state_size).type(torch.float32).contiguous())
+        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1], self.config.n_embd)
 
-        state_embeddings = self.state_encoder(
-            states.reshape(-1, self.state_size).type(torch.float32).contiguous())
-        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1],
-                                                    self.config.n_embd)  # (batch, block_size, n_embd)
-
-        if self.model_type == 'rtgs_state_action':
-            rtg_embeddings = self.ret_emb(rtgs.type(torch.float32))
-
-            action_embeddings = self.action_embeddings(
-                pre_actions.type(torch.long).squeeze(-1))  # (batch, block_size, n_embd)
-
-            token_embeddings = torch.zeros(
-                (states.shape[0], states.shape[1] * 3, self.config.n_embd), dtype=torch.float32,
-                device=state_embeddings.device)
-            token_embeddings[:, ::3, :] = rtg_embeddings
-            token_embeddings[:, 1::3, :] = state_embeddings
-            token_embeddings[:, 2::3, :] = action_embeddings
-            num_elements = 3
-        elif self.model_type == 'state_action':
-            action_embeddings = self.action_embeddings(
-                pre_actions.type(torch.long).squeeze(-1))  # (batch, block_size, n_embd)
-
-            token_embeddings = torch.zeros(
-                (states.shape[0], states.shape[1] * 2, self.config.n_embd), dtype=torch.float32,
-                device=state_embeddings.device)
-            token_embeddings[:, ::2, :] = state_embeddings
-            token_embeddings[:, 1::2, :] = action_embeddings
-            num_elements = 2
-        elif self.model_type == 'state_only':
-            token_embeddings = state_embeddings
-            num_elements = 1
-        else:
-            raise NotImplementedError()
-
-        batch_size = states.shape[0]
-        all_global_pos_emb = torch.repeat_interleave(self.global_pos_emb, batch_size, dim=0)
-        global_pos_emb = torch.gather(all_global_pos_emb, 1, torch.repeat_interleave(timesteps, self.config.n_embd, dim=-1))
-        global_pos_emb = torch.repeat_interleave(global_pos_emb, num_elements, dim=1)
-        context_pos_emb = self.pos_emb[:, :token_embeddings.shape[1], :]
-        position_embeddings = global_pos_emb + context_pos_emb
-
-        x = self.drop(token_embeddings + position_embeddings)
+        # Apply dropout, Transformer blocks, and LayerNorm
+        x = self.drop(state_embeddings)
         x = self.blocks(x)
         x = self.ln_f(x)
-        logits = self.head(x)
-
-        if self.model_type == 'rtgs_state_action':
-            # logits = logits[:, 1::3, :]  # only keep predictions from state_embeddings
-            logits = logits[:, 2::3, :]  # consider all tokens
-        elif self.model_type == 'state_action':
-            # logits = logits[:, ::2, :]  # only keep predictions from state_embeddings
-            logits = logits[:, 1::2, :]  # consider all tokens
-        elif self.model_type == 'state_only':
-            logits = logits
+    
+        # Handle actor vs critic behavior
+        if self.model_type == 'actor':
+            action_mean = self.action_mean_head(x)  # Predict action means for all timesteps
+            action_log_std = self.action_log_std_head(x)  # Predict action log std devs for all timesteps
+            action_std = torch.exp(action_log_std)
+            return action_mean, action_std  # Return both mean and std for continuous action sampling
+        elif self.model_type == 'critic':
+            return self.head(x)  # Return value for critic
         else:
-            raise NotImplementedError()
-
-        return logits
+            raise NotImplementedError(f"Unsupported model_type: {self.model_type}")
