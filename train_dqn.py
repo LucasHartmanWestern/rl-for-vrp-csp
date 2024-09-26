@@ -245,7 +245,6 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
-
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
