@@ -50,7 +50,7 @@ def train_rl_vrp_csp(date, args):
     agent_by_zone= c['algorithm_settings']['agent_by_zone']
     federated_c = c['federated_learning_settings']
 
-    if algorithm_dm == "DQN":
+    if algorithm_dm in ["DQN", "policy_gradient", "ddpg"]:
         c = load_config_file('configs/neural_network_config.yaml')
         num_episodes = c['nn_hyperparameters']['num_episodes']
     elif algorithm_dm == 'CMA_optimizer':
@@ -89,6 +89,9 @@ def train_rl_vrp_csp(date, args):
     
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
+
+        if eval_c['start_from_global_weights']:
+            global_weights = torch.load(f'saved_networks/{algorithm_dm}_global_weights_{seed}.pth')
 
         if eval_c['evaluate_on_diff_seed']:
             print(f'Running experiments with model trained on seed {seed} on new seed {seed*5} (seed * 5)')
@@ -231,7 +234,7 @@ def train_rl_vrp_csp(date, args):
                                                     agent_by_zone)
 
                 # Save the global weights
-                torch.save(global_weights, f'saved_networks/global_weights_{seed}.pth')
+                torch.save(global_weights, f'saved_networks/{algorithm_dm}_global_weights_{seed}.pth')
 
                 # Extend the main lists with the contents of the process lists
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -264,7 +267,7 @@ def train_rl_vrp_csp(date, args):
             trajectories = []
             
             print(f"Loading saved models - Seed {seed}")
-            global_weights = torch.load(f'saved_networks/global_weights_{seed}.pth')
+            global_weights = torch.load(f'saved_networks/{algorithm_dm}_global_weights_{seed}.pth')
 
             manager = mp.Manager()
             local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -406,10 +409,16 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         chargers_copy = copy.deepcopy(chargers)
 
         if algorithm_dm == 'DQN':
-            from train_dqn import train_dqn as train
-            
+            from training_processes.train_dqn import train_dqn as train
+
+        elif algorithm_dm == 'policy_gradient':
+            from training_processes.train_policy_gradient import train_policy_gradient as train
+
+        elif algorithm_dm == 'ddpg':
+            from training_processes.train_ddpg import train_ddpg as train
+
         elif algorithm_dm == 'CMA_optimizer':
-            from train_cma import train_cma as train
+            from training_processes.train_cma import train_cma as train
         
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')

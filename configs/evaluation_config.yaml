@@ -12,6 +12,9 @@ eval_config:
     train_model: True # Set to false for model evaluation
     evaluate_on_diff_seed: False # Set to true to evaluate a model on a different seed than it was trained on
     evaluate_on_diff_zone: False # Set to true to evaluate a model on a different zone than it was trained on
+    
+    start_from_global_weights: False # Set to true to start from global weights
+    
     save_data: True # Set to true if you want to save simulation results in a csv file
     save_offline_data: False # Set true to save trajectories for offline training
     generate_plots: False # Set to true if you want to generate plots of the simulation environments

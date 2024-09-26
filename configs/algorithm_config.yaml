@@ -5,7 +5,7 @@
 
 algorithm_settings:
     #Currently available options DQN, CMA_optimizer, ODT 
-    algorithm: 'ODT' #'CMA_optimizer' #'DQN'
+    algorithm: 'DQN' #'CMA_optimizer' #'DQN', #'ODT', #'policy_gradient', #'ddpg'
     # Decision making agent definition
     agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
 

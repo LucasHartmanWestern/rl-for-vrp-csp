@@ -5,7 +5,7 @@ import copy
 import torch
 import numpy as np
 
-from cma_agent import CMAAgent
+from agents.cma_agent import CMAAgent
 
 
 from merl_env._pathfinding import haversine
