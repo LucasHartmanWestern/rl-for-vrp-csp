@@ -4,9 +4,9 @@ import json
 import pandas as pd
 import time
 from data_loader import save_to_json, load_from_json
+import mplcursors
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
-
     if purpose == 'save':
 
         traffic_data = []
@@ -14,6 +14,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         reward_data = []
         battery_data = []
         time_data = []
+        path_data = []
 
         # Get the model index by using car_models[zone_index][agent_index]
         car_models = np.column_stack([info['model_type'] for info in ev_info]).T
@@ -91,6 +92,18 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "starting_battery": agent_battery.tolist()[0]
                     })
 
+                    path_data.append({
+                        "episode": episode['episode'],
+                        "timestep": episode['timestep'],
+                        "done": episode['done'],
+                        "zone": episode['zone'] + 1,
+                        "aggregation": episode['aggregation'],
+                        "agent_index": agent_ind,
+                        "origin": episode['paths'][0][agent_ind].tolist(),
+                        "destination": episode['paths'][-1][agent_ind].tolist(),
+                        "path": [step.tolist() for step in episode['paths'][:, agent_ind]]
+                    })
+
         et = time.time() - st
 
         if verbose:
@@ -103,6 +116,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         save_to_json(time_data, f'{base_path}_time.json')
         save_to_json(reward_data, f'{base_path}_reward.json')
         save_to_json(traffic_data, f'{base_path}_traffic.json')
+        save_to_json(path_data, f'{base_path}_path.json')
 
         et = time.time() - st
 
@@ -115,6 +129,10 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         time_data = load_from_json(f'{base_path}_time.json')
         reward_data = load_from_json(f'{base_path}_reward.json')
         traffic_data = load_from_json(f'{base_path}_traffic.json')
+        path_data = load_from_json(f'{base_path}_path.json')
+
+        # Draw a map of the last episode
+        draw_map_of_last_episode(path_data, seed)
 
         # Evaluate the metrics per-agent
         evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose, num_episodes)
@@ -131,6 +149,9 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
 
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
+
+    # Filter data to only include the last timestep within each episode
+    df = df[df['done'] == True]
 
     # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
     df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
@@ -221,6 +242,105 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     plt.title(f'Seed {seed} - Average {metric_title} per Episode by Aggregation')
     plt.show()
 
+def draw_map_of_last_episode(data, seed):
+    # Convert data to DataFrame for easier manipulation
+    df = pd.DataFrame(data)
+
+    # Get the last episode
+    last_episode = df['episode'].max()
+
+    # Get the data for the last episode
+    last_episode_data = df[df['episode'] == last_episode]
+
+    # Get unique zones and aggregations
+    unique_zones = last_episode_data['zone'].unique()
+    unique_aggregations = last_episode_data['aggregation'].unique()
+
+    # Plot each zone on a different graph
+    for zone in unique_zones:
+        zone_data = last_episode_data[last_episode_data['zone'] == zone]
+
+        plt.figure(figsize=(20, 16))  # Make the plot larger
+        plt.title(f'Seed {seed} - Zone {zone} - Last Episode Paths')
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+
+        paths = []
+
+        # Plot each aggregation on a different graph
+        for aggregation in unique_aggregations:
+            agg_data = zone_data[zone_data['aggregation'] == aggregation]
+
+            for agent_index in agg_data['agent_index'].unique():
+                agent_data = agg_data[agg_data['agent_index'] == agent_index]
+
+                # Extract combined path, origin, and destination
+                combined_path = np.vstack(agent_data['path'].values)
+                origin = combined_path[0]
+                destination = combined_path[-1]
+
+                # Plot path with smaller dots
+                path_line, = plt.plot(combined_path[:, 0], combined_path[:, 1], marker='o', markersize=3, label=f'Agent {agent_index} Path')
+                paths.append(path_line)
+
+                # Plot origin and destination
+                plt.scatter(origin[0], origin[1], marker='^', s=100, label=f'Agent {agent_index} Origin')
+                plt.scatter(destination[0], destination[1], marker='*', s=100, label=f'Agent {agent_index} Destination')
+
+        # Add interactive cursor for paths
+        cursor = mplcursors.cursor(paths, hover=True)
+
+        @cursor.connect("add")
+        def on_add(sel):
+            for path in paths:
+                path.set_alpha(0.1)  # Make all paths semi-transparent
+            sel.artist.set_alpha(1.0)  # Highlight the selected path
+            plt.draw()
+
+        plt.show()
+
+    # Plot all zones together
+    plt.figure(figsize=(20, 16))  # Make the plot larger
+    plt.title(f'Seed {seed} - All Zones - Last Episode Paths')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+
+    paths = []
+
+    for zone in unique_zones:
+        zone_data = last_episode_data[last_episode_data['zone'] == zone]
+
+        for aggregation in unique_aggregations:
+            agg_data = zone_data[zone_data['aggregation'] == aggregation]
+
+            for agent_index in agg_data['agent_index'].unique():
+                agent_data = agg_data[agg_data['agent_index'] == agent_index]
+
+                # Extract combined path, origin, and destination
+                combined_path = np.vstack(agent_data['path'].values)
+                origin = combined_path[0]
+                destination = combined_path[-1]
+
+                # Plot path with smaller dots
+                path_line, = plt.plot(combined_path[:, 0], combined_path[:, 1], marker='o', markersize=3, label=f'Zone {zone} Agent {agent_index} Path')
+                paths.append(path_line)
+
+                # Plot origin and destination
+                plt.scatter(origin[0], origin[1], marker='^', s=100, label=f'Zone {zone} Agent {agent_index} Origin')
+                plt.scatter(destination[0], destination[1], marker='*', s=100, label=f'Zone {zone} Agent {agent_index} Destination')
+
+    # Add interactive cursor for paths
+    cursor = mplcursors.cursor(paths, hover=True)
+
+    @cursor.connect("add")
+    def on_add(sel):
+        for path in paths:
+            path.set_alpha(0.1)  # Make all paths semi-transparent
+        sel.artist.set_alpha(1.0)  # Highlight the selected path
+        plt.draw()
+
+    plt.show()
+
 def evaluate_training_duration(data):
     print("Evaluating Training Time Metrics")
 
@@ -233,6 +353,9 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
 
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
+
+    # Filter data to only include the last timestep within each episode
+    df = df[df['done'] == True]
 
     # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
     df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
@@ -344,3 +467,23 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
+
+if __name__ == '__main__': # For debugging
+
+    from data_loader import load_config_file
+    from datetime import datetime
+
+    environment_config_fname = 'configs/environment_config.yaml'
+    nn_config_fname = 'configs/neural_network_config.yaml'
+
+    c = load_config_file(environment_config_fname)
+    env_c = c['environment_settings']
+    c = load_config_file(nn_config_fname)
+    nn_c = c['nn_hyperparameters']
+
+    seed = env_c['seeds'][0]
+    date = datetime.now().strftime('%Y-%m-%d_%H-%M')
+    num_episodes = nn_c['num_episodes']
+    attr_label = 'learned'
+
+    evaluate(None, None, seed, date, True, 'display', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")

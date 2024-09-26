@@ -4,6 +4,9 @@
 import torch
 import numpy as np
 import copy
+import requests
+import datetime
+from geopy.distance import geodesic
 
 from ._helpers_routing import *
 from ._pathfinding import dijkstra, build_graph, haversine
@@ -11,18 +14,136 @@ from .agent_info import agent_info
 
 from data_loader import load_config_file
 
+# Predefined list of supported cities with their coordinates and WeatherStats URLs
+supported_cities = [
+    {"name": "Charlottetown", "lat": 46.2382, "lon": -63.1311, "url": "https://charlottetown.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Edmonton", "lat": 53.5461, "lon": -113.4938, "url": "https://edmonton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Fredericton", "lat": 45.9636, "lon": -66.6431, "url": "https://fredericton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Halifax (Shearwater)", "lat": 44.6488, "lon": -63.5752, "url": "https://halifax.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Iqaluit", "lat": 63.7467, "lon": -68.5170, "url": "https://iqaluit.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Ottawa (Kanata - Orléans)", "lat": 45.4215, "lon": -75.6972, "url": "https://ottawa.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Québec", "lat": 46.8139, "lon": -71.2082, "url": "https://quebec.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Regina", "lat": 50.4452, "lon": -104.6189, "url": "https://regina.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "St. John's", "lat": 47.5615, "lon": -52.7126, "url": "https://stjohns.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Toronto", "lat": 43.65107, "lon": -79.347015, "url": "https://toronto.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Victoria", "lat": 48.4284, "lon": -123.3656, "url": "https://victoria.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Whitehorse", "lat": 60.7212, "lon": -135.0568, "url": "https://whitehorse.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Winnipeg", "lat": 49.8951, "lon": -97.1384, "url": "https://winnipeg.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Yellowknife", "lat": 62.4540, "lon": -114.3718, "url": "https://yellowknife.weatherstats.ca/data/temperature-daily.json"}
+]
+
+def get_closest_city(lat: float, lon: float) -> dict:
+    """
+    Get the closest supported city for the given coordinates.
+
+    Parameters:
+        lat (float): Latitude of the location.
+        lon (float): Longitude of the location.
+
+    Returns:
+        dict: Information about the closest supported city.
+    """
+    closest_city = None
+    min_distance = float('inf')
+
+    for city in supported_cities:
+        city_lat = city['lat']
+        city_lon = city['lon']
+        distance = geodesic((lat, lon), (city_lat, city_lon)).kilometers
+
+        if distance < min_distance:
+            min_distance = distance
+            closest_city = city
+
+    if closest_city is None:
+        raise Exception("No supported city found")
+
+    return closest_city
+
+def get_temperature(season: str, coords: list, rng: np.random.Generator) -> float:
+    """
+    Get the average temperature for the given season and coordinates.
+
+    Parameters:
+        season (str): Season to get the temperature for.
+        coords (list): Coordinates [latitude, longitude] of the location.
+
+    Returns:
+        float: Average temperature for the given season and location.
+    """
+    # Extract latitude and longitude from coordinates
+    lat, lon = coords
+    
+    # Get the closest supported city
+    closest_city = get_closest_city(lat, lon)
+    
+    # Define the months corresponding to each season
+    season_months = {
+        'spring': [3, 4, 5],
+        'summer': [6, 7, 8],
+        'autumn': [9, 10, 11],
+        'winter': [12, 1, 2]
+    }
+
+    # Get the months for the given season
+    months = season_months.get(season.lower())
+    if not months:
+        raise ValueError("Invalid season provided")
+
+    temperatures = []
+    
+    # Fetch temperature data for a random day in each month of the season
+    for month in months:
+        # Generate a random day within the month
+        day = rng.integers(1, 28)  # Assuming 28 days to avoid issues with different month lengths
+        date = datetime.date(2023, month, day).isoformat()
+        
+        try:
+            response = requests.get(
+                closest_city['url'],
+                params={
+                    'refresh_count': 1,
+                    'browser_zone': 'Eastern Daylight Time',
+                    'date': date
+                }
+            )
+            response.raise_for_status()  # Raise an HTTPError for bad responses
+            data = response.json()
+            
+            # Extract the temperature data
+            if 'rows' in data:
+                for row in data['rows']:
+                    if 'c' in row and len(row['c']) > 1:
+                        temp = row['c'][1]['v']
+                        if temp is not None:
+                            temperatures.append(temp)
+            else:
+                print(f"No temperature data available for date {date}: {data}")
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed for date {date}: {e}")
+        except ValueError as e:
+            print(f"Error processing JSON response for date {date}: {e}")
+
+    # Raise an exception if no temperature data was fetched
+    if not temperatures:
+        raise Exception("Failed to fetch temperature data")
+
+    # Return the average temperature
+    return int(sum(temperatures) / len(temperatures))
+
 class EnvironmentClass:
     """
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, sub_seed: int, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
         Parameters:
             config_fname (str): Path to the configuration file.
             sub_seed (int): Seed for random number generator.
+            zone_coords (list): Coordinates of the center of the zone.
             device (torch.device): Device to run tensor operations (CPU or CUDA).
             dtype (torch.dtype): Data type for tensors.
         """
@@ -35,7 +156,9 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        self.init_ev_info(config, rng)
+        self.temperature = get_temperature(config['season'], zone_coords, rng)
+
+        self.init_ev_info(config, self.temperature, rng)
 
         # Store environment parameters
         self.num_cars = config['num_of_cars']
@@ -48,15 +171,15 @@ class EnvironmentClass:
         self.debug = config['debug']
         self.state_dim = (self.num_chargers * 3 * 2) + 4
         self.charging_status = np.zeros(self.num_cars)
-
         self.historical_charges_needed = []
 
-    def init_ev_info(self, config: dict, rng: np.random.Generator):
+    def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
         """
         Initialize electric vehicle (EV) information based on the configuration.
 
         Parameters:
             config (dict): Configuration dictionary.
+            temperature (float): Temperature of the zone.
             rng (np.random.Generator): Random number generator.
         """
         # Generating a random model
@@ -64,8 +187,20 @@ class EnvironmentClass:
 
         # Using the indices to select the model type and corresponding configurations
         model_type = np.array([config['models'][index] for index in model_indices], dtype=str)
-        usage_per_hour = np.array([config['usage_per_hour'][index] for index in model_indices], dtype=int)
+        usage_per_hour = np.array([config['usage_per_hour'][index] for index in model_indices], dtype=float)
         max_charge = np.array([config['max_charge'][index] for index in model_indices], dtype=int)
+
+        # Based on https://www.mdpi.com/2032-6653/12/3/115
+        # Efficiency drops significantly below 0°C, gradually above it
+        if temperature < 0:
+            temp_efficiency = 0.5 # 50% efficiency at freezing
+        elif 0 <= temperature <= 25:
+            temp_efficiency =  1 - (25 - temperature) * 0.02 # 2% efficiency drop per degree below 25°C
+        else:
+            temp_efficiency = 1 # Full efficiency at or above 25°C
+
+        # Modify usage_per_hour based on the efficiency factor and convert back to int
+        usage_per_hour = (usage_per_hour * temp_efficiency).astype(int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
         starting_charge = config['starting_charge'] + 2000 * (rng.random(config['num_of_cars']) - 0.5)
@@ -176,7 +311,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self, timestep):
+    def simulate_routes(self):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -209,6 +344,8 @@ class EnvironmentClass:
         traffic_per_charger = torch.empty((0, destinations.shape[0]))
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
+
+        energy_used = np.zeros(self.num_cars)  # Initialize energy used for each car
 
         traffic_level = None
 
@@ -252,6 +389,9 @@ class EnvironmentClass:
             battery = update_battery(battery, charging_rates, arrived_at_final)
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
+            # Track energy used (absolute value of charging rates)
+            energy_used += torch.abs(charging_rates).cpu().numpy()
+
             # Check if the car is at their target battery level
             battery_charged = get_battery_charged(battery, target_battery_level, self.device)
 
@@ -271,7 +411,7 @@ class EnvironmentClass:
             if torch.any(battery <= 0):
                 # Print the graph for the car that ran out of battery
                 negative_index = torch.where(battery <= 0)[0][0].item()
-                print(f"\n\n---\n\nCharge graph of {negative_index} who died on time-step {timestep + 1} mini-step {mini_step_count}:\n{self.charges_needed[negative_index]}")
+                print(f"\n\n---\n\nCharge graph of {negative_index} who died, mini-step {mini_step_count}:\n{self.charges_needed[negative_index]}")
 
                 print(f"\n\n---\n\nHistorical charge graphs:")
                 for row in self.historical_charges_needed:
@@ -301,8 +441,14 @@ class EnvironmentClass:
                 done = True
 
         
-        # Calculate reward as -(distance * 100 + peak traffic)
-        self.simulation_reward = -(distances_per_car[-1].numpy() * 100 + np.max(traffic_per_charger.numpy()))
+        # Calculate reward as -(distance * 100 + peak traffic + energy used / 100)
+        distance_factor = distances_per_car[-1].numpy() * 100
+        peak_traffic = np.max(traffic_per_charger.numpy())
+        energy_used = energy_used / 100
+        
+        # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
+        
+        self.simulation_reward = -(distance_factor + peak_traffic + energy_used)
 
         # Save results in class
         self.tokens = tokens
@@ -312,9 +458,12 @@ class EnvironmentClass:
         self.traffic_results = traffic_per_charger.numpy()
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
-        
+        self.arrived_at_final = arrived_at_final
 
-        return done, arrived_at_final
+        return done
+
+    def get_odt_info(self):
+        return self.arrived_at_final[0,:]
 
     def get_results(self) -> tuple:
         """
@@ -425,10 +574,11 @@ class EnvironmentClass:
             return global_state, local_state
 
         # Traffic level and distance of each station plus total charger num, total distance,
-        # number of EVs, and car model index
+        # number of EVs, car model index, and temperature
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
-                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]])))
+                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
+                           np.array([self.temperature])))
 
 
         # Storing agent info

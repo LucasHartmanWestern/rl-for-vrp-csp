@@ -16,7 +16,7 @@ experience = namedtuple("Experience", field_names=["state", "distribution", "rew
 
 def train_dqn(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False
+          dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
     """
@@ -39,6 +39,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         verbose (bool, optional): Flag to enable detailed logging.
         display_training_times (bool, optional): Flag to display training times for different operations.
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
+        train_model (bool): True if training the model, False if evaluating
 
 
     Returns:
@@ -49,19 +50,21 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     """
     # Getting Neural Network parameters
     nn_config_fname = 'configs/neural_network_config.yaml'
-    c = load_config_file(nn_config_fname)
-    nn_c = c['nn_hyperparameters']
+    eval_config_fname = 'configs/evaluation_config.yaml'
+    nn_c = load_config_file(nn_config_fname)['nn_hyperparameters']
+    eval_c = load_config_file(eval_config_fname)['eval_config']
 
-    epsilon = nn_c['epsilon']
+    epsilon = nn_c['epsilon'] if train_model else 0
     epsilon_decay =  nn_c['epsilon_decay']
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes']
+    num_episodes = nn_c['num_episodes'] if train_model else 1
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
     
     avg_rewards = []
+
 
     # Carry over epsilon from last aggregation
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
@@ -74,7 +77,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (environment.num_chargers * 3 * 2) + 4
+    state_dimension = (environment.num_chargers * 3 * 2) + 5
 
     model_indices = environment.info['model_indices']
     
@@ -89,8 +92,12 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
-            q_network.load_state_dict(global_weights[zone_index])
-            target_q_network.load_state_dict(global_weights[zone_index])
+            if eval_c['evaluate_on_diff_seed']:
+                q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+                target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+            else:
+                q_network.load_state_dict(global_weights[zone_index])
+                target_q_network.load_state_dict(global_weights[zone_index])
 
         optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
 
@@ -106,8 +113,12 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
 
             if global_weights is not None:
-                q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
-                target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                if eval_c['evaluate_on_diff_seed']:
+                    q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                    target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                else:
+                    q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                    target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
             optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
             # Store individual networks
@@ -134,7 +145,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     for i in range(num_episodes):  # For each episode
 
         if save_offline_data:
-            for car in range(num_cars):
+            for car_idx in range(num_cars):
                 traj = {
                     'observations': [],
                     'actions': [],
@@ -144,7 +155,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                     'zone': zone_index,
                     'aggregation': aggregation_num,
                     'episode': i,
-                    'car_num': car
+                    'car_idx': car_idx
                 }
                 trajectories.append(traj)
 
@@ -160,6 +171,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
         time_start_paths = time.time()
 
         timestep_counter = 0
+        new_rewards = []
+        list_rewards= []
 
         while not sim_done:  # Keep going until every EV reaches its destination
 
@@ -169,7 +182,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             for car_idx in range(num_cars): # For each car
     
                 if save_offline_data:
-                    car_traj = next((traj for traj in trajectories if traj['car_num'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
+                    car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
                 ########### Starting environment rutting
                 state = environment.reset_agent(car_idx)
@@ -228,25 +241,26 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done, arrived_at_final = environment.simulate_routes(timestep_counter)
+            sim_done = environment.simulate_routes()
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
 
-            single_step_reward = time_step_rewards
-
-            if len(rewards) > 0:
-                # Calculate cumulative rewards by adding the last recorded reward for each car
-                time_step_rewards = [time_step_reward + rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
-
-            rewards.extend(time_step_rewards)
+            if timestep_counter == 0:
+                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+            else:
+                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+            
+            rewards.extend(episode_rewards.sum(axis=0))
 
             if save_offline_data:
+                arrived = environment.get_odt_info()
                 for traj in trajectories:
+                    car_idx = traj['car_idx']
                     if traj['episode'] == i:
                         traj['terminals'].append(sim_done)
-                        traj['rewards'].append(single_step_reward[traj['car_num']])
-                        traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))                
+                        traj['rewards'].append(episode_rewards[-1,car_idx])
+                        traj['terminals_car'].append(bool(arrived[car_idx].item()))                
 
             # Used to evaluate simulation
             metric = {
@@ -306,7 +320,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
             print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         epsilon *= epsilon_decay  # Decay epsilon
-        epsilon = max(0.1, epsilon) # Minimal learning threshold
+        if train_model:
+            epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
             if agent_by_zone:
@@ -329,44 +344,39 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
                     # Save the networks at the end of training
                     save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], \
-                               f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
 
-        # Log every ith episode
-        if i % 1 == 0:
-            avg_reward = 0
-            for reward in rewards:
-                avg_reward += reward
-            avg_reward /= len(rewards)
-            # Track rewards over aggregation steps
-            avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
+        #Wraping things at end of each episode
+        avg_reward = episode_rewards.sum(axis=0).mean()
+        # Track rewards over aggregation steps
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
-            if avg_reward > best_avg:
-                best_avg = avg_reward
-                best_paths = paths_copy
-                # if verbose:
-                #     print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
-
-            avg_ir = 0
-            ir_count = 0
-            for distribution in distributions:
-                for out in distribution:
-                    avg_ir += out
-                    ir_count += 1
-            avg_ir /= ir_count
-
-            et = time.time() - start_time
-
-            # Open the file in write mode (use 'a' for append mode)
+        if avg_reward > best_avg:
+            best_avg = avg_reward
+            best_paths = paths_copy
             if verbose:
-                to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
-                f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
-                f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-                f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
-                with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(to_print, file=file)
+                print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
-                print(to_print)
+        avg_ir = 0
+        ir_count = 0
+        for distribution in distributions:
+            for out in distribution:
+                avg_ir += out
+                ir_count += 1
+        avg_ir /= ir_count
+
+        et = time.time() - start_time
+
+        # Open the file in write mode (use 'a' for append mode)
+        if verbose:
+            to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
+            f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
+            f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
+            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
+            with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                print(to_print, file=file)
+
+            print(to_print)
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
