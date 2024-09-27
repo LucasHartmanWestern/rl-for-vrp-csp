@@ -14,7 +14,7 @@ from merl_env._pathfinding import haversine
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "log_prob"])
 
-def train_policy_gradient(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_policy_gradient(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
@@ -50,10 +50,9 @@ def train_policy_gradient(chargers, environment, routes, date, action_dim, globa
             - List of average output values for each episode.
     """
     # Getting Neural Network parameters
-    nn_config_fname = 'configs/neural_network_config.yaml'
-    eval_config_fname = 'configs/evaluation_config.yaml'
-    nn_c = load_config_file(nn_config_fname)['nn_hyperparameters']
-    eval_c = load_config_file(eval_config_fname)['eval_config']
+    config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
+    nn_c = load_config_file(config_fname)['nn_hyperparameters']
+    eval_c = load_config_file(config_fname)['eval_config']
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
@@ -154,8 +153,12 @@ def train_policy_gradient(chargers, environment, routes, date, action_dim, globa
 
             environment.init_routing()
 
+            sim_timestep_times = []
+
             # Build path for each EV
             for car_idx in range(num_cars): # For each car
+
+                start_time_step = time.time()
     
                 if save_offline_data:
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
@@ -190,6 +193,9 @@ def train_policy_gradient(chargers, environment, routes, date, action_dim, globa
                 environment.generate_paths(action, fixed_attributes, car_idx)
 
                 t4 = time.time()
+
+                end_time_step = time.time()
+                sim_timestep_times.append(end_time_step - start_time_step)  # Track time for this step and car
 
                 if car_idx == 0 and display_training_times:
                     print_time("Get actions", (t2 - t1))
@@ -248,6 +254,7 @@ def train_policy_gradient(chargers, environment, routes, date, action_dim, globa
                 "distances": sim_distances,
                 "rewards": rewards,
                 "best_reward": best_avg,
+                "elapsed_times": sim_timestep_times,
                 "done": sim_done
             }
             metrics.append(metric)

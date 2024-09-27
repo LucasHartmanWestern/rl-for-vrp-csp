@@ -15,6 +15,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         battery_data = []
         time_data = []
         path_data = []
+        time_data = []
 
         # Get the model index by using car_models[zone_index][agent_index]
         car_models = np.column_stack([info['model_type'] for info in ev_info]).T
@@ -104,6 +105,18 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "path": [step.tolist() for step in episode['paths'][:, agent_ind]]
                     })
 
+                    for elapsed_time in episode['elapsed_times']:
+                        time_data.append({
+                            "episode": episode['episode'],
+                            "timestep": episode['timestep'],
+                            "done": episode['done'],
+                            "zone": episode['zone'] + 1,
+                            "aggregation": episode['aggregation'],
+                            "agent_index": agent_ind,
+                            "car_model": car_model,
+                            "duration": elapsed_time
+                        })
+
         et = time.time() - st
 
         if verbose:
@@ -117,6 +130,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         save_to_json(reward_data, f'{base_path}_reward.json')
         save_to_json(traffic_data, f'{base_path}_traffic.json')
         save_to_json(path_data, f'{base_path}_path.json')
+        save_to_json(time_data, f'{base_path}_time.json')
 
         et = time.time() - st
 
@@ -130,6 +144,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         reward_data = load_from_json(f'{base_path}_reward.json')
         traffic_data = load_from_json(f'{base_path}_traffic.json')
         path_data = load_from_json(f'{base_path}_path.json')
+        time_data = load_from_json(f'{base_path}_time.json') # Note time is not simulated time but rather real world training time
 
         # Draw a map of the last episode
         draw_map_of_last_episode(path_data, seed)
@@ -140,6 +155,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose, num_episodes)
         evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose, num_episodes)
         evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose, num_episodes)
+        evaluate_by_agent(time_data, 'duration', 'Duration Training', seed, verbose, num_episodes)
 
         # Evaluate metrics per-station
         evaluate_by_station(traffic_data, seed, verbose, num_episodes)
@@ -467,23 +483,3 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
-
-if __name__ == '__main__': # For debugging
-
-    from data_loader import load_config_file
-    from datetime import datetime
-
-    environment_config_fname = 'configs/environment_config.yaml'
-    nn_config_fname = 'configs/neural_network_config.yaml'
-
-    c = load_config_file(environment_config_fname)
-    env_c = c['environment_settings']
-    c = load_config_file(nn_config_fname)
-    nn_c = c['nn_hyperparameters']
-
-    seed = env_c['seeds'][0]
-    date = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    num_episodes = nn_c['num_episodes']
-    attr_label = 'learned'
-
-    evaluate(None, None, seed, date, True, 'display', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
