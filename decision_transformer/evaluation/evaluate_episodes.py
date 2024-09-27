@@ -84,6 +84,8 @@ def evaluate_episode_rtg(
         eval_context=None
     ):
 
+    num_cars = env.num_cars
+    
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
     
     env.reset_episode(chargers, routes, unique_chargers) #THIS IS RESETTING EVERY CAR
@@ -91,9 +93,7 @@ def evaluate_episode_rtg(
     model.eval()
     model.to(device=device)
 
-    #state_mean = np.atleast_1d(state_mean)
     state_mean = torch.from_numpy(state_mean).to(device=device)
-    #state_std = np.atleast_1d(state_std)
     state_std = torch.from_numpy(state_std).to(device=device)
 
     # Resets the environment to an initial state, required before calling step. Returns the first agent observation for an episode and information
@@ -101,12 +101,6 @@ def evaluate_episode_rtg(
 
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
-
-    # we keep all the histories on the device
-    # note that the latest action and reward will be "padding"
-    states = torch.from_numpy(state).reshape(1, env.state_dim).to(device=device, dtype=torch.float32)
-    actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
-    rewards = torch.zeros(0, device=device, dtype=torch.float32)
 
     ep_return = target_return
     target_return = torch.tensor(ep_return, device=device, dtype=torch.float32).reshape(1, 1)
@@ -118,53 +112,80 @@ def evaluate_episode_rtg(
 
     sim_done = False
 
+    trajectories = []
+
+    for car in range(num_cars):
+        traj = {
+            'observations': torch.zeros((0, env.state_dim), device=device, dtype=torch.float32),
+            'actions': torch.zeros((0, act_dim), device=device, dtype=torch.float32),
+            'rewards': torch.zeros(0, device=device, dtype=torch.float32),
+            'terminals': torch.zeros(0, device=device, dtype=torch.bool),
+            'terminals_car': [],
+            'car_num': car
+        }
+        trajectories.append(traj)
+
     ending_tokens = None
     ending_battery = None
     not_ready_to_leave = None
 
     timestep_counter = 0
-    reward_list = []
+    cum_rewards = []
+    
 
     while not sim_done:
         
         env.init_routing()
         
-        for car in range (env.num_cars):# THIS WILL RUN FOR EVERY CAR
+        for car in range (num_cars):# THIS WILL RUN FOR EVERY CAR
+
+            car_traj = trajectories[car]
+            
             state = env.reset_agent(car , True)
-            actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
-            rewards = torch.cat([rewards, torch.zeros(1, device=device)])
+
+            car_traj['observations'] = torch.cat([car_traj['observations'], torch.from_numpy(state).unsqueeze(0).to(device=device, dtype=torch.float32)], dim=0)
+                 
+            # actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
+            # rewards = torch.cat([rewards, torch.zeros(1, device=device)])
+            
             action = model.get_action(
-                (states.to(dtype=torch.float32) - state_mean) / state_std,
-                actions.to(dtype=torch.float32),
-                rewards.to(dtype=torch.float32),
+                (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
+                car_traj['actions'].to(dtype=torch.float32),
+                car_traj['rewards'].to(dtype=torch.float32),
                 target_return.to(dtype=torch.float32),
                 timesteps.to(dtype=torch.long),
                 use_means=use_means,
                 custom_max_length=eval_context
             )
-            actions[-1] = action
-            action = action.detach().cpu().numpy()
-    
-            env.generate_paths(action, None, car)
 
+            car_traj['actions'] = torch.cat([car_traj['actions'], action.unsqueeze(0)], dim=0)
+            action_sig = torch.sigmoid(action)
+            action_sig = action_sig.detach().cpu().numpy()
     
-            cur_state = torch.from_numpy(state).to(device=device).reshape(1, env.state_dim)
-            states = torch.cat([states, cur_state], dim=0)
+            env.generate_paths(action_sig, None, car)
 
-        sim_done, arrived_at_final = env.simulate_routes()
+        sim_done, arrived_at_final = env.simulate_routes(timestep_counter)
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
 
-        time_step_rewards = torch.tensor(time_step_rewards, device=device, dtype=torch.float32)
-        rewards[-1] = time_step_rewards[0]
-        rewards = torch.cat([rewards, time_step_rewards[1:].clone().detach()])
+        single_step_rewards = time_step_rewards
 
-        reward = time_step_rewards.mean().item()
-        reward_list.append(reward)
+        for traj in trajectories:
+            traj['terminals'] = torch.cat([traj['terminals'], torch.tensor([sim_done], device=device, dtype=torch.bool)], dim=0)
+            traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([single_step_rewards[traj['car_num']]], device=device, dtype=torch.float32)], dim=0)
+            traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))
+
+        if len(cum_rewards) > 0:
+            time_step_rewards = [time_step_reward + cum_rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
+        cum_rewards.extend(time_step_rewards)
+
+        single_step_rewards = torch.tensor(single_step_rewards, device=device, dtype=torch.float32)
+
+        avg_reward = single_step_rewards.mean().item()
             
         timestep_counter += 1  # Next timestep
         
         if mode != 'delayed':
-            pred_return = target_return[0,-1] - (reward/scale)
+            pred_return = target_return[0,-1] - (avg_reward/scale)
         else:
             pred_return = target_return[0,-1]
         target_return = torch.cat(
@@ -173,20 +194,15 @@ def evaluate_episode_rtg(
             [timesteps,
              torch.ones((1, 1), device=device, dtype=torch.long) * (timestep_counter+1)], dim=1)
 
-        
         episode_length += 1
-        episode_return = np.mean(reward_list)
-        #print(f'episode_reward: {episode_return}')
+    episode_return = np.mean(time_step_rewards)
         
-        
-
     if return_traj:
-        traj = {
-            'observations': states[:-1].cpu().detach().numpy(),
-            'actions': actions.cpu().detach().numpy(), 
-            'rewards': rewards.cpu().detach().numpy(),
-            'terminals': np.zeros(episode_length, dtype=bool)
-        }
-        return episode_return, episode_length, traj
+        for traj in trajectories:
+            traj['observations'] = traj['observations'].cpu().detach().numpy().tolist()
+            traj['actions'] = traj['actions'].cpu().detach().numpy().tolist()
+            traj['rewards'] = traj['rewards'].cpu().detach().numpy().tolist()
+            traj['terminals'] = traj['terminals'].cpu().detach().numpy().tolist()
+        return episode_return, episode_length, trajectories
     else:
         return episode_return, episode_length
