@@ -207,7 +207,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                     car_traj['actions'].append(distribution.tolist()) #Save unmodified action
                 
                 distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
-                distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
+
+                # Apply sigmoid function to the entire array
+                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
                 distributions.append(distribution.tolist())  # Convert back to list and append
 
                 t3 = time.time()

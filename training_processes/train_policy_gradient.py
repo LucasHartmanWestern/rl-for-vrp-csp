@@ -181,6 +181,8 @@ def train_policy_gradient(chargers, environment, routes, date, action_dim, globa
                     car_traj['log_probs'].append(log_prob)
 
                 distributions_unmodified.append(action)  # Track outputs before the sigmoid application
+                # Apply sigmoid function to the entire array
+                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
                 distributions.append(action)  # Convert back to list and append
 
                 t3 = time.time()
