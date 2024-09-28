@@ -18,7 +18,7 @@ def run_odt(
     device,
     env_list,
     chargers,
-    routes,
+    all_routes,
     act_dim,
     fixed_attributes,
     variant ,
@@ -117,6 +117,7 @@ def run_odt(
     starting_p_sample = p_sample
 
     for env_idx, env in enumerate(env_list):
+        routes = all_routes[env_idx]
         print(f'Running in zone {env_idx}')
         state_dim = env.state_dim
         group_name = f'{dataset}_env_{env_idx}'

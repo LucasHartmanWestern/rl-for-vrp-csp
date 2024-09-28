@@ -169,7 +169,7 @@ class EnvironmentClass:
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
-        self.state_dim = (self.num_chargers * 3 * 2) + 4
+        self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
 

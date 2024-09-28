@@ -144,9 +144,6 @@ def evaluate_episode_rtg(
             state = env.reset_agent(car , True)
 
             car_traj['observations'] = torch.cat([car_traj['observations'], torch.from_numpy(state).unsqueeze(0).to(device=device, dtype=torch.float32)], dim=0)
-                 
-            # actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
-            # rewards = torch.cat([rewards, torch.zeros(1, device=device)])
             
             action = model.get_action(
                 (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
@@ -163,24 +160,26 @@ def evaluate_episode_rtg(
             action_sig = action_sig.detach().cpu().numpy()
     
             env.generate_paths(action_sig, None, car)
-
-        sim_done, arrived_at_final = env.simulate_routes(timestep_counter)
+            
+        sim_done = env.simulate_routes()
+        arrived_at_final = env.arrived_at_final
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
-
-        single_step_rewards = time_step_rewards
 
         for traj in trajectories:
             traj['terminals'] = torch.cat([traj['terminals'], torch.tensor([sim_done], device=device, dtype=torch.bool)], dim=0)
-            traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([single_step_rewards[traj['car_num']]], device=device, dtype=torch.float32)], dim=0)
+            traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([time_step_rewards[traj['car_num']]], device=device, dtype=torch.float32)], dim=0)
             traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))
 
-        if len(cum_rewards) > 0:
-            time_step_rewards = [time_step_reward + cum_rewards[-len(time_step_rewards) + i] for i, time_step_reward in enumerate(time_step_rewards)]
-        cum_rewards.extend(time_step_rewards)
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
+        
+        if timestep_counter == 0:
+            episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+        else:
+            episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+        
+        #rewards.extend(episode_rewards.sum(axis=0))
 
-        single_step_rewards = torch.tensor(single_step_rewards, device=device, dtype=torch.float32)
-
-        avg_reward = single_step_rewards.mean().item()
+        avg_reward = time_step_rewards.mean().item()
             
         timestep_counter += 1  # Next timestep
         
@@ -195,7 +194,8 @@ def evaluate_episode_rtg(
              torch.ones((1, 1), device=device, dtype=torch.long) * (timestep_counter+1)], dim=1)
 
         episode_length += 1
-    episode_return = np.mean(time_step_rewards)
+    episode_return = np.mean(episode_rewards)
+
         
     if return_traj:
         for traj in trajectories:
