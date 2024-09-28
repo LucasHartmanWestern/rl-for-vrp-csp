@@ -55,7 +55,9 @@ def run_odt(
     #     os.makedirs(model_dir)
 
     # load dataset
-    dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
+    #dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
+    dataset_path = f"../Datasets/{dataset}.pkl"
+    
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
