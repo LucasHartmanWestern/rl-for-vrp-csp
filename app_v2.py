@@ -159,12 +159,13 @@ def train_rl_vrp_csp(date, args):
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
                 run_odt(devices,
-                          environment_list[nn_c['zone_index']],
+                          environment_list,
                           chargers_copy,
-                          all_routes[0],
+                          all_routes,
                           action_dim,
                           eval_c['fixed_attributes'],
-                          nn_c
+                          nn_c, 
+                          seed
                          )
                 return
 
@@ -359,7 +360,7 @@ def train_rl_vrp_csp(date, args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"/storage_1/epigou_storage/datasets/{env_c['seeds']}-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            dataset_path = f"/storage_1/epigou_storage/datasets/[{seed}]-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
 
             traj_format = format_data(trajectories)
             with open(dataset_path, 'wb') as f:
