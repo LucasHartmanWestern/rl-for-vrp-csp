@@ -160,7 +160,7 @@ def evaluate_episode_rtg(
             action_sig = action_sig.detach().cpu().numpy()
     
             env.generate_paths(action_sig, None, car)
-
+            
         sim_done = env.simulate_routes()
         arrived_at_final = env.arrived_at_final
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
@@ -195,6 +195,7 @@ def evaluate_episode_rtg(
 
         episode_length += 1
     episode_return = np.mean(episode_rewards)
+
         
     if return_traj:
         for traj in trajectories:

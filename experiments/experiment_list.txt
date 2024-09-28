@@ -1,0 +1,125 @@
+Each experiment is a directory within this directory.
+
+Each experiment directory should contain:
+- `config.yaml`: Configuration for the experiment.
+- `description.txt`: A description of the experiment.
+- `Experiment Analysis.ipynb`: A notebook for analyzing the results of the experiment.
+
+The first 2 experiments are used to determine the number of episodes and aggregations to use in each permutation.
+
+Experiment 1:
+- Model: DQN
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+- Episodes: 1000
+- Aggregations: 1
+
+Experiment 2:
+- Model: DQN
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+- Episodes: ?
+- Aggregations: 10
+
+There are also 12 experiments run to demonstrate the effectiveness of using one agent per car instead of one agent per zone.
+
+Experiment 3:
+- Model: DQN
+- Seed: 1234
+- Season: spring
+- Agent-per-zone
+
+Experiment 4:
+- Model: DQN
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+
+Experiment 5:
+- Model: DQN
+- Seed: 5555
+- Season: spring
+- Agent-per-zone
+
+Experiment 6:
+- Model: DQN
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+
+Experiment 7:
+- Model: CMA
+- Seed: 1234
+- Season: spring
+- Agent-per-zone
+
+Experiment 8:
+- Model: CMA
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+
+Experiment 9:
+- Model: CMA
+- Seed: 5555
+- Season: spring
+- Agent-per-zone
+
+Experiment 10:
+- Model: CMA
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+
+Experiment 11:
+- Model: DQN + ODT
+- Seed: 1234
+- Season: spring
+- Agent-per-zone
+
+Experiment 12:
+- Model: DQN + MADT
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+
+Experiment 13:
+- Model: DQN + ODT
+- Seed: 5555
+- Season: spring
+- Agent-per-zone
+
+Experiment 14:
+- Model: DQN + MADT
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+
+Experiments 15-135 are combinations of the following parameters.
+There is one experiment for each combination of the following parameters:
+- Model: [DQN, DDPG, POLYGRAD, DQN + ODT, DDPG + ODT, POLYGRAD + ODT, ALL + ODT, DQN + MADT, DDPG + MADT, POLYGRAD + MADT, ALL + MADT, CMA] (12 models)
+- Seed: [1234, 5555, 2020, 5678, 9101] (5 seeds)
+- Season: [summer, winter] (2 seasons)
+
+Number of combinations = 12 * 5 * 2 = 120 experiments
+
+Each experiment can be run to train the model, or to load a pretrained model and evaluate it.
+The selection of training or evaluation is done by running the app_v2.py file and answering the prompts given.
+
+Experiments 15-135 are ordered to cycle through each model (starting with DQN), and then each seed (starting with 1234), and then each season (starting with summer).
+
+Experiment 15:
+- Model: DQN
+- Seed: 1234
+- Season: summer
+- Agent-per-car
+
+...
+
+Experiment 135:
+- Model: CMA
+- Seed: 9101
+- Season: winter
+- Agent-per-car

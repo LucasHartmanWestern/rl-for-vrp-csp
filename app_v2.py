@@ -23,7 +23,7 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-def train_rl_vrp_csp(date, args):
+def train_rl_vrp_csp(date, args, experiment_number):
 
     """
     Trains reinforcement learning models for vehicle routing and charging station placement (VRP-CSP).
@@ -37,29 +37,23 @@ def train_rl_vrp_csp(date, args):
 
     ############ Initialization ############
 
-    environment_config_fname = 'configs/environment_config.yaml'
-    eval_config_fname = 'configs/evaluation_config.yaml'
-    algorithm_config_fname = 'configs/algorithm_config.yaml'    
+    config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
 
-    c = load_config_file(environment_config_fname)
+    c = load_config_file(config_fname)
     env_c = c['environment_settings']
-    c = load_config_file(eval_config_fname)
     eval_c = c['eval_config']
-    c = load_config_file(algorithm_config_fname)
     algorithm_dm = c['algorithm_settings']['algorithm']
     agent_by_zone= c['algorithm_settings']['agent_by_zone']
     federated_c = c['federated_learning_settings']
 
-    if algorithm_dm == "DQN":
-        c = load_config_file('configs/neural_network_config.yaml')
+    if algorithm_dm in ["DQN", "policy_gradient", "ddpg"]:
         num_episodes = c['nn_hyperparameters']['num_episodes']
     elif algorithm_dm == 'CMA_optimizer':
-        c = load_config_file('configs/cma_config.yaml')
         num_episodes = c['cma_parameters']['max_generations']
 
     action_dim = env_c['action_dim'] * env_c['num_of_chargers']
     
-    metrics_base_path = "../../../storage_1/lhartman_storage/metrics" if eval_c['device_config'] == 'server' else 'metrics'
+    metrics_base_path = f"../../../storage_1/lhartman_storage/metrics/Experiment {experiment_number}/" if eval_c['device_config'] == 'server' else f"metrics/Experiment {experiment_number}/"
 
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)
@@ -90,6 +84,42 @@ def train_rl_vrp_csp(date, args):
     # Run and train agents with different routes with reproducibility based on the selected seed
     for seed in env_c['seeds']:
 
+        test_model = 'N'
+        unable_to_load_model = False
+
+        while True:
+            test_model = input("Test model (Y) or Train model (N)? ").strip().upper()
+
+            if test_model == 'Y':
+                try:
+                    global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
+                    break
+                except Exception as e:
+                    print("Could not find an existing model to test. Training instead.")
+                    test_model = 'N'
+                    unable_to_load_model = True
+                    break
+            elif test_model == 'N':
+                break
+            else:
+                print("Invalid input. Please enter 'Y' to test or 'N' to train.")
+
+        if test_model == 'N' and unable_to_load_model == False:
+            while True:
+                load_existing_model = input("Load existing model (Y) or Start from scratch (N)? ").strip().upper()
+                if load_existing_model == 'Y':
+                    try:
+                        global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
+                        break
+                    except Exception as e:
+                        print("Could not find an existing model to load. Starting from scratch instead.")
+                        load_existing_model == 'N'
+                        break
+                elif load_existing_model == 'N':
+                    break
+                else:
+                    print("Invalid input. Please enter 'Y' to load an existing model or 'N' to start from scratch.")    
+
         if eval_c['evaluate_on_diff_seed']:
             print(f'Running experiments with model trained on seed {seed} on new seed {seed*5} (seed * 5)')
             seed *= 5 # Multiply seed by 5 to get a different seed
@@ -107,7 +137,7 @@ def train_rl_vrp_csp(date, args):
         ev_info = []
         start_time = time.time()
         for area_idx in range(n_zones):
-            environment = EnvironmentClass(environment_config_fname, chargers_seeds[area_idx], env_c['coords'][area_idx], devices[area_idx], dtype=torch.float32)
+            environment = EnvironmentClass(config_fname, chargers_seeds[area_idx], env_c['coords'][area_idx], devices[area_idx], dtype=torch.float32)
 
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())
@@ -152,9 +182,8 @@ def train_rl_vrp_csp(date, args):
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
             
-        if eval_c['train_model']:
+        if test_model == 'N':
             if algorithm_dm == 'ODT':
-                c = load_config_file('configs/neural_network_config.yaml')
                 nn_c = c['odt_hyperparameters']               
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
@@ -201,7 +230,7 @@ def train_rl_vrp_csp(date, args):
 
                 processes = []
                 for ind, charger_list in enumerate(chargers):
-                    process = mp.Process(target=train_route, args=(charger_list, environment_list[ind],\
+                    process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
                                         all_routes[ind], date, action_dim, global_weights, aggregate_step,\
                                         ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -231,8 +260,11 @@ def train_rl_vrp_csp(date, args):
                                                     federated_c['zone_multiplier'], federated_c['model_multiplier'],\
                                                     agent_by_zone)
 
+                save_global_path = f'saved_networks/Experiment {experiment_number}/'
+                if not os.path.exists(save_global_path):
+                    os.makedirs(save_global_path)
                 # Save the global weights
-                torch.save(global_weights, f'saved_networks/global_weights_{seed}.pth')
+                torch.save(global_weights, f'{save_global_path}/global_weights.pth')
 
                 # Extend the main lists with the contents of the process lists
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -265,7 +297,7 @@ def train_rl_vrp_csp(date, args):
             trajectories = []
             
             print(f"Loading saved models - Seed {seed}")
-            global_weights = torch.load(f'saved_networks/global_weights_{seed}.pth')
+            global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
 
             manager = mp.Manager()
             local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -279,7 +311,7 @@ def train_rl_vrp_csp(date, args):
 
             processes = []
             for ind, charger_list in enumerate(chargers):
-                process = mp.Process(target=train_route, args=(charger_list, environment_list[ind],\
+                process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
                                     all_routes[ind], date, action_dim, global_weights, 0,\
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -320,11 +352,11 @@ def train_rl_vrp_csp(date, args):
             if not os.path.exists(f'{metrics_base_path}/eval'):
                 os.makedirs(f'{metrics_base_path}/eval')
             # Save all metrics from evaluation into a file
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
 
 
         if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
@@ -337,17 +369,12 @@ def train_rl_vrp_csp(date, args):
             os.makedirs(f'{metrics_base_path}/train')
 
         # Save all metrics from training into a file
-        if eval_c['save_data'] and eval_c['train_model']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
+        if eval_c['save_data']:
+            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
 
         # Generate the plots for the various metrics
         if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
-
-        # if num_episodes != 1 and eval_c['continue_training']:
-        #     user_input = input("More Episodes? ")
-        # else:
-        #     user_input = 'Done'
+            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
 
         et = time.time() - start_time
         to_print = f"Total time elapsed for this run"+\
@@ -367,7 +394,7 @@ def train_rl_vrp_csp(date, args):
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
 
-def train_route(chargers, environment, routes, date, action_dim, global_weights,
+def train_route(experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, agent_by_zone, save_offline_data, train_model):
 
@@ -407,16 +434,22 @@ def train_route(chargers, environment, routes, date, action_dim, global_weights,
         chargers_copy = copy.deepcopy(chargers)
 
         if algorithm_dm == 'DQN':
-            from train_dqn import train_dqn as train
-            
+            from training_processes.train_dqn import train_dqn as train
+
+        elif algorithm_dm == 'policy_gradient':
+            from training_processes.train_policy_gradient import train_policy_gradient as train
+
+        elif algorithm_dm == 'ddpg':
+            from training_processes.train_ddpg import train_ddpg as train
+
         elif algorithm_dm == 'CMA_optimizer':
-            from train_cma import train_cma as train
+            from training_processes.train_cma import train_cma as train
         
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
-            train(chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
+            train(experiment_number, chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
                   ind, sub_seed, main_seed, devices, agent_by_zone, fixed_attributes, verbose,\
                   display_training_times, torch.float32, save_offline_data, train_model)
 
@@ -455,4 +488,8 @@ if __name__ == '__main__':
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
-    train_rl_vrp_csp(date, args)
+    exp_range = len([name for name in os.listdir('experiments') if os.path.isdir(os.path.join('experiments', name))])
+
+    experiment_number = input(f"Enter the experiment number you wish to run [1-{exp_range}]: ")
+
+    train_rl_vrp_csp(date, args, experiment_number)

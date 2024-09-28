@@ -15,6 +15,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         battery_data = []
         time_data = []
         path_data = []
+        time_data = []
 
         # Get the model index by using car_models[zone_index][agent_index]
         car_models = np.column_stack([info['model_type'] for info in ev_info]).T
@@ -104,6 +105,18 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "path": [step.tolist() for step in episode['paths'][:, agent_ind]]
                     })
 
+                    for elapsed_time in episode['elapsed_times']:
+                        time_data.append({
+                            "episode": episode['episode'],
+                            "timestep": episode['timestep'],
+                            "done": episode['done'],
+                            "zone": episode['zone'] + 1,
+                            "aggregation": episode['aggregation'],
+                            "agent_index": agent_ind,
+                            "car_model": car_model,
+                            "duration": elapsed_time
+                        })
+
         et = time.time() - st
 
         if verbose:
@@ -117,6 +130,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         save_to_json(reward_data, f'{base_path}_reward.json')
         save_to_json(traffic_data, f'{base_path}_traffic.json')
         save_to_json(path_data, f'{base_path}_path.json')
+        save_to_json(time_data, f'{base_path}_time.json')
 
         et = time.time() - st
 
@@ -130,6 +144,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         reward_data = load_from_json(f'{base_path}_reward.json')
         traffic_data = load_from_json(f'{base_path}_traffic.json')
         path_data = load_from_json(f'{base_path}_path.json')
+        time_data = load_from_json(f'{base_path}_time.json') # Note time is not simulated time but rather real world training time
 
         # Draw a map of the last episode
         draw_map_of_last_episode(path_data, seed)
@@ -140,11 +155,12 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose, num_episodes)
         evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose, num_episodes)
         evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose, num_episodes)
+        evaluate_by_agent(time_data, 'duration', 'Duration Training', seed, verbose, num_episodes)
 
         # Evaluate metrics per-station
         evaluate_by_station(traffic_data, seed, verbose, num_episodes)
 
-def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episodes):
+def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episodes, algorithm='DQN'):
     if verbose: print(f"Evaluating {metric_title} Metrics for seed {seed}")
 
     # Convert data to DataFrame for easier manipulation
@@ -184,28 +200,28 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     plt.figure(figsize=(8, 6))
     plt.bar(['Average'], [avg_total])
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title}')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title}')
     plt.show()
 
     # Average by Zone
     plt.figure(figsize=(8, 6))
     plt.bar(avg_by_zone.index, avg_by_zone.values)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} by Zone')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} by Zone')
     plt.show()
 
     # Average by Car Model
     plt.figure(figsize=(8, 6))
     plt.bar(avg_by_car_model.index, avg_by_car_model.values)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} by Car Model')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} by Car Model')
     plt.show()
 
     # Average by Aggregation
     plt.figure(figsize=(8, 6))
     plt.bar(avg_by_aggregation.index, avg_by_aggregation.values)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} by Aggregation')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} by Aggregation')
     plt.show()
 
     # Average per Episode
@@ -214,7 +230,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} per Episode')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} per Episode')
     plt.show()
 
     # Average per Episode by Zone
@@ -223,7 +239,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} per Episode by Zone')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} per Episode by Zone')
     plt.show()
 
     # Average per Episode by Car Model
@@ -232,17 +248,17 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} per Episode by Car Model')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - A verage {metric_title} per Episode by Car Model')
     plt.show()
 
     # Average per Episode by Aggregation
     plt.figure(figsize=(8, 6))
     avg_by_episode_aggregation.plot()
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Average {metric_title} per Episode by Aggregation')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} per Episode by Aggregation')
     plt.show()
 
-def draw_map_of_last_episode(data, seed):
+def draw_map_of_last_episode(data, seed, algorithm='DQN'):
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
 
@@ -261,7 +277,7 @@ def draw_map_of_last_episode(data, seed):
         zone_data = last_episode_data[last_episode_data['zone'] == zone]
 
         plt.figure(figsize=(20, 16))  # Make the plot larger
-        plt.title(f'Seed {seed} - Zone {zone} - Last Episode Paths')
+        plt.title(f'Seed {seed} - Algo. {algorithm} - Zone {zone} - Last Episode Paths')
         plt.xlabel('X Coordinate')
         plt.ylabel('Y Coordinate')
 
@@ -301,7 +317,7 @@ def draw_map_of_last_episode(data, seed):
 
     # Plot all zones together
     plt.figure(figsize=(20, 16))  # Make the plot larger
-    plt.title(f'Seed {seed} - All Zones - Last Episode Paths')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - All Zones - Last Episode Paths')
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
 
@@ -341,14 +357,14 @@ def draw_map_of_last_episode(data, seed):
 
     plt.show()
 
-def evaluate_training_duration(data):
+def evaluate_training_duration(data, algorithm='DQN'):
     print("Evaluating Training Time Metrics")
 
     # TODO:
     # - Evaluate how long it takes to plateau to reward
     # - Evaluate how long it takes to retrain after defining base models
 
-def evaluate_by_station(data, seed, verbose, num_episodes):
+def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
     if verbose: print("Evaluating Traffic Metrics")
 
     # Convert data to DataFrame for easier manipulation
@@ -392,7 +408,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Peak Traffic by Charger
     plt.figure(figsize=(8, 6))
     peak_traffic_by_charger.plot(kind='bar', color='skyblue')
-    plt.title(f'Seed {seed} - Peak Traffic by Charger Throughout Training')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Peak Traffic by Charger Throughout Training')
     plt.xlabel('Station Index')
     plt.ylabel('Peak Traffic')
     plt.show()
@@ -400,7 +416,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Peak Traffic by Charger in the Last Episode
     plt.figure(figsize=(8, 6))
     peak_traffic_last_episode.plot(kind='bar', color='purple')
-    plt.title(f'Seed {seed} - Peak Traffic by Charger in Last Episode')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Peak Traffic by Charger in Last Episode')
     plt.xlabel('Station Index')
     plt.ylabel('Peak Traffic')
     plt.show()
@@ -408,14 +424,14 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Average Traffic Levels
     plt.figure(figsize=(8, 6))
     plt.bar(['Average Traffic'], [average_traffic_levels], color='lightgreen')
-    plt.title(f'Seed {seed} - Average Traffic Levels')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Levels')
     plt.ylabel('Average Traffic')
     plt.show()
 
     # Traffic Levels Across Zones
     plt.figure(figsize=(8, 6))
     traffic_levels_across_zones.plot(kind='bar', color='salmon')
-    plt.title(f'Seed {seed} - Average Traffic Levels Across Zones')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Levels Across Zones')
     plt.xlabel('Zone')
     plt.ylabel('Average Traffic')
     plt.show()
@@ -423,7 +439,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Traffic Levels Across Aggregations
     plt.figure(figsize=(8, 6))
     traffic_levels_across_aggregations.plot(kind='bar', color='orange')
-    plt.title(f'Seed {seed} - Average Traffic Levels Across Aggregations')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Levels Across Aggregations')
     plt.xlabel('Aggregation')
     plt.ylabel('Average Traffic')
     plt.show()
@@ -433,7 +449,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     average_traffic_per_episode.plot()
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
-    plt.title(f'Seed {seed} - Average Traffic Per Episode of Training')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Per Episode of Training')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
     plt.show()
@@ -443,7 +459,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     average_peak_traffic_per_episode.plot()
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
-    plt.title(f'Seed {seed} - Average Peak Traffic Per Episode')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Peak Traffic Per Episode')
     plt.xlabel('Episode')
     plt.ylabel('Average Peak Traffic')
     plt.show()
@@ -453,7 +469,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     average_traffic_per_episode_by_zone.unstack().plot()
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
-    plt.title(f'Seed {seed} - Average Traffic Per Episode by Zone')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Per Episode by Zone')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
     plt.legend(title='Zone')
@@ -462,28 +478,8 @@ def evaluate_by_station(data, seed, verbose, num_episodes):
     # Average Traffic Per Episode of Training by Aggregation
     plt.figure(figsize=(8, 6))
     average_traffic_per_episode_by_aggregation.unstack().plot()
-    plt.title(f'Seed {seed} - Average Traffic Per Episode by Aggregation')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average Traffic Per Episode by Aggregation')
     plt.xlabel('Episode')
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
-
-if __name__ == '__main__': # For debugging
-
-    from data_loader import load_config_file
-    from datetime import datetime
-
-    environment_config_fname = 'configs/environment_config.yaml'
-    nn_config_fname = 'configs/neural_network_config.yaml'
-
-    c = load_config_file(environment_config_fname)
-    env_c = c['environment_settings']
-    c = load_config_file(nn_config_fname)
-    nn_c = c['nn_hyperparameters']
-
-    seed = env_c['seeds'][0]
-    date = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    num_episodes = nn_c['num_episodes']
-    attr_label = 'learned'
-
-    evaluate(None, None, seed, date, True, 'display', num_episodes, f"metrics/train/metrics_{env_c['num_of_cars']}_{num_episodes}_{seed}_{attr_label}")
