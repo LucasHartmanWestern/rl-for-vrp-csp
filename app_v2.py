@@ -436,7 +436,7 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
         if algorithm_dm == 'DQN':
             from training_processes.train_dqn import train_dqn as train
 
-        elif algorithm_dm == 'ppo':
+        elif algorithm_dm == 'PPO':
             from training_processes.train_ppo import train_ppo as train
 
         elif algorithm_dm == 'DDPG':

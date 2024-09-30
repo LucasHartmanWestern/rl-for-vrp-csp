@@ -308,7 +308,7 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
 
                 trained = True
 
-                mini_batch = dqn_rng.choice(np.array(buffers[agent_ind], dtype=object), batch_size, replace=False)
+                mini_batch = dqn_rng.choice(np.array([experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
                 # Update networks
@@ -331,28 +331,32 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
         if train_model:
             epsilon = max(0.1, epsilon) # Minimal learning threshold
 
+        base_path = f'saved_networks/Experiment {experiment_number}'
+
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
             if agent_by_zone:
                 soft_update(target_q_networks[0], q_networks[0])
 
+                
+
                 # Add this before you save your model
-                if not os.path.exists('saved_networks'):
-                    os.makedirs('saved_networks')
+                if not os.path.exists(base_path):
+                    os.makedirs(base_path)
 
                 # Save the networks at the end of training
-                save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
-                save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
+                save_model(q_networks[0], f'{base_path}/q_network_{zone_index}.pth')
+                save_model(target_q_networks[0], f'{base_path}/target_q_network_{zone_index}.pth')
             else:
                 for agent_ind in range(num_cars):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
 
                     # Add this before you save your model
-                    if not os.path.exists('saved_networks'):
-                        os.makedirs('saved_networks')
+                    if not os.path.exists(base_path):
+                        os.makedirs(base_path)
 
                     # Save the networks at the end of training
-                    save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
+                    save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()
