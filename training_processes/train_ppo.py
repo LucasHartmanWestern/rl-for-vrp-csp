@@ -6,21 +6,22 @@ from collections import namedtuple, deque
 import os
 import time
 import copy
+import random
 
-from agents.policy_gradient_agent import initialize, agent_learn, get_actions, save_model
+from agents.ppo_agent import ActorCritic, compute_gae, ppo_update
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
-experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "log_prob"])
+experience = namedtuple("Experience", field_names=["state", "action", "log_prob", "reward", "next_state", "done"])
 
-def train_policy_gradient(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_ppo(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
     """
-    Trains a Policy Gradient agent for Electric Vehicle (EV) routing and charging optimization.
+    Trains a Proximal Policy Optimization (PPO) for Electric Vehicle (EV) routing and charging optimization.
 
     Parameters:
         chargers (array): Array of charger locations and their properties.
@@ -28,12 +29,10 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
         routes (array): Array containing route information for each EV.
         date (str): Date string for logging purposes.
         action_dim (int): Dimension of the action space.
-        global_weights (array): Pre-trained weights for initializing the policy networks.
+        global_weights (array): Pre-trained weights for initializing the Q-networks.
         aggregation_num (int): Aggregation step number for tracking.
         zone_index (int): Index of the current zone being processed.
         seed (int): Seed for reproducibility of training.
-
-        
         main_seed (int): Main seed for initializing the environment.
         fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
         devices (list, optional): list of two devices to run the environment and model, default both are cpu. 
@@ -43,11 +42,14 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
         train_model (bool): True if training the model, False if evaluating
 
+
     Returns:
         tuple: A tuple containing:
-            - List of trained policy network state dictionaries.
+            - List of trained actor-critic state dictionaries.
             - List of average rewards for each episode.
             - List of average output values for each episode.
+            - List of metrics for each episode.
+            - List of trajectories for each episode.
     """
     # Getting Neural Network parameters
     config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
@@ -57,9 +59,12 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
     num_episodes = nn_c['num_episodes'] if train_model else 1
+    batch_size   = int(nn_c['batch_size'])
+    buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
     
     avg_rewards = []
+    exploration_params = []  # List to store exploration parameters
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -73,37 +78,47 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
     model_indices = environment.info['model_indices']
     
-    policy_networks = []
+    actor_critics = []
     optimizers = []
 
     num_cars = environment.num_cars
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
-        policy_network = initialize(state_dimension, action_dim, layers, device) 
+        actor_critic = ActorCritic(state_dimension, action_dim, layers).to(device) 
 
         if global_weights is not None:
-            policy_network.load_state_dict(global_weights[zone_index])
+            if eval_c['evaluate_on_diff_seed']:
+                actor_critic.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+            else:
+                actor_critic.load_state_dict(global_weights[zone_index])
 
-        optimizer = optim.Adam(policy_network.parameters(), lr=learning_rate)  # Use Adam optimizer
+        optimizer = optim.Adam(actor_critic.parameters(), lr=learning_rate)  # Use Adam optimizer
 
         # Store individual networks
-        policy_networks.append(policy_network)
+        actor_critics.append(actor_critic)
         optimizers.append(optimizer)
 
     else:  # Assign unique agent for each car
         num_agents = environment.num_cars
         for agent_ind in range(num_agents):
             # Initialize networks
-            policy_network = initialize(state_dimension, action_dim, layers, device)  
+            actor_critic = ActorCritic(state_dimension, action_dim, layers).to(device)  
 
             if global_weights is not None:
-                policy_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                if eval_c['evaluate_on_diff_seed']:
+                    actor_critic.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                else:
+                    actor_critic.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
-            optimizer = optim.Adam(policy_network.parameters(), lr=learning_rate)  # Use Adam optimizer
+            optimizer = optim.Adam(actor_critic.parameters(), lr=learning_rate)  # Use Adam optimizer
             # Store individual networks
-            policy_networks.append(policy_network)
+            actor_critics.append(actor_critic)
             optimizers.append(optimizer)
+
+    random_threshold = np.random.random((num_episodes, num_cars))
+
+    buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
 
     trajectories = []
 
@@ -125,7 +140,6 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
                     'rewards': [],
                     'terminals': [],
                     'terminals_car': [],
-                    'log_probs': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
                     'episode': i,
@@ -138,6 +152,8 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
         states = []
         rewards = []
         log_probs = []
+        values = []
+        masks = []
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
 
@@ -151,15 +167,15 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
         while not sim_done:  # Keep going until every EV reaches its destination
 
-            environment.init_routing()
-
             sim_timestep_times = []
+
+            environment.init_routing()
 
             # Build path for each EV
             for car_idx in range(num_cars): # For each car
-
-                start_time_step = time.time()
     
+                start_time_step = time.time()
+
                 if save_offline_data:
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
@@ -175,22 +191,29 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
 
-                action, log_prob = get_actions(state, policy_networks[0] if agent_by_zone else policy_networks[car_idx], device)  # Get the action and log probability from the agent
+                dist, value = actor_critics[0](state) if agent_by_zone else actor_critics[car_idx](state)
+                action = dist.sample()
+                log_prob = dist.log_prob(action).sum()
+                action_values = action.detach().cpu().numpy()
+
+                # Track the standard deviation (exploration parameter)
+                std = dist.scale.mean().item()
+                exploration_params.append((std, i, aggregation_num, zone_index, main_seed))
 
                 t2 = time.time()
 
                 if save_offline_data:
-                    car_traj['actions'].append(action)
-                    car_traj['log_probs'].append(log_prob)
+                    car_traj['actions'].append(action_values.tolist()) #Save unmodified action
+                
+                distributions_unmodified.append(action_values.tolist())  # Track outputs before the sigmoid application
 
-                distributions_unmodified.append(action)  # Track outputs before the sigmoid application
                 # Apply sigmoid function to the entire array
-                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
-                distributions.append(action)  # Convert back to list and append
+                distribution = np.where(action_values >= 0, 1 / (1 + np.exp(-action_values)), np.exp(action_values) / (1 + np.exp(action_values)))
+                distributions.append(distribution.tolist())  # Convert back to list and append
 
                 t3 = time.time()
 
-                environment.generate_paths(action, fixed_attributes, car_idx)
+                environment.generate_paths(distribution, fixed_attributes, car_idx)
 
                 t4 = time.time()
 
@@ -201,6 +224,10 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
                     print_time("Get actions", (t2 - t1))
                     print_time("Get distributions", (t3 - t2))
                     print_time("Generate paths in environment", (t4 - t3))
+
+                log_probs.append(log_prob)
+                values.append(value)
+                masks.append(1 - sim_done)
 
             if num_episodes == 1 and fixed_attributes is None:
                 if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
@@ -267,9 +294,9 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], rewards[d],\
+            buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], log_probs[d], rewards[d],\
                                                 states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
-                                                                     done, log_probs[d]))  # Store experience
+                                                                     done))  # Store experience
 
         st = time.time()
 
@@ -277,19 +304,92 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
         for agent_ind in range(num_cars):
 
-            if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
+            if len(buffers[agent_ind]) >= batch_size:  # Buffer is full enough
 
                 trained = True
 
-                mini_batch = dqn_rng.choice(np.array(buffers[agent_ind], dtype=object), batch_size, replace=False)
-                experiences = map(np.stack, zip(*mini_batch))  # Format experiences
+                # Prepare the experiences by converting tensors to numpy arrays
+                experiences_list = [
+                    experience(
+                        to_numpy_if_tensor(exp.state),
+                        to_numpy_if_tensor(exp.action),
+                        to_numpy_if_tensor(exp.log_prob),
+                        exp.reward,
+                        to_numpy_if_tensor(exp.next_state),
+                        exp.done
+                    )
+                    for exp in buffers[agent_ind]
+                ]
+
+                # Use random.sample to get a mini-batch without replacement
+                mini_batch = random.sample(experiences_list, batch_size)
+
+                # Unzip the mini-batch into separate lists
+                states_list, actions_list, log_probs_list, rewards_list, next_states_list, dones_list = zip(*mini_batch)
+
+                # Convert lists to numpy arrays before tensors (for performance)
+                states_array = np.array(states_list)
+                actions_array = np.array(actions_list)
+                log_probs_array = np.array(log_probs_list)
+                rewards_array = np.array(rewards_list)
+                next_states_array = np.array(next_states_list)
+                dones_array = np.array(dones_list)
+
+                # Convert numpy arrays to tensors
+                states = torch.tensor(states_array, dtype=dtype, device=device)
+                actions = torch.tensor(actions_array, dtype=dtype, device=device)
+                log_probs = torch.tensor(log_probs_array, dtype=dtype, device=device)
+                rewards = torch.tensor(rewards_array, dtype=dtype, device=device)
+                next_states = torch.tensor(next_states_array, dtype=dtype, device=device)
+                dones = torch.tensor(dones_array, dtype=dtype, device=device)
+
+                # Compute masks
+                masks = 1 - dones
+
+                # Compute values using the critic network
+                values = []
+                for state in states:
+                    value = actor_critics[0](state)[1] if agent_by_zone else actor_critics[agent_ind](state)[1]
+                    values.append(value)
+                values = torch.stack(values).squeeze()
+
+                # Compute next value
+                next_value = actor_critics[0](next_states[-1])[1] if agent_by_zone else actor_critics[agent_ind](next_states[-1])[1]
+                next_value = next_value.squeeze()
+
+                # Compute returns and advantages
+                returns = compute_gae(next_value, rewards, masks, values, discount_factor)
+                advantages = returns - values
+
+                returns = returns.detach()
+                advantages = advantages.detach()
 
                 # Update networks
                 if agent_by_zone:
-                    agent_learn(experiences, discount_factor, policy_networks[0], optimizers[0], device)
+                    ppo_update(
+                        actor_critics[0],
+                        optimizers[0],
+                        num_episodes,
+                        batch_size,
+                        states,
+                        actions,
+                        log_probs,
+                        returns,
+                        advantages
+                    )
                 else:
-                    agent_learn(experiences, discount_factor, policy_networks[agent_ind], optimizers[agent_ind], device)
-        
+                    ppo_update(
+                        actor_critics[agent_ind],
+                        optimizers[agent_ind],
+                        num_episodes,
+                        batch_size,
+                        states,
+                        actions,
+                        log_probs,
+                        returns,
+                        advantages
+                    )
+                    
         et = time.time() - st
 
         if verbose and trained:
@@ -298,17 +398,24 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
             print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
-        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
-            # Add this before you save your model
-            if not os.path.exists('saved_networks'):
-                os.makedirs('saved_networks')
+        base_path = f'saved_networks/Experiment {experiment_number}'
 
-            # Save the networks at the end of training
+        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
             if agent_by_zone:
-                save_model(policy_networks[0], f'saved_networks/policy_network_{main_seed}_{zone_index}.pth')
+                # Add this before you save your model
+                if not os.path.exists(base_path):
+                    os.makedirs(base_path)
+
+                # Save the networks at the end of training
+                torch.save(actor_critics[0].state_dict(), f'{base_path}/actor_critic_{zone_index}.pth')
             else:
                 for agent_ind in range(num_cars):
-                    save_model(policy_networks[agent_ind], f'saved_networks/policy_network_{main_seed}_{agent_ind}.pth')
+                    # Add this before you save your model
+                    if not os.path.exists(base_path):
+                        os.makedirs(base_path)
+
+                    # Save the networks at the end of training
+                    torch.save(actor_critics[agent_ind].state_dict(), f'{base_path}/actor_critic_{agent_ind}.pth')
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()
@@ -336,7 +443,7 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
             to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
             f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
             f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
+            f"Avg. IR: {round(avg_ir, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(to_print, file=file)
 
@@ -344,9 +451,11 @@ def train_policy_gradient(experiment_number, chargers, environment, routes, date
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [policy_network.cpu().state_dict() for policy_network in policy_networks], avg_rewards, avg_output_values, metrics, trajectories
+    return [actor_critic.cpu().state_dict() for actor_critic in actor_critics], avg_rewards, avg_output_values, metrics, trajectories
 
 
 def print_time(label, time):
-    print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
-    
+    print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m{int(time % 60)}s")
+
+def to_numpy_if_tensor(x):
+    return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x

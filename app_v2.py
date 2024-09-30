@@ -11,8 +11,12 @@ from datetime import datetime
 import numpy as np
 from evaluation import evaluate
 import pickle
+warnings.filterwarnings("ignore")
 
-from decision_transformer.run_odt import run_odt, format_data
+try:
+    from decision_transformer.run_odt import run_odt, format_data
+except Exception as e:
+    warnings.warn("Decision Transformer not found. Skipping import.")
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -46,7 +50,7 @@ def train_rl_vrp_csp(date, args, experiment_number):
     agent_by_zone= c['algorithm_settings']['agent_by_zone']
     federated_c = c['federated_learning_settings']
 
-    if algorithm_dm in ["DQN", "policy_gradient", "ddpg"]:
+    if algorithm_dm in ["DQN", "PPO", "DDPG"]:
         num_episodes = c['nn_hyperparameters']['num_episodes']
     elif algorithm_dm == 'CMA_optimizer':
         num_episodes = c['cma_parameters']['max_generations']
@@ -436,10 +440,10 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
         if algorithm_dm == 'DQN':
             from training_processes.train_dqn import train_dqn as train
 
-        elif algorithm_dm == 'policy_gradient':
-            from training_processes.train_policy_gradient import train_policy_gradient as train
+        elif algorithm_dm == 'PPO':
+            from training_processes.train_ppo import train_ppo as train
 
-        elif algorithm_dm == 'ddpg':
+        elif algorithm_dm == 'DDPG':
             from training_processes.train_ddpg import train_ddpg as train
 
         elif algorithm_dm == 'CMA_optimizer':
