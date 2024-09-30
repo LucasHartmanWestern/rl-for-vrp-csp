@@ -46,7 +46,7 @@ def train_rl_vrp_csp(date, args, experiment_number):
     agent_by_zone= c['algorithm_settings']['agent_by_zone']
     federated_c = c['federated_learning_settings']
 
-    if algorithm_dm in ["DQN", "policy_gradient", "ddpg"]:
+    if algorithm_dm in ["DQN", "PPO", "DDPG"]:
         num_episodes = c['nn_hyperparameters']['num_episodes']
     elif algorithm_dm == 'CMA_optimizer':
         num_episodes = c['cma_parameters']['max_generations']
@@ -436,10 +436,10 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
         if algorithm_dm == 'DQN':
             from training_processes.train_dqn import train_dqn as train
 
-        elif algorithm_dm == 'policy_gradient':
-            from training_processes.train_policy_gradient import train_policy_gradient as train
+        elif algorithm_dm == 'ppo':
+            from training_processes.train_ppo import train_ppo as train
 
-        elif algorithm_dm == 'ddpg':
+        elif algorithm_dm == 'DDPG':
             from training_processes.train_ddpg import train_ddpg as train
 
         elif algorithm_dm == 'CMA_optimizer':

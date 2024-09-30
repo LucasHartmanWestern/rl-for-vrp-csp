@@ -7,20 +7,20 @@ import os
 import time
 import copy
 
-from agents.policy_gradient_agent import initialize, agent_learn, get_actions, save_model
+from agents.ppo_agent import initialize, agent_learn, get_actions, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "log_prob"])
 
-def train_policy_gradient(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_ppo(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
     """
-    Trains a Policy Gradient agent for Electric Vehicle (EV) routing and charging optimization.
+    Trains a Proximal Policy Optimization (PPO) agent for Electric Vehicle (EV) routing and charging optimization.
 
     Parameters:
         chargers (array): Array of charger locations and their properties.
