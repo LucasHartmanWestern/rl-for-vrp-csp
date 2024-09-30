@@ -12,7 +12,10 @@ import numpy as np
 from evaluation import evaluate
 import pickle
 
-from decision_transformer.run_odt import run_odt, format_data
+try:
+    from decision_transformer.run_odt import run_odt, format_data
+except Exception as e:
+    print("Decision Transformer not found. Skipping import.")
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
