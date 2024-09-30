@@ -169,15 +169,11 @@ def evaluate_episode_rtg(
             traj['terminals'] = torch.cat([traj['terminals'], torch.tensor([sim_done], device=device, dtype=torch.bool)], dim=0)
             traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([time_step_rewards[traj['car_num']]], device=device, dtype=torch.float32)], dim=0)
             traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))
-
-        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
         
         if timestep_counter == 0:
             episode_rewards = np.expand_dims(time_step_rewards,axis=0)
         else:
             episode_rewards = np.vstack((episode_rewards,time_step_rewards))
-        
-        #rewards.extend(episode_rewards.sum(axis=0))
 
         avg_reward = time_step_rewards.mean().item()
             
@@ -194,7 +190,10 @@ def evaluate_episode_rtg(
              torch.ones((1, 1), device=device, dtype=torch.long) * (timestep_counter+1)], dim=1)
 
         episode_length += 1
-    episode_return = np.mean(episode_rewards)
+
+    total_return_per_car = np.sum(episode_rewards, axis=0)
+    episode_return = np.mean(total_return_per_car)
+    print (f'Episode Return: {episode_return}')
 
         
     if return_traj:

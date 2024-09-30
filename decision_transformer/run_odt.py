@@ -49,8 +49,11 @@ def run_odt(
     group_name = f'{dataset}'
     exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
-    off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/offline_networks/')
-    on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
+    # off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/offline_networks/')
+    # on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
+    off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
+    on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
+    
     # if not os.path.exists(model_dir):
     #     os.makedirs(model_dir)
 
