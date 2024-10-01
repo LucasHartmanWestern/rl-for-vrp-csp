@@ -15,8 +15,10 @@ warnings.filterwarnings("ignore")
 
 try:
     from decision_transformer.run_odt import run_odt, format_data
+    from madt.sc2.run_madt_sc2 import run_madt
 except Exception as e:
     warnings.warn("Decision Transformer not found. Skipping import.")
+
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -201,7 +203,14 @@ def train_rl_vrp_csp(date, args, experiment_number):
                           seed
                          )
                 return
-
+            elif algorithm_dm == 'MADT':
+                c = load_config_file('configs/neural_network_config.yaml')
+                nn_c = c['odt_hyperparameters']  
+                print(f"Training using MADT - Seed {seed}")
+                chargers_copy = copy.deepcopy(chargers)
+                run_madt(environment_list, action_dim, chargers_copy, all_routes[0])
+                
+                return
             
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
