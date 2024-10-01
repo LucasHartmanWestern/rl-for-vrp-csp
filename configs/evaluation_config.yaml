@@ -10,8 +10,12 @@ eval_config:
     display_training_times: False # Display breakdown of how much each step takes
 
     train_model: True # Set to false for model evaluation
+    evaluate_on_diff_seed: False # Set to true to evaluate a model on a different seed than it was trained on
+    evaluate_on_diff_zone: False # Set to true to evaluate a model on a different zone than it was trained on
     save_data: True # Set to true if you want to save simulation results in a csv file
-    save_offline_data: False # Set true to save trajectories for offline training
+    save_offline_data: True # Set true to save trajectories for offline training
     generate_plots: False # Set to true if you want to generate plots of the simulation environments
     save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
     continue_training: False # Set to true if you want the option to continue training after a full training loop completes
+
+    device_config: 'local' # 'local' or 'server'
