@@ -1,4 +1,4 @@
-### Experiment 2: ###
+### Experiment 1: ###
 --------------------------------
 Seed: 5555
 Model: DQN
