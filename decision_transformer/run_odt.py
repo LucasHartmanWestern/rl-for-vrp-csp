@@ -18,7 +18,7 @@ def run_odt(
     device,
     env_list,
     chargers,
-    routes,
+    all_routes,
     act_dim,
     fixed_attributes,
     variant ,
@@ -49,13 +49,18 @@ def run_odt(
     group_name = f'{dataset}'
     exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
-    off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/offline_networks/')
-    on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
+    # off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/offline_networks/')
+    # on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
+    off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
+    on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
+    
     # if not os.path.exists(model_dir):
     #     os.makedirs(model_dir)
 
     # load dataset
-    dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
+    #dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
+    dataset_path = f"../Datasets/{dataset}.pkl"
+    
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -115,6 +120,7 @@ def run_odt(
     starting_p_sample = p_sample
 
     for env_idx, env in enumerate(env_list):
+        routes = all_routes[env_idx]
         print(f'Running in zone {env_idx}')
         state_dim = env.state_dim
         group_name = f'{dataset}_env_{env_idx}'

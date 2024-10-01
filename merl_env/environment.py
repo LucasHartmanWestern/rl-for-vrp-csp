@@ -169,7 +169,7 @@ class EnvironmentClass:
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
-        self.state_dim = (self.num_chargers * 3 * 2) + 4
+        self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
 
@@ -544,8 +544,8 @@ class EnvironmentClass:
         Returns:
             np.ndarray: State array for the agent.
         """
-        if is_odt:
-            agent_chargers = self.chargers[ 0,agent_idx, :]
+        if is_odt or is_madt:
+            agent_chargers = self.chargers[ 0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
@@ -557,7 +557,6 @@ class EnvironmentClass:
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
         if is_madt:
-            # Local state
             local_state = np.hstack((
                 np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),  # Traffic levels and distances to chargers
                 np.array([route_dist]),  # Distance to the final destination
@@ -579,7 +578,6 @@ class EnvironmentClass:
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
                            np.array([self.temperature])))
-
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
