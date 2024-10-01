@@ -42,7 +42,6 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
         train_model (bool): True if training the model, False if evaluating
 
-
     Returns:
         tuple: A tuple containing:
             - List of trained actor-critic state dictionaries.
@@ -62,6 +61,8 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
+
+    log_std_decay_rate = nn_c['log_std_decay_rate']
     
     avg_rewards = []
     exploration_params = []  # List to store exploration parameters
@@ -369,7 +370,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                     ppo_update(
                         actor_critics[0],
                         optimizers[0],
-                        num_episodes,
+                        nn_c['num_epochs'],
                         batch_size,
                         states,
                         actions,
@@ -381,7 +382,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                     ppo_update(
                         actor_critics[agent_ind],
                         optimizers[agent_ind],
-                        num_episodes,
+                        nn_c['num_epochs'],
                         batch_size,
                         states,
                         actions,
@@ -448,6 +449,10 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                 print(to_print, file=file)
 
             print(to_print)
+
+        # Update log_std to reduce exploration
+        for actor_critic in actor_critics:
+            actor_critic.update_log_std(log_std_decay_rate)
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 

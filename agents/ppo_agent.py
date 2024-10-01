@@ -53,6 +53,9 @@ class ActorCritic(nn.Module):
 
         return dist, value
 
+    def update_log_std(self, decay_rate):
+        self.log_std = nn.Parameter(self.log_std * decay_rate)
+
 def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
     # Detach values to prevent gradient tracking
     values = torch.cat([values, next_value.unsqueeze(0)], dim=0).detach()
