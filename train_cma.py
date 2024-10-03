@@ -12,7 +12,7 @@ from merl_env._pathfinding import haversine
 
 def train_cma(chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
               zone_index, seed, main_seed, device, agent_by_zone, fixed_attributes, verbose,
-              display_training_times=False, dtype=torch.float32, save_offline_data=False):
+              display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
     """
     Trains decision-making agents using the Covariance Matrix Adaptation (CMA) algorithm.
 
@@ -168,22 +168,25 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
 
             rewards.extend(episode_rewards.sum(axis=0))
+            # rewards.append(episode_rewards.sum(axis=0))
+            
 
-            # Used to evaluate simulation
-            metric = {
-                "zone": zone_index,
-                "episode": generation,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "paths": sim_path_results,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": rewards,
-                # "best_reward": best_avg,
-                "done": sim_done
-            }
-            metrics.append(metric)
+            # # Used to evaluate simulation
+            # metric = {
+            #     "zone": zone_index,
+            #     "episode": generation,
+            #     "timestep": timestep_counter,
+            #     "aggregation": aggregation_num,
+            #     "paths": sim_path_results,
+            #     "traffic": sim_traffic,
+            #     "batteries": sim_battery_levels,
+            #     "distances": sim_distances,
+            #     "rewards": rewards,
+            #     "rewards_mean": episode_rewards.sum(axis=0).mean()
+            #     # "best_reward": best_avg,
+            #     "done": sim_done
+            # }
+            # metrics.append(metric)
             timestep_counter += 1
 
         avg_reward = episode_rewards.sum(axis=0).mean()
@@ -204,6 +207,22 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
                 print_log(to_print, date, None)
                 # print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
+        # Used to evaluate simulation
+        metric = {
+            "zone": zone_index,
+            "episode": generation,
+            "timestep": timestep_counter,
+            "aggregation": aggregation_num,
+            "paths": sim_path_results,
+            "traffic": sim_traffic,
+            "batteries": sim_battery_levels,
+            "distances": sim_distances,
+            "rewards": rewards,
+            "rewards_mean": episode_rewards.sum(axis=0).mean(),
+            "best_reward": best_avg,
+            "done": sim_done
+        }
+        metrics.append(metric)
         avg_output_values[generation] = generation_weights.mean(axis=0)  # Store the average weights for the generation
 
     # Population evolution ends
