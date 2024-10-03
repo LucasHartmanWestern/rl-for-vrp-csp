@@ -5,12 +5,12 @@ import copy
 import torch
 import numpy as np
 
-from cma_agent import CMAAgent
+from agents.cma_agent import CMAAgent
 
 
 from merl_env._pathfinding import haversine
 
-def train_cma(chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
+def train_cma(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
               zone_index, seed, main_seed, device, agent_by_zone, fixed_attributes, verbose,
               display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
     """
@@ -72,7 +72,7 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
                 initial_weights = global_weights[zone_index][model_indices[agent_idx]]
 
         # Create a new CMA agent with the provided parameters and initial weights
-        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights)
+        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number)
         cma_agents_list.append(cma_agent)
 
     avg_output_values = np.zeros((cma_agents_list[0].max_generation, action_dim))  # Initialize output values storage
@@ -116,14 +116,20 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             for pop_idx in range(population_size):
                 environment.cma_copy_store()  # Restore environment to its stored state
     
+                sim_timestep_times = []
+
                 # Simulate the environment for each car
                 for car_idx in range(num_cars):
+
+                    start_time_step = time.time()
                     state = environment.reset_agent(car_idx)  # Reset environment for the car #MAYBE A PROBLEM HERE!
                     agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                     agent = cma_agents_list[agent_idx]
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
                     car_route = agent.model(state, weights)  # Get the route from the agent's model
                     environment.generate_paths(car_route, None, agent_idx)  # Stack the generated paths in the environment
+                    end_time_step = time.time()
+                    sim_timestep_times.append(end_time_step - start_time_step)  # Track time for this step and car
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes()
@@ -171,6 +177,7 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             # rewards.append(episode_rewards.sum(axis=0))
             
 
+<<<<<<< HEAD:train_cma.py
             # # Used to evaluate simulation
             # metric = {
             #     "zone": zone_index,
@@ -187,6 +194,24 @@ def train_cma(chargers, environment, routes, date, action_dim, global_weights, a
             #     "done": sim_done
             # }
             # metrics.append(metric)
+=======
+            # Used to evaluate simulation
+            metric = {
+                "zone": zone_index,
+                "episode": generation,
+                "timestep": timestep_counter,
+                "aggregation": aggregation_num,
+                "paths": sim_path_results,
+                "traffic": sim_traffic,
+                "batteries": sim_battery_levels,
+                "distances": sim_distances,
+                "rewards": rewards,
+                # "best_reward": best_avg,
+                "elapsed_times": sim_timestep_times,
+                "done": sim_done
+            }
+            metrics.append(metric)
+>>>>>>> 28fae8ab0fff88675333a75ec260a668bff802b0:training_processes/train_cma.py
             timestep_counter += 1
 
         avg_reward = episode_rewards.sum(axis=0).mean()

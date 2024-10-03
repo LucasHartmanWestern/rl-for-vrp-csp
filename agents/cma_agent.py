@@ -29,7 +29,7 @@ class CMAAgent:
         weights_result (list): List to store the resulting weights after optimization.
     """
 
-    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights):
+    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number):
         """
         Initializes the CMAAgent with configuration and parameters for the CMA-ES algorithm.
 
@@ -43,7 +43,7 @@ class CMAAgent:
         """
         
         # Load CMA-ES configuration parameters from a YAML file
-        fname = 'configs/cma_config.yaml'
+        fname = f'experiments/Experiment {experiment_number}/cma_config.yaml'
         c = load_config_file(fname)
         cma_c = c['cma_parameters']
 

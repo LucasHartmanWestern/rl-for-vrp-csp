@@ -7,20 +7,20 @@ import os
 import time
 import copy
 
-from agent import initialize, agent_learn, get_actions, soft_update, save_model
+from agents.ddpg_agent import initialize, ddpg_learn, get_actions, soft_update, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
-experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
+experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
-def train_dqn(chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_ddpg(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
     """
-    Trains a Deep Q-Network (DQN) for Electric Vehicle (EV) routing and charging optimization.
+    Trains a Deep Deterministic Policy Gradient (DDPG) for Electric Vehicle (EV) routing and charging optimization.
 
     Parameters:
         chargers (array): Array of charger locations and their properties.
@@ -44,15 +44,14 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
     Returns:
         tuple: A tuple containing:
-            - List of trained Q-network state dictionaries.
+            - List of trained actor network state dictionaries.
             - List of average rewards for each episode.
             - List of average output values for each episode.
     """
     # Getting Neural Network parameters
-    nn_config_fname = 'configs/neural_network_config.yaml'
-    eval_config_fname = 'configs/evaluation_config.yaml'
-    nn_c = load_config_file(nn_config_fname)['nn_hyperparameters']
-    eval_c = load_config_file(eval_config_fname)['eval_config']
+    config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
+    nn_c = load_config_file(config_fname)['nn_hyperparameters']
+    eval_c = load_config_file(config_fname)['eval_config']
 
     epsilon = nn_c['epsilon'] if train_model else 0
     epsilon_decay =  nn_c['epsilon_decay']
@@ -64,7 +63,6 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
     layers = nn_c['layers']
     
     avg_rewards = []
-
 
     # Carry over epsilon from last aggregation
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
@@ -81,59 +79,69 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
     model_indices = environment.info['model_indices']
     
-    q_networks = []
-    target_q_networks = []
-    optimizers = []
+    actors = []
+    critics = []
+    target_actors = []
+    target_critics = []
+    actor_optimizers = []
+    critic_optimizers = []
 
     num_cars = environment.num_cars
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
-        q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
+        actor, critic, target_actor, target_critic = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
             if eval_c['evaluate_on_diff_seed']:
-                q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
-                target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+                actor.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+                target_actor.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
             else:
-                q_network.load_state_dict(global_weights[zone_index])
-                target_q_network.load_state_dict(global_weights[zone_index])
+                actor.load_state_dict(global_weights[zone_index])
+                target_actor.load_state_dict(global_weights[zone_index])
 
-        optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+        actor_optimizer = optim.Adam(actor.parameters(), lr=learning_rate)
+        critic_optimizer = optim.Adam(critic.parameters(), lr=learning_rate)
 
         # Store individual networks
-        q_networks.append(q_network)
-        target_q_networks.append(target_q_network)
-        optimizers.append(optimizer)
+        actors.append(actor)
+        critics.append(critic)
+        target_actors.append(target_actor)
+        target_critics.append(target_critic)
+        actor_optimizers.append(actor_optimizer)
+        critic_optimizers.append(critic_optimizer)
 
     else:  # Assign unique agent for each car
         num_agents = environment.num_cars
         for agent_ind in range(num_agents):
             # Initialize networks
-            q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
+            actor, critic, target_actor, target_critic = initialize(state_dimension, action_dim, layers, device)  
 
             if global_weights is not None:
                 if eval_c['evaluate_on_diff_seed']:
-                    q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
-                    target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                    actor.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                    target_actor.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
                 else:
-                    q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
-                    target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                    actor.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
+                    target_actor.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
-            optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+            actor_optimizer = optim.Adam(actor.parameters(), lr=learning_rate)
+            critic_optimizer = optim.Adam(critic.parameters(), lr=learning_rate)
+
             # Store individual networks
-            q_networks.append(q_network)
-            target_q_networks.append(target_q_network)
-            optimizers.append(optimizer)
+            actors.append(actor)
+            critics.append(critic)
+            target_actors.append(target_actor)
+            target_critics.append(target_critic)
+            actor_optimizers.append(actor_optimizer)
+            critic_optimizers.append(critic_optimizer)
 
     random_threshold = dqn_rng.random((num_episodes, num_cars))
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
 
- 
     trajectories = []
 
-    
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
@@ -178,9 +186,13 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
             environment.init_routing()
 
+            sim_timestep_times = []
+
             # Build path for each EV
             for car_idx in range(num_cars): # For each car
     
+                start_time_step = time.time()
+
                 if save_offline_data:
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
@@ -196,7 +208,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
 
-                action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
+                action_values = get_actions(state, actors, random_threshold, epsilon, i,\
                                             car_idx, device, agent_by_zone)  # Get the action values from the agent
 
                 t2 = time.time()
@@ -207,7 +219,8 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                     car_traj['actions'].append(distribution.tolist()) #Save unmodified action
                 
                 distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
-                distribution = 1 / (1 + np.exp(-distribution))  # Apply sigmoid function to the entire array
+                # Apply sigmoid function to the entire array
+                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
                 distributions.append(distribution.tolist())  # Convert back to list and append
 
                 t3 = time.time()
@@ -215,6 +228,9 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
 
                 t4 = time.time()
+
+                end_time_step = time.time()
+                sim_timestep_times.append(end_time_step - start_time_step)  # Track time for this step and car
 
                 if car_idx == 0 and display_training_times:
                     print_time("Get actions", (t2 - t1))
@@ -273,6 +289,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
                 "distances": sim_distances,
                 "rewards": rewards,
                 "best_reward": best_avg,
+                "elapsed_times": sim_timestep_times,
                 "done": sim_done
             }
             metrics.append(metric)
@@ -304,11 +321,11 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
                 # Update networks
                 if agent_by_zone:
-                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
-                                optimizers[0], device)
+                    ddpg_learn(experiences, discount_factor, actors[0], critics[0], target_actors[0], target_critics[0],\
+                                actor_optimizers[0], critic_optimizers[0], device)
                 else:
-                    agent_learn(experiences, discount_factor, q_networks[agent_ind], \
-                                target_q_networks[agent_ind], optimizers[agent_ind], device)
+                    ddpg_learn(experiences, discount_factor, actors[agent_ind], critics[agent_ind], \
+                                target_actors[agent_ind], target_critics[agent_ind], actor_optimizers[agent_ind], critic_optimizers[agent_ind], device)
         
         et = time.time() - st
 
@@ -324,26 +341,32 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
         if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
             if agent_by_zone:
-                soft_update(target_q_networks[0], q_networks[0])
+                soft_update(target_critics[0], critics[0])
+                soft_update(target_actors[0], actors[0])
 
                 # Add this before you save your model
                 if not os.path.exists('saved_networks'):
                     os.makedirs('saved_networks')
 
                 # Save the networks at the end of training
-                save_model(q_networks[0], f'saved_networks/q_network_{main_seed}_{zone_index}.pth')
-                save_model(target_q_networks[0], f'saved_networks/target_q_network_{main_seed}_{zone_index}.pth')
+                save_model(actors[0], f'saved_networks/actor_{main_seed}_{zone_index}.pth')
+                save_model(target_actors[0], f'saved_networks/target_actor_{main_seed}_{zone_index}.pth')
+                save_model(critics[0], f'saved_networks/critic_{main_seed}_{zone_index}.pth')
+                save_model(target_critics[0], f'saved_networks/target_critic_{main_seed}_{zone_index}.pth')
             else:
                 for agent_ind in range(num_cars):
-                    soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
+                    soft_update(target_critics[agent_ind], critics[agent_ind])
+                    soft_update(target_actors[agent_ind], actors[agent_ind])
 
                     # Add this before you save your model
                     if not os.path.exists('saved_networks'):
                         os.makedirs('saved_networks')
 
                     # Save the networks at the end of training
-                    save_model(q_networks[agent_ind], f'saved_networks/q_network_{main_seed}_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], f'saved_networks/target_q_network_{main_seed}_{agent_ind}.pth')
+                    save_model(actors[agent_ind], f'saved_networks/actor_{main_seed}_{agent_ind}.pth')
+                    save_model(target_actors[agent_ind], f'saved_networks/target_actor_{main_seed}_{agent_ind}.pth')
+                    save_model(critics[agent_ind], f'saved_networks/critic_{main_seed}_{agent_ind}.pth')
+                    save_model(target_critics[agent_ind], f'saved_networks/target_critic_{main_seed}_{agent_ind}.pth')
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()
@@ -379,7 +402,7 @@ def train_dqn(chargers, environment, routes, date, action_dim, global_weights, a
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories
+    return [actor.cpu().state_dict() for actor in actors], avg_rewards, avg_output_values, metrics, trajectories
 
 
 def print_time(label, time):

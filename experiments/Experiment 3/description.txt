@@ -1,0 +1,12 @@
+### Experiment 1: ###
+--------------------------------
+Seed: 2020
+Model: DQN
+Season: Spring
+Number of cars: 25
+Number of chargers: 2
+Number of actions: 3
+Number of zones: 3
+Number of agents: 3
+Number of chargers per agent: 1
+Number of actions per agent: 3

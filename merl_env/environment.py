@@ -169,7 +169,7 @@ class EnvironmentClass:
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
         self.debug = config['debug']
-        self.state_dim = (self.num_chargers * 3 * 2) + 4
+        self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
 
@@ -534,7 +534,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, is_odt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -544,8 +544,8 @@ class EnvironmentClass:
         Returns:
             np.ndarray: State array for the agent.
         """
-        if is_odt:
-            agent_chargers = self.chargers[ 0,agent_idx, :]
+        if is_odt or is_madt:
+            agent_chargers = self.chargers[ 0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
@@ -555,6 +555,22 @@ class EnvironmentClass:
         org_lat, org_long, dest_lat, dest_long = self.routes[agent_idx]
         dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agent_unique_chargers])
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
+
+        if is_madt:
+            local_state = np.hstack((
+                np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),  # Traffic levels and distances to chargers
+                np.array([route_dist]),  # Distance to the final destination
+                np.array([self.info['model_indices'][agent_idx]])  # Model index of the agent's car
+            ))
+            
+            # Global state
+            global_state = np.hstack((
+                np.array([self.num_chargers * 3]),  # Total number of chargers
+                np.array([self.num_cars])  # Total number of cars
+            ))
+            self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
+                                    agent_unique_chargers, agent_unique_traffic)
+            return global_state, local_state
 
         # Traffic level and distance of each station plus total charger num, total distance,
         # number of EVs, car model index, and temperature
@@ -624,7 +640,6 @@ class EnvironmentClass:
         self.unique_chargers = unique_chargers  # [(charger id, charger latitude, charger longitude),...]
         self.chargers = chargers  # [[[charger id, charger latitude, charger longitude],...],...] (chargers[agent index][charger index][charger property index])
         self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
-
 
     def cma_store(self):
         self.store_paths = copy.deepcopy(self.paths)
