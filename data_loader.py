@@ -224,39 +224,26 @@ def read_excel_data(file_path, sheet_name):
     df = pd.read_excel(file_path, sheet_name=sheet_name)
     return df
 
-def read_csv_data(file_path):
-
-    """
-    Reads data from a CSV file and returns it as a DataFrame.
-
-    Parameters:
-        file_path (str): The path to the CSV file.
-
-    Returns:
-        pandas.DataFrame: A DataFrame containing the data from the CSV file.
-    """
-
-    df = pd.read_csv(file_path, header=None)  # This will treat all rows equally
-    return df
-
-
 def save_to_csv(data, filename):
-    """
-    Saves the given data to a CSV file.
+    # Assuming data is a list of dictionaries
+    if data and isinstance(data[0], dict):
+        keys = data[0].keys()  # Extract the headers from the first dictionary
+        with open(filename, 'w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=keys)
+            writer.writeheader()  # Write header
+            writer.writerows(data)  # Write data rows
+    else:
+        # If data is a list of lists or other structure
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(data)  # Write rows for lists of lists
 
-    Parameters:
-        data (list): A list of lists, where each inner list represents a row of data to be written to the CSV file.
-        filename (str): The name of the file where the data will be saved.
 
-    Returns:
-        None
-    """
-
-    with open(filename, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        for row in data:
-            # Convert each element in the row to a JSON string
-            writer.writerow([json.dumps(element, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else x) for element in row])
+def read_csv_data(filename):
+    with open(filename, 'r') as file:
+        reader = csv.reader(file)
+        # Return as a list of lists if no header exists
+        return list(reader)
 
 def save_to_json(data, filename):
     with open(filename, 'w') as file:

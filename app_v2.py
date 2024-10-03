@@ -57,7 +57,7 @@ def train_rl_vrp_csp(date, args, experiment_number):
 
     action_dim = env_c['action_dim'] * env_c['num_of_chargers']
     
-    metrics_base_path = f"../../../storage_1/lhartman_storage/metrics/Experiment {experiment_number}" if eval_c['device_config'] == 'server' else f"metrics/Experiment {experiment_number}"
+    metrics_base_path = f"../../../storage_1/lhartman_storage_2/metrics/Experiment {experiment_number}" if eval_c['device_config'] == 'server' else f"metrics/Experiment {experiment_number}"
 
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)

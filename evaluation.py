@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import json
 import pandas as pd
 import time
-from data_loader import save_to_json, load_from_json
+from data_loader import save_to_csv, read_csv_data
 import mplcursors
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
@@ -105,17 +105,17 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "path": [step.tolist() for step in episode['paths'][:, agent_ind]]
                     })
 
-                    for elapsed_time in episode['elapsed_times']:
-                        time_data.append({
-                            "episode": episode['episode'],
-                            "timestep": episode['timestep'],
-                            "done": episode['done'],
-                            "zone": episode['zone'] + 1,
-                            "aggregation": episode['aggregation'],
-                            "agent_index": agent_ind,
-                            "car_model": car_model,
-                            "duration": elapsed_time
-                        })
+                    # for elapsed_time in episode['elapsed_times']:
+                    #     time_data.append({
+                    #         "episode": episode['episode'],
+                    #         "timestep": episode['timestep'],
+                    #         "done": episode['done'],
+                    #         "zone": episode['zone'] + 1,
+                    #         "aggregation": episode['aggregation'],
+                    #         "agent_index": agent_ind,
+                    #         "car_model": car_model,
+                    #         "duration": elapsed_time
+                    #     })
 
         et = time.time() - st
 
@@ -124,13 +124,13 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
         st = time.time()
 
-        save_to_json(distance_data, f'{base_path}_distance.json')
-        save_to_json(battery_data, f'{base_path}_battery.json')
-        save_to_json(time_data, f'{base_path}_time.json')
-        save_to_json(reward_data, f'{base_path}_reward.json')
-        save_to_json(traffic_data, f'{base_path}_traffic.json')
-        save_to_json(path_data, f'{base_path}_path.json')
-        save_to_json(time_data, f'{base_path}_time.json')
+        save_to_csv(distance_data, f'{base_path}_distance.json')
+        save_to_csv(battery_data, f'{base_path}_battery.json')
+        save_to_csv(time_data, f'{base_path}_time.json')
+        save_to_csv(reward_data, f'{base_path}_reward.json')
+        save_to_csv(traffic_data, f'{base_path}_traffic.json')
+        save_to_csv(path_data, f'{base_path}_path.json')
+        # save_to_csv(time_data, f'{base_path}_time.json')
 
         et = time.time() - st
 
@@ -138,13 +138,13 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
     if purpose == 'display':
 
-        distance_data = load_from_json(f'{base_path}_distance.json')
-        battery_data = load_from_json(f'{base_path}_battery.json')
-        time_data = load_from_json(f'{base_path}_time.json')
-        reward_data = load_from_json(f'{base_path}_reward.json')
-        traffic_data = load_from_json(f'{base_path}_traffic.json')
-        path_data = load_from_json(f'{base_path}_path.json')
-        time_data = load_from_json(f'{base_path}_time.json') # Note time is not simulated time but rather real world training time
+        distance_data = read_csv_data(f'{base_path}_distance.json')
+        battery_data = read_csv_data(f'{base_path}_battery.json')
+        time_data = read_csv_data(f'{base_path}_time.json')
+        reward_data = read_csv_data(f'{base_path}_reward.json')
+        traffic_data = read_csv_data(f'{base_path}_traffic.json')
+        path_data = read_csv_data(f'{base_path}_path.json')
+        time_data = read_csv_data(f'{base_path}_time.json') # Note time is not simulated time but rather real world training time
 
         # Draw a map of the last episode
         draw_map_of_last_episode(path_data, seed)
