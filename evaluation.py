@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import json
 import pandas as pd
 import time
 from data_loader import save_to_csv, read_csv_data
@@ -124,13 +123,13 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
         st = time.time()
 
-        save_to_csv(distance_data, f'{base_path}_distance.json')
-        save_to_csv(battery_data, f'{base_path}_battery.json')
-        save_to_csv(time_data, f'{base_path}_time.json')
-        save_to_csv(reward_data, f'{base_path}_reward.json')
-        save_to_csv(traffic_data, f'{base_path}_traffic.json')
-        save_to_csv(path_data, f'{base_path}_path.json')
-        # save_to_csv(time_data, f'{base_path}_time.json')
+        save_to_csv(distance_data, f'{base_path}_distance.csv')
+        save_to_csv(battery_data, f'{base_path}_battery.csv')
+        save_to_csv(time_data, f'{base_path}_time.csv')
+        save_to_csv(reward_data, f'{base_path}_reward.csv')
+        save_to_csv(traffic_data, f'{base_path}_traffic.csv')
+        save_to_csv(path_data, f'{base_path}_path.csv')
+        # save_to_csv(time_data, f'{base_path}_time.csv')
 
         et = time.time() - st
 
@@ -138,13 +137,13 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
     if purpose == 'display':
 
-        distance_data = read_csv_data(f'{base_path}_distance.json')
-        battery_data = read_csv_data(f'{base_path}_battery.json')
-        time_data = read_csv_data(f'{base_path}_time.json')
-        reward_data = read_csv_data(f'{base_path}_reward.json')
-        traffic_data = read_csv_data(f'{base_path}_traffic.json')
-        path_data = read_csv_data(f'{base_path}_path.json')
-        time_data = read_csv_data(f'{base_path}_time.json') # Note time is not simulated time but rather real world training time
+        distance_data = read_csv_data(f'{base_path}_distance.csv')
+        battery_data = read_csv_data(f'{base_path}_battery.csv')
+        time_data = read_csv_data(f'{base_path}_time.csv')
+        reward_data = read_csv_data(f'{base_path}_reward.csv')
+        traffic_data = read_csv_data(f'{base_path}_traffic.csv')
+        path_data = read_csv_data(f'{base_path}_path.csv')
+        time_data = read_csv_data(f'{base_path}_time.csv') # Note time is not simulated time but rather real world training time
 
         # Draw a map of the last episode
         draw_map_of_last_episode(path_data, seed)
