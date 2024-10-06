@@ -78,6 +78,8 @@ nn_hyperparameters:
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
 
+    log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
+
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
     zone_multiplier: 0.35 # Importance of zone-wide average

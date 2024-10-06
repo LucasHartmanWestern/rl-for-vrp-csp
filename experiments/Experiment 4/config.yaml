@@ -5,12 +5,12 @@
 
 algorithm_settings:
     #Currently available options DQN, CMA_optimizer, ODT 
-    algorithm: 'DQN' #'CMA_optimizer' #'DQN', #'ODT', #'policy_gradient', #'ddpg'
+    algorithm: 'PPO' #'CMA_optimizer' #'DQN', #'ODT', #'PPO', #'ddpg'
     # Decision making agent definition
     agent_by_zone: False # True if using one agent for each zone, and false using a agent for each car
 
 federated_learning_settings:
-    aggregation_count: 10 # Amount of aggregation steps for federated learning
+    aggregation_count: 1 # Amount of aggregation steps for federated learning
     
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
@@ -68,15 +68,17 @@ eval_config:
 
 ############ Hyperparameters ############
 nn_hyperparameters:
-    num_episodes: ? # Amount of training episodes per session
+    num_episodes: 1000 # Amount of training episodes per session
     learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.999 # Present value of future rewards
     epsilon_decay: 0.999 # Rate of decrease for training noise
-    batch_size: 10 # Amount of experiences to use when training
-    buffer_limit: 15 # Max number of experiences to store in a buffer
+    batch_size: 75 # Amount of experiences to use when training
+    buffer_limit: 150 # Max number of experiences to store in a buffer
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
+
+    log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
 
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
