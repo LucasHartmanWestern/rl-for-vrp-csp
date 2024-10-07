@@ -79,6 +79,7 @@ nn_hyperparameters:
     layers: [128, 64, 64] # Neural network hidden layers
 
     log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
+    num_epochs: 10 # Amount of epochs to train the neural network
 
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
