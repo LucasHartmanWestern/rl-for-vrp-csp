@@ -143,7 +143,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         reward_data = read_csv_data(f'{base_path}_reward.csv')
         traffic_data = read_csv_data(f'{base_path}_traffic.csv')
         path_data = read_csv_data(f'{base_path}_path.csv')
-        time_data = read_csv_data(f'{base_path}_time.csv') # Note time is not simulated time but rather real world training time
 
         # Draw a map of the last episode
         draw_map_of_last_episode(path_data, seed)
@@ -194,6 +193,35 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
 
     # Evaluate average per episode of training by aggregation
     avg_by_episode_aggregation = df.groupby(['episode', 'aggregation'])[metric_name].mean().unstack()
+
+    if metric_name == 'reward':
+        # Calculate the number of zones
+        num_zones = df['zone'].nunique()
+
+        # Calculate the number of cars per zone for each episode
+        cars_per_zone = df.groupby(['episode', 'zone'])['agent_index'].nunique()
+
+        # Merge the cars_per_zone back to the main DataFrame
+        df = df.merge(cars_per_zone.rename('cars_per_zone'), on=['episode', 'zone'])
+
+        # Adjust the reward by dividing by the number of zones and cars per zone
+        df['scaled_reward'] = df['reward'] / (num_zones * df['cars_per_zone'])
+
+        # Calculate the average scaled reward per episode
+        avg_scaled_reward_by_episode = df.groupby('recalculated_episode')['scaled_reward'].mean()
+
+        # Calculate cumulative average scaled reward manually
+        cumulative_avg_scaled_reward = avg_scaled_reward_by_episode.cumsum() / (avg_scaled_reward_by_episode.index + 1)
+
+        # Plot the cumulative average scaled reward per episode
+        plt.figure(figsize=(8, 6))
+        plt.plot(cumulative_avg_scaled_reward.index, cumulative_avg_scaled_reward.values, label='Cumulative Average Scaled Reward', color='blue')
+        plt.xlabel('Episode')
+        plt.ylabel('Cumulative Average Scaled Reward')
+        plt.title(f'Seed {seed} - Algo. {algorithm} - Cumulative Average Scaled Reward per Episode')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
     # Average Total
     plt.figure(figsize=(8, 6))
@@ -247,7 +275,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Algo. {algorithm} - A verage {metric_title} per Episode by Car Model')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} per Episode by Car Model')
     plt.show()
 
     # Average per Episode by Aggregation
@@ -291,6 +319,12 @@ def draw_map_of_last_episode(data, seed, algorithm='DQN'):
 
                 # Extract combined path, origin, and destination
                 combined_path = np.vstack(agent_data['path'].values)
+
+                # Debugging: Check the shape of combined_path
+                if combined_path.shape[1] < 2:
+                    print(f"Warning: combined_path for Agent {agent_index} has insufficient dimensions.")
+                    continue
+
                 origin = combined_path[0]
                 destination = combined_path[-1]
 
@@ -333,6 +367,11 @@ def draw_map_of_last_episode(data, seed, algorithm='DQN'):
 
                 # Extract combined path, origin, and destination
                 combined_path = np.vstack(agent_data['path'].values)
+
+                if combined_path.shape[1] < 2:
+                    print(f"Warning: combined_path for Zone {zone} Agent {agent_index} has insufficient dimensions.")
+                    continue
+
                 origin = combined_path[0]
                 destination = combined_path[-1]
 
@@ -482,3 +521,9 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
+
+
+if __name__ == "__main__":
+    distance_data = read_csv_data(f'./metrics/Experiment 1/train/metrics_distance.csv')
+    evaluate_by_agent(distance_data, 'distance', 'Simulation Distance', 1234, True, 25, 'DQN')
+    

@@ -6,6 +6,7 @@ from geopy import Point
 from geopy.distance import geodesic
 import numpy as np
 import csv
+import ast  # Ensure ast is imported for literal_eval
 
 def get_charger_data():
     """
@@ -240,10 +241,24 @@ def save_to_csv(data, filename):
 
 
 def read_csv_data(filename):
-    with open(filename, 'r') as file:
-        reader = csv.reader(file)
-        # Return as a list of lists if no header exists
-        return list(reader)
+    try:
+        df = pd.read_csv(filename)
+
+        # Check if 'path' column exists and parse it
+        if 'path' in df.columns:
+            df['path'] = df['path'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+
+        return df
+
+    except FileNotFoundError:
+        print(f"File {filename} not found.")
+        return pd.DataFrame()  # Return an empty DataFrame
+    except pd.errors.EmptyDataError:
+        print(f"File {filename} is empty.")
+        return pd.DataFrame()  # Return an empty DataFrame
+    except Exception as e:
+        print(f"An error occurred while reading {filename}: {e}")
+        return pd.DataFrame()  # Return an empty DataFrame
 
 def save_to_json(data, filename):
     with open(filename, 'w') as file:
