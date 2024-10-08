@@ -7,6 +7,7 @@ Each experiment directory should contain:
 
 The first 6 experiments are used to determine the number of episodes and aggregations to use in each permutation.
 
+set name : Findo platou [1 - 3]
 Experiment 1:
 - Model: DQN
 - Seed: 1234
@@ -178,6 +179,7 @@ Experiment 24:
 - Agent-per-car
 
 Experiments 25-145 are combinations of the following parameters.
+
 There is one experiment for each combination of the following parameters:
 - Model: [DQN, DDPG, POLYGRAD, DQN + ODT, DDPG + ODT, POLYGRAD + ODT, ALL + ODT, DQN + MADT, DDPG + MADT, POLYGRAD + MADT, ALL + MADT, CMA] (12 models)
 - Seed: [1234, 5555, 2020, 5678, 9101] (5 seeds)

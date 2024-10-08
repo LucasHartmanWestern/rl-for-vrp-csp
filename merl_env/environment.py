@@ -14,6 +14,8 @@ from .agent_info import agent_info
 
 from data_loader import load_config_file
 
+DEBUG = False
+
 # Predefined list of supported cities with their coordinates and WeatherStats URLs
 supported_cities = [
     {"name": "Charlottetown", "lat": 46.2382, "lon": -63.1311, "url": "https://charlottetown.weatherstats.ca/data/temperature-daily.json"},
@@ -168,7 +170,6 @@ class EnvironmentClass:
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
-        self.debug = config['debug']
         self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
@@ -401,7 +402,7 @@ class EnvironmentClass:
             # Charging and not ready to leave
             charging_status = arrived - ready_to_leave
 
-            if self.debug:
+            if DEBUG:
                 print(f"STOPS:\n{stops}")
                 print(f"TOKENS:\n{tokens}")
                 print(f"DESTINATIONS:\n{destinations}")
@@ -488,14 +489,13 @@ class EnvironmentClass:
             distribution (np.ndarray): Distribution array for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
         """
-
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,\
                             self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long,\
-                            self.charging_status[agent_index], self.debug)
+                            self.charging_status[agent_index])
         self.charges_needed.append(copy.deepcopy(graph))
 
-        if self.debug:
+        if DEBUG:
             print("-------------")
             print(f"{agent_index} - CHARGES NEEDED - {graph}")
 
@@ -514,7 +514,7 @@ class EnvironmentClass:
 
         path = dijkstra(graph, self.agent.idx)
 
-        if self.debug:
+        if DEBUG:
             print(f"{agent_index} - PATH - {path}")
 
         self.local_paths.append(copy.deepcopy(path))

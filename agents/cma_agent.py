@@ -43,7 +43,7 @@ class CMAAgent:
         """
         
         # Load CMA-ES configuration parameters from a YAML file
-        fname = f'experiments/Experiment {experiment_number}/cma_config.yaml'
+        fname = f'experiments/Exp_{experiment_number}/config.yaml'
         c = load_config_file(fname)
         cma_c = c['cma_parameters']
 

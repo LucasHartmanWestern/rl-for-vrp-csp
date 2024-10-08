@@ -174,24 +174,46 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
             rewards.extend(episode_rewards.sum(axis=0))
             # rewards.append(episode_rewards.sum(axis=0))
             
-
+           
             time_step_time = time.time() - start_time_step
-
-            # Used to evaluate simulation
-            # metric = {
-            #     "zone": zone_index,
-            #     "episode": generation,
-            #     "timestep": timestep_counter,
-            #     "aggregation": aggregation_num,
-            #     "paths": sim_path_results,
-            #     "traffic": sim_traffic,
-            #     "batteries": sim_battery_levels,
-            #     "distances": sim_distances,
-            #     "rewards": rewards,
-            #     "timestep_real_world_time": time_step_time,
-            #     "done": sim_done
-            # }
-            # metrics.append(metric)
+            # print(f'Rewards size {len(rewards)} \n{rewards}')
+# <<<<<<< HEAD:train_cma.py
+#             # # Used to evaluate simulation
+#             # metric = {
+#             #     "zone": zone_index,
+#             #     "episode": generation,
+#             #     "timestep": timestep_counter,
+#             #     "aggregation": aggregation_num,
+#             #     "paths": sim_path_results,
+#             #     "traffic": sim_traffic,
+#             #     "batteries": sim_battery_levels,
+#             #     "distances": sim_distances,
+#             #     "rewards": rewards,
+#             #     "rewards_mean": episode_rewards.sum(axis=0).mean()
+#             #     # "best_reward": best_avg,
+#                   "timestep_real_world_time": time_step_time,
+#             #     "done": sim_done
+#             # }
+#             # metrics.append(metric)
+# =======
+#             # Used to evaluate simulation
+#             metric = {
+#                 "zone": zone_index,
+#                 "episode": generation,
+#                 "timestep": timestep_counter,
+#                 "aggregation": aggregation_num,
+#                 "paths": sim_path_results,
+#                 "traffic": sim_traffic,
+#                 "batteries": sim_battery_levels,
+#                 "distances": sim_distances,
+#                 "rewards": rewards,
+#                 # "best_reward": best_avg,
+#                 "timestep_real_world_time": time_step_time,
+#                 "elapsed_times": sim_timestep_times,
+#                 "done": sim_done
+#             }
+#             metrics.append(metric)
+# >>>>>>> 28fae8ab0fff88675333a75ec260a668bff802b0:training_processes/train_cma.py
             timestep_counter += 1
 
         avg_reward = episode_rewards.sum(axis=0).mean()
