@@ -168,7 +168,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
 
         while not sim_done:  # Keep going until every EV reaches its destination
 
-            sim_timestep_times = []
+            start_time_step = time.time()
 
             environment.init_routing()
 
@@ -217,9 +217,6 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
 
                 t4 = time.time()
-
-                end_time_step = time.time()
-                sim_timestep_times.append(end_time_step - start_time_step)  # Track time for this step and car
 
                 if car_idx == 0 and display_training_times:
                     print_time("Get actions", (t2 - t1))
@@ -270,6 +267,8 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                         traj['rewards'].append(episode_rewards[-1,car_idx])
                         traj['terminals_car'].append(bool(arrived[car_idx].item()))                
 
+            time_step_time = time.time() - start_time_step
+
             # Used to evaluate simulation
             metric = {
                 "zone": zone_index,
@@ -282,7 +281,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
                 "distances": sim_distances,
                 "rewards": rewards,
                 "best_reward": best_avg,
-                "elapsed_times": sim_timestep_times,
+                "timestep_real_world_time": time_step_time,
                 "done": sim_done
             }
             metrics.append(metric)

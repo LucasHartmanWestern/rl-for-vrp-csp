@@ -111,13 +111,13 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
 
             environment.init_routing()
             reward_timestep = 0
+
+            start_time_step = time.time()
     
             # Evaluate each individual in the population
             for pop_idx in range(population_size):
                 environment.cma_copy_store()  # Restore environment to its stored state
     
-                sim_timestep_times = []
-
                 # Simulate the environment for each car
                 for car_idx in range(num_cars):
 
@@ -128,8 +128,6 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
                     car_route = agent.model(state, weights)  # Get the route from the agent's model
                     environment.generate_paths(car_route, None, agent_idx)  # Stack the generated paths in the environment
-                    end_time_step = time.time()
-                    sim_timestep_times.append(end_time_step - start_time_step)  # Track time for this step and car
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes()
@@ -177,8 +175,9 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
             # rewards.append(episode_rewards.sum(axis=0))
             
 
-<<<<<<< HEAD:train_cma.py
-            # # Used to evaluate simulation
+            time_step_time = time.time() - start_time_step
+
+            # Used to evaluate simulation
             # metric = {
             #     "zone": zone_index,
             #     "episode": generation,
@@ -189,29 +188,10 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
             #     "batteries": sim_battery_levels,
             #     "distances": sim_distances,
             #     "rewards": rewards,
-            #     "rewards_mean": episode_rewards.sum(axis=0).mean()
-            #     # "best_reward": best_avg,
+            #     "timestep_real_world_time": time_step_time,
             #     "done": sim_done
             # }
             # metrics.append(metric)
-=======
-            # Used to evaluate simulation
-            metric = {
-                "zone": zone_index,
-                "episode": generation,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "paths": sim_path_results,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": rewards,
-                # "best_reward": best_avg,
-                "elapsed_times": sim_timestep_times,
-                "done": sim_done
-            }
-            metrics.append(metric)
->>>>>>> 28fae8ab0fff88675333a75ec260a668bff802b0:training_processes/train_cma.py
             timestep_counter += 1
 
         avg_reward = episode_rewards.sum(axis=0).mean()
