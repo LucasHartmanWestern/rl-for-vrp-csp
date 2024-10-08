@@ -242,9 +242,10 @@ def save_to_csv(data, filename):
 
 def read_csv_data(filename):
     try:
-        df = pd.read_csv(filename)
+        # Read the CSV file with the 'path' column as a string
+        df = pd.read_csv(filename, converters={'path': str})
 
-        # Check if 'path' column exists and parse it
+        # Parse the 'path' column using ast.literal_eval
         if 'path' in df.columns:
             df['path'] = df['path'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
 
