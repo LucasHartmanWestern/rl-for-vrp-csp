@@ -33,6 +33,30 @@ Experiment 3:
 - Aggregations: 1
 
 Experiment 4:
+- Model: PPO
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+- Episodes: 1000
+- Aggregations: 1
+
+Experiment 5:
+- Model: PPO
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+- Episodes: 1000
+- Aggregations: 1
+
+Experiment 6:
+- Model: PPO
+- Seed: 2020
+- Season: spring
+- Agent-per-car
+- Episodes: 1000
+- Aggregations: 1
+
+Experiment 7:
 - Model: DQN
 - Seed: 1234
 - Season: spring
@@ -40,7 +64,7 @@ Experiment 4:
 - Episodes: ?
 - Aggregations: 10
 
-Experiment 5:
+Experiment 8:
 - Model: DQN
 - Seed: 5555
 - Season: spring
@@ -48,7 +72,31 @@ Experiment 5:
 - Episodes: ?
 - Aggregations: 10
 
-Experiment 6:
+Experiment 9:
+- Model: DQN
+- Seed: 2020
+- Season: spring
+- Agent-per-car
+- Episodes: ?
+- Aggregations: 10
+
+Experiment 10:
+- Model: DQN
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+- Episodes: ?
+- Aggregations: 10
+
+Experiment 11:
+- Model: DQN
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+- Episodes: ?
+- Aggregations: 10
+
+Experiment 12:
 - Model: DQN
 - Seed: 2020
 - Season: spring
@@ -58,85 +106,80 @@ Experiment 6:
 
 There are also 12 experiments run to demonstrate the effectiveness of using one agent per car instead of one agent per zone.
 
-Experiment 7:
-- Model: DQN
-- Seed: 1234
-- Season: spring
-- Agent-per-zone
-
-Experiment 8:
-- Model: DQN
-- Seed: 1234
-- Season: spring
-- Agent-per-car
-
-Experiment 9:
-- Model: DQN
-- Seed: 5555
-- Season: spring
-- Agent-per-zone
-
-Experiment 10:
-- Model: DQN
-- Seed: 5555
-- Season: spring
-- Agent-per-car
-
-Experiment 11:
-- Model: CMA
-- Seed: 1234
-- Season: spring
-- Agent-per-zone
-
-Experiment 12:
-- Model: CMA
-- Seed: 1234
-- Season: spring
-- Agent-per-car
-
 Experiment 13:
-- Model: CMA
-- Seed: 5555
+- Model: DQN
+- Seed: 1234
 - Season: spring
 - Agent-per-zone
 
 Experiment 14:
-- Model: CMA
-- Seed: 5555
+- Model: DQN
+- Seed: 1234
 - Season: spring
 - Agent-per-car
 
 Experiment 15:
-- Model: DQN + ODT
-- Seed: 1234
+- Model: DQN
+- Seed: 5555
 - Season: spring
 - Agent-per-zone
 
 Experiment 16:
-- Model: DQN + MADT
-- Seed: 1234
+- Model: DQN
+- Seed: 5555
 - Season: spring
 - Agent-per-car
 
 Experiment 17:
-- Model: DQN + ODT
-- Seed: 5555
+- Model: CMA
+- Seed: 1234
 - Season: spring
 - Agent-per-zone
 
 Experiment 18:
-- Model: DQN + MADT
-- Seed: 5555
-- Season: spring
-- Agent-per-car
-
-Experiment 140:
 - Model: CMA
 - Seed: 1234
 - Season: spring
 - Agent-per-car
 
-Experiments 19-140 are combinations of the following parameters.
+Experiment 19:
+- Model: CMA
+- Seed: 5555
+- Season: spring
+- Agent-per-zone
+
+Experiment 20:
+- Model: CMA
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+
+Experiment 21:
+- Model: DQN + ODT
+- Seed: 1234
+- Season: spring
+- Agent-per-zone
+
+Experiment 22:
+- Model: DQN + MADT
+- Seed: 1234
+- Season: spring
+- Agent-per-car
+
+Experiment 23:
+- Model: DQN + ODT
+- Seed: 5555
+- Season: spring
+- Agent-per-zone
+
+Experiment 24:
+- Model: DQN + MADT
+- Seed: 5555
+- Season: spring
+- Agent-per-car
+
+Experiments 25-145 are combinations of the following parameters.
+
 There is one experiment for each combination of the following parameters:
 - Model: [DQN, DDPG, POLYGRAD, DQN + ODT, DDPG + ODT, POLYGRAD + ODT, ALL + ODT, DQN + MADT, DDPG + MADT, POLYGRAD + MADT, ALL + MADT, CMA] (12 models)
 - Seed: [1234, 5555, 2020, 5678, 9101] (5 seeds)
@@ -147,9 +190,9 @@ Number of combinations = 12 * 5 * 2 = 120 experiments
 Each experiment can be run to train the model, or to load a pretrained model and evaluate it.
 The selection of training or evaluation is done by running the app_v2.py file and answering the prompts given.
 
-Experiments 15-135 are ordered to cycle through each model (starting with DQN), and then each seed (starting with 1234), and then each season (starting with summer).
+Experiments 25-145 are ordered to cycle through each model (starting with DQN), and then each seed (starting with 1234), and then each season (starting with summer).
 
-Experiment 19:
+Experiment 25:
 - Model: DQN
 - Seed: 1234
 - Season: summer
@@ -157,7 +200,7 @@ Experiment 19:
 
 ...
 
-Experiment 140:
+Experiment 145:
 - Model: CMA
 - Seed: 9101
 - Season: winter
