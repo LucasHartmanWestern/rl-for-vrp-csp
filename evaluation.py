@@ -8,13 +8,8 @@ import mplcursors
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
     if purpose == 'save':
 
-        traffic_data = []
-        distance_data = []
-        reward_data = []
-        battery_data = []
-        time_data = []
-        path_data = []
-        time_data = []
+        agent_data = []
+        station_data = []
 
         # Get the model index by using car_models[zone_index][agent_index]
         car_models = np.column_stack([info['model_type'] for info in ev_info]).T
@@ -28,7 +23,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                 # Loop through sim steps and stations
                 for step_ind in range(len(episode['traffic'])):
                     for station_ind in range(len(episode['traffic'][0])):
-                        traffic_data.append({
+                        station_data.append({
                             "episode": episode['episode'],
                             "timestep": episode['timestep'],
                             "done": episode['done'],
@@ -42,7 +37,7 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                 # Loop through the agents in each zone
                 for agent_ind, car_model in enumerate(car_models[episode['zone']]):
 
-                    distance_data.append({
+                    agent_data.append({
                         "episode": episode['episode'],
                         "timestep": episode['timestep'],
                         "done": episode['done'],
@@ -50,114 +45,51 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "aggregation": episode['aggregation'],
                         "agent_index": agent_ind,
                         "car_model": car_model,
-                        "distance": episode['distances'][-1][agent_ind] * 100
-                    })
-
-                    reward_data.append({
-                        "episode": episode['episode'],
-                        "timestep": episode['timestep'],
-                        "done": episode['done'],
-                        "zone": episode['zone'] + 1,
-                        "aggregation": episode['aggregation'],
-                        "agent_index": agent_ind,
-                        "car_model": car_model,
-                        "reward": episode['rewards'][agent_ind]
-                    })
-
-                    steps_taken = np.array(episode['distances']).T[agent_ind]
-
-                    time_data.append({
-                        "episode": episode['episode'],
-                        "timestep": episode['timestep'],
-                        "done": episode['done'],
-                        "zone": episode['zone'] + 1,
-                        "aggregation": episode['aggregation'],
-                        "agent_index": agent_ind,
-                        "car_model": car_model,
-                        "duration": np.where(steps_taken == steps_taken[-1])[0][0]
-                    })
-
-                    agent_battery = np.array(episode['batteries']).T[agent_ind]
-
-                    battery_data.append({
-                        "episode": episode['episode'],
-                        "timestep": episode['timestep'],
-                        "done": episode['done'],
-                        "zone": episode['zone'] + 1,
-                        "aggregation": episode['aggregation'],
-                        "agent_index": agent_ind,
-                        "car_model": car_model,
-                        "average_battery": np.average(agent_battery),
-                        "ending_battery": agent_battery.tolist()[-1],
-                        "starting_battery": agent_battery.tolist()[0]
-                    })
-
-                    path_data.append({
-                        "episode": episode['episode'],
-                        "timestep": episode['timestep'],
-                        "done": episode['done'],
-                        "zone": episode['zone'] + 1,
-                        "aggregation": episode['aggregation'],
-                        "agent_index": agent_ind,
+                        "distance": episode['distances'][-1][agent_ind] * 100,
+                        "reward": episode['rewards'][agent_ind],
+                        "duration": np.where(np.array(episode['distances']).T[agent_ind] == episode['distances'][-1][agent_ind])[0][0],
+                        "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
+                        "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
+                        "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
                         "origin": episode['paths'][0][agent_ind].tolist(),
                         "destination": episode['paths'][-1][agent_ind].tolist(),
-                        "path": [step.tolist() for step in episode['paths'][:, agent_ind]]
+                        "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
+                        "timestep_real_world_time": episode['timestep_real_world_time']
                     })
-
-                    # for elapsed_time in episode['elapsed_times']:
-                    #     time_data.append({
-                    #         "episode": episode['episode'],
-                    #         "timestep": episode['timestep'],
-                    #         "done": episode['done'],
-                    #         "zone": episode['zone'] + 1,
-                    #         "aggregation": episode['aggregation'],
-                    #         "agent_index": agent_ind,
-                    #         "car_model": car_model,
-                    #         "duration": elapsed_time
-                    #     })
 
         et = time.time() - st
 
         if verbose:
-            print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')  # Print saving time with 3 decimal places
+            print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')
 
         st = time.time()
 
-        save_to_csv(distance_data, f'{base_path}_distance.csv')
-        save_to_csv(battery_data, f'{base_path}_battery.csv')
-        save_to_csv(time_data, f'{base_path}_time.csv')
-        save_to_csv(reward_data, f'{base_path}_reward.csv')
-        save_to_csv(traffic_data, f'{base_path}_traffic.csv')
-        save_to_csv(path_data, f'{base_path}_path.csv')
-        # save_to_csv(time_data, f'{base_path}_time.csv')
+        save_to_csv(agent_data, f'{base_path}_agent_metrics.csv')
+        save_to_csv(station_data, f'{base_path}_station_metrics.csv')
 
         et = time.time() - st
 
-        if verbose: print(f'\nSpent {et:.3f} seconds saving the results for evaluation\n')  # Print saving time with 3 decimal places
+        if verbose: print(f'\nSpent {et:.3f} seconds saving the results for evaluation\n')
 
     if purpose == 'display':
 
-        distance_data = read_csv_data(f'{base_path}_distance.csv')
-        battery_data = read_csv_data(f'{base_path}_battery.csv')
-        time_data = read_csv_data(f'{base_path}_time.csv')
-        reward_data = read_csv_data(f'{base_path}_reward.csv')
-        traffic_data = read_csv_data(f'{base_path}_traffic.csv')
-        path_data = read_csv_data(f'{base_path}_path.csv')
-        time_data = read_csv_data(f'{base_path}_time.csv') # Note time is not simulated time but rather real world training time
+        agent_data = read_csv_data(f'{base_path}_agent_metrics.csv')
+        station_data = read_csv_data(f'{base_path}_station_metrics.csv')
 
         # Draw a map of the last episode
-        draw_map_of_last_episode(path_data, seed)
+        draw_map_of_last_episode(agent_data, seed)
 
         # Evaluate the metrics per-agent
-        evaluate_by_agent(distance_data, 'distance', 'Distance Travelled (km)', seed, verbose, num_episodes)
-        evaluate_by_agent(battery_data, 'average_battery', 'Battery Level (Watts)', seed, verbose, num_episodes)
-        evaluate_by_agent(battery_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose, num_episodes)
-        evaluate_by_agent(time_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose, num_episodes)
-        evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', seed, verbose, num_episodes)
-        evaluate_by_agent(time_data, 'duration', 'Duration Training', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'distance', 'Distance Travelled (km)', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'average_battery', 'Battery Level (Watts)', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'ending_battery', 'Ending Battery Level (Watts)', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'duration', 'Time Spent Travelling (Steps)', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'reward', 'Simulation Reward', seed, verbose, num_episodes)
+        evaluate_by_agent(agent_data, 'timestep_real_world_time', 'Duration Training', seed, verbose, num_episodes)
 
         # Evaluate metrics per-station
-        evaluate_by_station(traffic_data, seed, verbose, num_episodes)
+        evaluate_by_station(station_data, seed, verbose, num_episodes)
+
 
 def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episodes, algorithm='DQN'):
     if verbose: print(f"Evaluating {metric_title} Metrics for seed {seed}")
@@ -194,6 +126,34 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
 
     # Evaluate average per episode of training by aggregation
     avg_by_episode_aggregation = df.groupby(['episode', 'aggregation'])[metric_name].mean().unstack()
+
+    if metric_name == 'reward':
+        # Calculate the average reward per episode and zone
+        avg_reward_by_episode_zone = df.groupby(['recalculated_episode', 'zone'])['reward'].mean()
+
+        # Calculate cumulative average reward per episode and zone
+        cumulative_avg_reward_by_zone = avg_reward_by_episode_zone.groupby('zone').cumsum() / (avg_reward_by_episode_zone.groupby('zone').cumcount() + 1)
+
+        # Calculate the min, max, and mean cumulative average reward across zones
+        min_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').min()
+        max_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').max()
+        mean_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').mean()
+
+        # Plot the cloud plot
+        plt.figure(figsize=(8, 6))
+        plt.fill_between(min_cumulative_avg_reward.index, 
+                         min_cumulative_avg_reward.values, 
+                         max_cumulative_avg_reward.values, 
+                         color='lightblue', alpha=0.5, label='Reward Range Across Zones')
+        plt.plot(mean_cumulative_avg_reward.index, 
+                 mean_cumulative_avg_reward.values, 
+                 label='Average Reward', color='blue')
+        plt.xlabel('Episode')
+        plt.ylabel('Cumulative Average Reward')
+        plt.title(f'Seed {seed} - Algo. {algorithm} - Cumulative Average Reward per Episode')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
     # Average Total
     plt.figure(figsize=(8, 6))
@@ -247,7 +207,7 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     for x in range(0, max(df['recalculated_episode']) + 2, num_episodes):
         plt.axvline(x=x, color='r', linestyle='--', linewidth=0.75)
     plt.ylabel(f'{metric_title}')
-    plt.title(f'Seed {seed} - Algo. {algorithm} - A verage {metric_title} per Episode by Car Model')
+    plt.title(f'Seed {seed} - Algo. {algorithm} - Average {metric_title} per Episode by Car Model')
     plt.show()
 
     # Average per Episode by Aggregation
@@ -291,6 +251,12 @@ def draw_map_of_last_episode(data, seed, algorithm='DQN'):
 
                 # Extract combined path, origin, and destination
                 combined_path = np.vstack(agent_data['path'].values)
+
+                # Debugging: Check the shape of combined_path
+                if combined_path.shape[1] < 2:
+                    print(f"Warning: combined_path for Agent {agent_index} has insufficient dimensions.")
+                    continue
+
                 origin = combined_path[0]
                 destination = combined_path[-1]
 
@@ -333,6 +299,11 @@ def draw_map_of_last_episode(data, seed, algorithm='DQN'):
 
                 # Extract combined path, origin, and destination
                 combined_path = np.vstack(agent_data['path'].values)
+
+                if combined_path.shape[1] < 2:
+                    print(f"Warning: combined_path for Zone {zone} Agent {agent_index} has insufficient dimensions.")
+                    continue
+
                 origin = combined_path[0]
                 destination = combined_path[-1]
 
@@ -482,3 +453,7 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
+    
+if __name__ == "__main__":
+    reward_data = read_csv_data(f'./metrics/Experiment 1/train/metrics_reward.csv')
+    evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', 1234, True, 25, 'DQN')

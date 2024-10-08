@@ -1,6 +1,6 @@
-### Experiment 2: ###
+### Experiment 1: ###
 --------------------------------
-Seed: 5555
+Seed: 2020
 Model: DQN
 Season: Spring
 Number of cars: 25
