@@ -62,10 +62,8 @@ eval_config:
     save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
     continue_training: False # Set to true if you want the option to continue training after a full training loop completes
 
-    device_config: 'server' # 'local' or 'server'
     #path to store data from experiments
-    # metric_save_path: '../../../storage_1/lhartman_storage_2/metrics/Experiment '
-    metric_save_path: 'metrics/Experiment'
+    save_path_metrics: 'metrics/Experiment'
 
 ############ Hyperparameters ############
 nn_hyperparameters:

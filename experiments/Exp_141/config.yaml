@@ -65,7 +65,7 @@ eval_config:
     device_config: 'server' # 'local' or 'server'
     #path to store data from experiments
     # metric_save_path: '../../../storage_1/lhartman_storage_2/metrics/Experiment '
-    metric_save_path: 'metrics/Exp'
+    save_path_metrics: 'metrics/Exp'
 
 ############ Hyperparameters ############
 nn_hyperparameters:

@@ -172,6 +172,24 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
 
             rewards.extend(episode_rewards.sum(axis=0))
+<<<<<<< HEAD
+
+            metric = {
+                "zone": zone_index,
+                "episode": generation,
+                "timestep": timestep_counter,
+                "aggregation": aggregation_num,
+                "paths": sim_path_results,
+                "traffic": sim_traffic,
+                "batteries": sim_battery_levels,
+                "distances": sim_distances,
+                "rewards": rewards,
+                "best_reward": best_avg,
+                "elapsed_times": sim_timestep_times,
+                "done": sim_done
+            }
+            metrics.append(metric)
+=======
             # rewards.append(episode_rewards.sum(axis=0))
             
            
@@ -214,6 +232,7 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
 #             }
 #             metrics.append(metric)
 # >>>>>>> 28fae8ab0fff88675333a75ec260a668bff802b0:training_processes/train_cma.py
+>>>>>>> 680365dfc9deedac68076dc0a9522155b3189e28
             timestep_counter += 1
 
         avg_reward = episode_rewards.sum(axis=0).mean()
@@ -234,22 +253,6 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
                 print_log(to_print, date, None)
                 # print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
-        # Used to evaluate simulation
-        metric = {
-            "zone": zone_index,
-            "episode": generation,
-            "timestep": timestep_counter,
-            "aggregation": aggregation_num,
-            "paths": sim_path_results,
-            "traffic": sim_traffic,
-            "batteries": sim_battery_levels,
-            "distances": sim_distances,
-            "rewards": rewards,
-            "rewards_mean": episode_rewards.sum(axis=0).mean(),
-            "best_reward": best_avg,
-            "done": sim_done
-        }
-        metrics.append(metric)
         avg_output_values[generation] = generation_weights.mean(axis=0)  # Store the average weights for the generation
 
     # Population evolution ends
