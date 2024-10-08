@@ -27,42 +27,25 @@ mp.set_start_method('spawn', force=True)  # This needs to be done before you cre
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-def train_rl_vrp_csp(date, args, experiment_number):
+def train_rl_vrp_csp(args):
 
     """
     Trains reinforcement learning models for vehicle routing and charging station placement (VRP-CSP).
 
     Parameters:
-        date (str): The date string for logging purposes.
+        args ()
 
     Returns:
         None
     """
 
     ############ Initialization ############
-
-    config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
-
-    c = load_config_file(config_fname)
-    env_c = c['environment_settings']
-    eval_c = c['eval_config']
-    algorithm_dm = c['algorithm_settings']['algorithm']
-    agent_by_zone= c['algorithm_settings']['agent_by_zone']
-    federated_c = c['federated_learning_settings']
-
-    if algorithm_dm in ["DQN", "PPO", "DDPG"]:
-        num_episodes = c['nn_hyperparameters']['num_episodes']
-    elif algorithm_dm == 'CMA_optimizer':
-        num_episodes = c['cma_parameters']['max_generations']
-
-    action_dim = env_c['action_dim'] * env_c['num_of_chargers']
-    
-    metrics_base_path = f"../../../storage_1/lhartman_storage_2/metrics/Experiment {experiment_number}" if eval_c['device_config'] == 'server' else f"metrics/Experiment {experiment_number}"
+    #get current date for experiments
+    current_datetime = datetime.now()
+    date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)
-    n_zones = len(env_c['coords'])
-
     if n_gpus == 0:
         gpus = ['cpu'] # no gpus assigned, then everything running on cpu
         print(f'Woring with CPUs for all zones, with following configuration for zones and devices:')
@@ -77,61 +60,72 @@ def train_rl_vrp_csp(date, args, experiment_number):
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
 
-    # Assign GPUs to zones in a round-robin fashion
-    gpus_size = len(gpus)
-    devices = [gpus[i % gpus_size] for i in range(n_zones)]
+    #Fire up initialization
+    init_fname = 'experiments/initial_config.yaml'
+    init_config = load_config_file(init_fname)
     
-    for i, gpu in enumerate(devices):
-        print(f'Zone {i} with {gpu}')
-
+    #Getting experiments list to run
+    experiment_list = args.experiments_list
+    if len(experiment_list) == 0: 
+        # No experiment given in cosole, then getting initial configuration experiments list
+        experiment_list = init_config['experiment_list']
     
-    # Run and train agents with different routes with reproducibility based on the selected seed
-    for seed in env_c['seeds']:
+    #Getting into Training or Evaluating mode to run experiments
+    run_mode = init_config['model_run_mode']
+    # Check if run_mode is either "Training" or "Testing"
+    if run_mode not in ["Training", "Testing"]:
+        raise ValueError(f"Invalid run_mode: '{run_mode}'. Expected 'Training' or 'Testing'.")
 
-        test_model = 'N'
-        unable_to_load_model = False
+    #Should continue the training
+    load_existing_model = init_config['continue_training']
 
-        while True:
-            test_model = input("Test model (Y) or Train model (N)? ").strip().upper()
+    # Run each experiment on experiments list
+    for experiment_number in experiment_list:    
+        config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
+        c = load_config_file(config_fname)
+        env_c = c['environment_settings']
+        eval_c = c['eval_config']
+        algorithm_dm = c['algorithm_settings']['algorithm']
+        agent_by_zone= c['algorithm_settings']['agent_by_zone']
+        federated_c = c['federated_learning_settings']
 
-            if test_model == 'Y':
-                try:
-                    global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
-                    break
-                except Exception as e:
-                    print("Could not find an existing model to test. Training instead.")
-                    test_model = 'N'
-                    unable_to_load_model = True
-                    break
-            elif test_model == 'N':
-                break
-            else:
-                print("Invalid input. Please enter 'Y' to test or 'N' to train.")
+        if algorithm_dm in ["DQN", "PPO", "DDPG"]:
+            num_episodes = c['nn_hyperparameters']['num_episodes']
+        elif algorithm_dm == 'CMA_optimizer':
+            num_episodes = c['cma_parameters']['max_generations']
 
-        if test_model == 'N' and unable_to_load_model == False:
-            while True:
-                load_existing_model = input("Load existing model (Y) or Start from scratch (N)? ").strip().upper()
-                if load_existing_model == 'Y':
-                    try:
-                        global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
-                        break
-                    except Exception as e:
-                        print("Could not find an existing model to load. Starting from scratch instead.")
-                        load_existing_model == 'N'
-                        break
-                elif load_existing_model == 'N':
-                    break
-                else:
-                    print("Invalid input. Please enter 'Y' to load an existing model or 'N' to start from scratch.")    
+        action_dim = env_c['action_dim'] * env_c['num_of_chargers']
+        #saving metric resutls from experiments
+        print(f"eval config {c['eval_config']}")
+        metrics_base_path = f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
 
+        # Assign GPUs to zones in a round-robin fashion
+        n_zones = len(env_c['coords'])
+        gpus_size = len(gpus)
+        devices = [gpus[i % gpus_size] for i in range(n_zones)]
+        for i, gpu in enumerate(devices):
+            print(f'Zone {i} with {gpu}')
+
+        # get seed for current experiment
+        seed = env_c['seed']
+        # Run and train agents with different routes with reproducibility based on the selected seed
+
+        #Retrieve Training or Evaluation mode and Continue or from scrath model training
+        if run_mode == "Testing":
+            global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
+        elif load_existing_model:
+            global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
+            
+
+        #to ask Lucas
         if eval_c['evaluate_on_diff_seed']:
             print(f'Running experiments with model trained on seed {seed} on new seed {seed*5} (seed * 5)')
             seed *= 5 # Multiply seed by 5 to get a different seed
 
         else:
-            print(f'Running experiments with seed -> {seed}')
+            print(f'Running experiment {experiment_number} in {run_mode} mode with seed -> {seed}')
 
-        # Creating and seeding a random generaton from Numpy
+        # Creating and seeding a random generator from Numpy
         rng = np.random.default_rng(seed)
         # Generating sub seeds to run on each environment
         chargers_seeds = rng.integers(low=0, high=10000, size=len(env_c['coords']))
@@ -185,8 +179,9 @@ def train_rl_vrp_csp(date, args, experiment_number):
 
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
-            
-        if test_model == 'N':
+        
+        if run_mode == "Training":
+            # to ask Ethan
             if algorithm_dm == 'ODT':
                 nn_c = c['odt_hyperparameters']               
                 print(f"Training using ODT - Seed {seed}")
@@ -264,7 +259,7 @@ def train_rl_vrp_csp(date, args, experiment_number):
                                                     federated_c['zone_multiplier'], federated_c['model_multiplier'],\
                                                     agent_by_zone)
 
-                save_global_path = f'saved_networks/Experiment {experiment_number}/'
+                save_global_path = f'saved_networks/Exp_{experiment_number}/'
                 if not os.path.exists(save_global_path):
                     os.makedirs(save_global_path)
                 # Save the global weights
@@ -294,14 +289,14 @@ def train_rl_vrp_csp(date, args, experiment_number):
                 plot_aggregate_reward_data(loaded_rewards)
                 plot_aggregate_output_values_per_route(loaded_output_values)
 
-        else:
+        elif run_mode == "Testing":
             metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
             
             print(f"Loading saved models - Seed {seed}")
-            global_weights = torch.load(f'saved_networks/Experiment {experiment_number}/global_weights.pth')
+            global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
             manager = mp.Manager()
             local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -369,6 +364,7 @@ def train_rl_vrp_csp(date, args, experiment_number):
             fixed_attributes = eval_c['fixed_attributes']
             attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
+        print(f'directory {metrics_base_path}')
         if not os.path.exists(f'{metrics_base_path}/train'):
             os.makedirs(f'{metrics_base_path}/train')
 
@@ -437,6 +433,8 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
         # Create a deep copy of the environment for this thread
         chargers_copy = copy.deepcopy(chargers)
 
+        print(f'algorithm dm {algorithm_dm}')
+
         if algorithm_dm == 'DQN':
             from training_processes.train_dqn import train_dqn as train
 
@@ -487,13 +485,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=('MERL Project'))
     parser.add_argument('-c','--number_processors', type=int, default=1,help='number of processors used to run MERL')
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
-    args = parser.parse_args()
+    parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
     
-    current_datetime = datetime.now()
-    date = current_datetime.strftime('%Y-%m-%d_%H-%M')
+    args = parser.parse_args()
 
-    exp_range = len([name for name in os.listdir('experiments') if os.path.isdir(os.path.join('experiments', name))])
-
-    experiment_number = input(f"Enter the experiment number you wish to run [1-{exp_range}]: ")
-
-    train_rl_vrp_csp(date, args, experiment_number)
+    train_rl_vrp_csp(args)

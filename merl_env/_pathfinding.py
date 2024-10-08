@@ -1,6 +1,7 @@
 import numpy as np
+DEBUG = False
 
-def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging, debug):
+def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging):
     """
     Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
 
@@ -19,7 +20,6 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
     Returns:
         numpy.ndarray: A graph represented as a 2D numpy array where each element represents the distance between points.
     """
-
     starting_charge_list = ev_info['starting_charge'] # 5000-7000
     max_charge_list = ev_info['max_charge'] # in Watts
     usage_per_hour_list = ev_info['usage_per_hour'] # in Wh/60 km
@@ -40,7 +40,7 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
     charger_locs = np.array([(lat, lon) for _, lat, lon in unique_chargers])
     all_points = np.vstack((charger_locs, [org_lat, org_long], [dest_lat, dest_long]))
 
-    if debug:
+    if DEBUG:
         print(f"{agent_index} - ALL POINTS - {all_points}")
 
     # Initialize graph matrix
