@@ -1,12 +1,9 @@
-### Experiment 1: ###
+### Experiment 11: ###
 --------------------------------
 Seed: 5555
-Model: DQN
+Model: PPO
 Season: Spring
-Number of cars: 25
-Number of chargers: 2
-Number of actions: 3
-Number of zones: 3
-Number of agents: 3
-Number of chargers per agent: 1
-Number of actions per agent: 3
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 10000
+Number of aggregations: 1
