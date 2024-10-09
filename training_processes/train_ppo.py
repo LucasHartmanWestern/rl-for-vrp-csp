@@ -51,7 +51,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
             - List of trajectories for each episode.
     """
     # Getting Neural Network parameters
-    config_fname = f'experiments/Experiment {experiment_number}/config.yaml'
+    config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eval_c = load_config_file(config_fname)['eval_config']
 
