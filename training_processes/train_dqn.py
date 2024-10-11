@@ -52,18 +52,23 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eval_c = load_config_file(config_fname)['eval_config']
+    federated_c = load_config_file(config_fname)['federated_learning_settings']
 
     epsilon = nn_c['epsilon'] if train_model else 0
-    epsilon_decay =  nn_c['epsilon_decay']
+    #epsilon_decay =  nn_c['epsilon_decay']
+
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
     num_episodes = nn_c['num_episodes'] if train_model else 1
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
+    aggregation_count = federated_c['aggregation_count']
     
-    avg_rewards = []
+    # Decay epsilon such that by the midway point it is 0.1
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 2))
 
+    avg_rewards = []
 
     # Carry over epsilon from last aggregation
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)

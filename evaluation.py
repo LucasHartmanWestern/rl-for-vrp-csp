@@ -97,6 +97,14 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
 
+    if metric_name == 'reward':
+        # If there are multiple done values for a single (zone, episode, aggregation, agent_index) then discard all except the first one
+        df = df.drop_duplicates(subset=['episode', 'zone', 'aggregation', 'agent_index', 'done'], keep='first')
+
+        # Make the last timestep of each episode include the cumulative reward from each previous timestep within that episode
+        # This should only apply to the timestep for which done is true
+        df['reward'] = df.groupby(['episode', 'zone', 'aggregation', 'agent_index'])['reward'].cumsum()
+
     # Filter data to only include the last timestep within each episode
     df = df[df['done'] == True]
 
