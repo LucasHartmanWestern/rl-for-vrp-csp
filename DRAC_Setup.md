@@ -73,13 +73,19 @@ cd ~/projects/def-mcapretz/<your_username>/rl-for-vrp-csp
 
 Install pytorch separately:
 ```
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+pip install --no-index torch torchvision torchaudio torchtext
 ```
 
 Run the following command to install the remaining dependencies:
 ```
 pip install -r requirements.txt --no-index
 ```
+If any errors occur, try installing the dependencies manually using the following command:
+```
+pip install <package_name>
+```
+
+Re-run the installataion command with no-index set and make sure no errors occur.
 
 ## (Optional) Setting up SSH Keys for easier access
 Ref: https://docs.alliancecan.ca/wiki/SSH_Keys
@@ -112,4 +118,18 @@ ssh beluga
 
 ## Running Experiments
 
-TBD...
+### 1. Generate the job scripts
+Run the following command to generate the job scripts:
+```
+python generate_jobs.py -e <experiment_number>
+```
+You can also generate the job scripts for all experiments by passing "all" as the argument:
+```
+python generate_jobs.py -e all
+```
+
+### 2. Submit the jobs
+Run the following command to submit the jobs to the DRAC queue:
+```
+TODO
+```
