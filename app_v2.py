@@ -81,6 +81,11 @@ def train_rl_vrp_csp(args):
     #Should continue the training
     load_existing_model = init_config['continue_training']
 
+    # Make logs directory if it doesn't already exist
+    logs_dir = 'logs'
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
     # Run each experiment on experiments list
     for experiment_number in experiment_list:    
         config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
@@ -144,8 +149,7 @@ def train_rl_vrp_csp(args):
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
-    
-        
+
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
