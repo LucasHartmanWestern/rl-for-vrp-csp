@@ -60,6 +60,8 @@ def train_rl_vrp_csp(args):
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
 
+    data_dir = args.data_dir
+
     #Fire up initialization
     init_fname = 'experiments/initial_config.yaml'
     init_config = load_config_file(init_fname)
@@ -96,7 +98,7 @@ def train_rl_vrp_csp(args):
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
-        metrics_base_path = f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
+        metrics_base_path = f"{data_dir}_{experiment_number}" or f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
 
         # Assign GPUs to zones in a round-robin fashion
         n_zones = len(env_c['coords'])
@@ -485,7 +487,8 @@ if __name__ == '__main__':
     parser.add_argument('-c','--number_processors', type=int, default=1,help='number of processors used to run MERL')
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
-    
+    parser.add_argument('-d','--data_dir', type=str, default='', help='Directory to save data to')
+
     args = parser.parse_args()
 
     train_rl_vrp_csp(args)
