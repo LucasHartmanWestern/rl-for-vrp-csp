@@ -142,4 +142,17 @@ You can monitor the jobs by running the following command:
 sq
 ```
 
+## Retrieving the results using SCP
 
+### 1. Navigate to desired source directory
+On the Huron server, the results should be stored in storage_1/metrics/.
+```
+cd ~
+cd ../../storage_1/metrics
+```
+
+### 2. Use SCP to retrieve data
+Use the following command to copy the results from DRAC to the current directory:
+```
+scp -r <your_username>@beluga.computecanada.ca:/lustre04/scratch/<your_username>/metrics/* ./
+```
