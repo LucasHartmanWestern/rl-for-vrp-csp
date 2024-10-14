@@ -71,7 +71,12 @@ Go to the github repository:
 cd ~/projects/def-mcapretz/<your_username>/rl-for-vrp-csp
 ```
 
-Run the following command to install the dependencies:
+Install pytorch separately:
+```
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+```
+
+Run the following command to install the remaining dependencies:
 ```
 pip install -r requirements.txt --no-index
 ```
