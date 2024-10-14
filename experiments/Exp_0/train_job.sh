@@ -9,7 +9,6 @@
 #SBATCH --mem=32G
 
 echo "Starting training for experiment 0"
-nvidia-smi
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate

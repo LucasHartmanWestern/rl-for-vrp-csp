@@ -135,3 +135,11 @@ sbatch experiments/Exp_<experiment_number>/train_job.sh
 ```
 
 Make sure this command is run within the DRAC server.
+
+### 3. Monitor the jobs
+You can monitor the jobs by running the following command:
+```
+sq
+```
+
+
