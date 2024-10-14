@@ -9,6 +9,7 @@
 #SBATCH --mem=32G
 
 echo "Starting training for experiment 0"
+nvidia-smi
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
@@ -16,4 +17,4 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=4
 
-python app_v2.py -g 0 1 -e 0
+python app_v2.py -g 0 1 -e 0 -d "/home/hartman/scratch/metrics/Exp"
