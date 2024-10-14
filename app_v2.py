@@ -98,7 +98,9 @@ def train_rl_vrp_csp(args):
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
-        metrics_base_path = f"{data_dir}_{experiment_number}" or f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
+        metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
+
+        print(f"Saving metrics to base path: {metrics_base_path}")
 
         # Assign GPUs to zones in a round-robin fashion
         n_zones = len(env_c['coords'])

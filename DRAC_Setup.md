@@ -131,5 +131,7 @@ python generate_jobs.py -e all
 ### 2. Submit the jobs
 Run the following command to submit the jobs to the DRAC queue:
 ```
-TODO
+sbatch experiments/Exp_<experiment_number>/train_job.sh
 ```
+
+Make sure this command is run within the DRAC server.
