@@ -4,67 +4,6 @@ import os
 import sys
 import importlib.util
 
-def evaluate_episode(
-        env,
-        state_dim,
-        act_dim,
-        model,
-        max_ep_len=1000,
-        device='cuda',
-        target_return=None,
-        mode='normal',
-        state_mean=0.,
-        state_std=1.,
-):
-
-    model.eval()
-    model.to(device=device)
-
-    state_mean = torch.from_numpy(state_mean).to(device=device)
-    state_std = torch.from_numpy(state_std).to(device=device)
-    
-    state = env.reset_state
-
-    # we keep all the histories on the device
-    # note that the latest action and rewad will be "padding"
-    states = torch.from_numpy(state).reshape(1, state_dim).to(device=device, dtype=torch.float32)
-    actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
-    rewards = torch.zeros(0, device=device, dtype=torch.float32)
-    target_return = torch.tensor(target_return, device=device, dtype=torch.float32)
-    sim_states = []
-
-    episode_return, episode_length = 0, 0
-    for t in range(max_ep_len):#
-
-        # add padding
-        actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
-        rewards = torch.cat([rewards, torch.zeros(1, device=device)])
-
-        action = model.get_action(
-            (states.to(dtype=torch.float32) - state_mean) / state_std,
-            actions.to(dtype=torch.float32),
-            rewards.to(dtype=torch.float32),
-            target_return=target_return,
-        )
-        actions[-1] = action
-        action = action.detach().cpu().numpy()
-
-        # Updates an enviornment with actions returning the next agent observation, the reward for taking that actions...
-        state, reward, done, _ = env.step(action)
-
-        cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
-        states = torch.cat([states, cur_state], dim=0)
-        rewards[-1] = reward
-
-        episode_return += reward
-        episode_length += 1
-
-        if done:
-            break
-
-    return episode_return, episode_length
-
-
 def evaluate_episode_rtg(
         env,
         chargers,
@@ -72,6 +11,8 @@ def evaluate_episode_rtg(
         act_dim,
         fixed_attributes,
         model,
+        agent_models,
+        agent_by_zone,
         max_ep_len=1000,
         scale=1000.,
         state_mean=0.,
@@ -83,15 +24,16 @@ def evaluate_episode_rtg(
         return_traj=False,
         eval_context=None
     ):
-
     num_cars = env.num_cars
     
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
     
     env.reset_episode(chargers, routes, unique_chargers) #THIS IS RESETTING EVERY CAR
+
+    if agent_by_zone:
+        model.eval()
+        model.to(device=device)
     
-    model.eval()
-    model.to(device=device)
 
     state_mean = torch.from_numpy(state_mean).to(device=device)
     state_std = torch.from_numpy(state_std).to(device=device)
@@ -143,19 +85,32 @@ def evaluate_episode_rtg(
             
             state = env.reset_agent(car , True)
 
-            car_traj['observations'] = torch.cat([car_traj['observations'], torch.from_numpy(state).unsqueeze(0).to(device=device, dtype=torch.float32)], dim=0)
-            
-            action = model.get_action(
-                (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
-                car_traj['actions'].to(dtype=torch.float32),
-                car_traj['rewards'].to(dtype=torch.float32),
-                target_return.to(dtype=torch.float32),
-                timesteps.to(dtype=torch.long),
-                use_means=use_means,
-                custom_max_length=eval_context
-            )
+            car_traj['observations'] = torch.cat([car_traj['observations'], torch.from_numpy(state).unsqueeze(0).to(device=device, dtype=torch.float32).detach()], dim=0)
 
-            car_traj['actions'] = torch.cat([car_traj['actions'], action.unsqueeze(0)], dim=0)
+            if agent_by_zone:
+                action = model.get_action(
+                    (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
+                    car_traj['actions'].to(dtype=torch.float32),
+                    car_traj['rewards'].to(dtype=torch.float32),
+                    target_return.to(dtype=torch.float32),
+                    timesteps.to(dtype=torch.long),
+                    use_means=use_means,
+                    custom_max_length=eval_context
+                )
+            else:
+                agent_models[car].to(device=device)
+                action = agent_models[car].get_action(
+                    (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
+                    car_traj['actions'].to(dtype=torch.float32),
+                    car_traj['rewards'].to(dtype=torch.float32),
+                    target_return.to(dtype=torch.float32),
+                    timesteps.to(dtype=torch.long),
+                    use_means=use_means,
+                    custom_max_length=eval_context
+                )
+                #agent_models[car].to(device='cpu')
+
+            car_traj['actions'] = torch.cat([car_traj['actions'], action.unsqueeze(0).detach()], dim=0)
             action_sig = torch.sigmoid(action)
             action_sig = action_sig.detach().cpu().numpy()
     
@@ -166,8 +121,8 @@ def evaluate_episode_rtg(
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = env.get_results()
 
         for traj in trajectories:
-            traj['terminals'] = torch.cat([traj['terminals'], torch.tensor([sim_done], device=device, dtype=torch.bool)], dim=0)
-            traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([time_step_rewards[traj['car_num']]], device=device, dtype=torch.float32)], dim=0)
+            traj['terminals'] = torch.cat([traj['terminals'], torch.tensor([sim_done], device=device, dtype=torch.bool).detach()], dim=0)
+            traj['rewards'] = torch.cat([traj['rewards'], torch.tensor([time_step_rewards[traj['car_num']]], device=device, dtype=torch.float32).detach()], dim=0)
             traj['terminals_car'].append(bool(arrived_at_final[0, traj['car_num']].item()))
         
         if timestep_counter == 0:
@@ -193,7 +148,6 @@ def evaluate_episode_rtg(
 
     total_return_per_car = np.sum(episode_rewards, axis=0)
     episode_return = np.mean(total_return_per_car)
-    print (f'Episode Return: {episode_return}')
 
         
     if return_traj:
@@ -202,6 +156,8 @@ def evaluate_episode_rtg(
             traj['actions'] = traj['actions'].cpu().detach().numpy().tolist()
             traj['rewards'] = traj['rewards'].cpu().detach().numpy().tolist()
             traj['terminals'] = traj['terminals'].cpu().detach().numpy().tolist()
+            traj['car_num'] = traj['car_num']
+
         return episode_return, episode_length, trajectories
     else:
         return episode_return, episode_length

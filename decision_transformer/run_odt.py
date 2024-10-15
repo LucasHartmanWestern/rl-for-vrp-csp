@@ -7,7 +7,7 @@ import pathlib
 import wandb  # optional, only if you use Weights and Biases for logging
 import csv
 
-from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
+from decision_transformer.evaluation.evaluate_episodes import evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
 #from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
@@ -23,9 +23,21 @@ def run_odt(
     fixed_attributes,
     variant ,
     seed,
+    agent_by_zone,
+    num_cars,
     exp_prefix='placeholder',
     max_ep_len=10
 ):
+    if agent_by_zone == False:
+        agent_buffers = {i: [] for i in range(num_cars)}  # One buffer per agent
+        agent_models = {}  # Dictionary to store models for each agent
+        agent_optimizers = {}
+        agent_schedulers = {}
+        agent_trainers = {}
+        model = None
+    else:
+        agent_models = None
+        
 
     def discount_cumsum(x, gamma):
         discount_cumsum = np.zeros_like(x)
@@ -53,9 +65,6 @@ def run_odt(
     # on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
     off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
     on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
-    
-    # if not os.path.exists(model_dir):
-    #     os.makedirs(model_dir)
 
     # load dataset
     #dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
@@ -79,6 +88,8 @@ def run_odt(
     # used for input normalization
     states = np.concatenate(states, axis=0)
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+    states = None  
+    torch.cuda.empty_cache()  
 
     num_timesteps = sum(traj_lens)
 
@@ -136,17 +147,23 @@ def run_odt(
                 config=variant
             )
 
-        def get_batch(batch_size=256, max_len=K):
+        def get_batch(agent_idx, batch_size=256, max_len=K):
             # Dynamically recompute p_sample if online training
+
+            if agent_by_zone == False:
+                buffer = agent_buffers[agent_idx]  # Use the buffer of the corresponding agent
+            else:
+                buffer = trajectories
             state_dim = env.state_dim
             if variant['online_training']:
-                traj_lens = np.array([len(path['observations']) for path in trajectories])
+                traj_lens = np.array([len(path['observations']) for path in buffer])
                 p_sample = traj_lens / sum(traj_lens)
             else:
                 p_sample = starting_p_sample
-        
+
+            #print(f'Agent {agent_idx} buffer size:', len(buffer))
             batch_inds = np.random.choice(
-                np.arange(num_trajectories),
+                np.arange(len(buffer)),
                 size=batch_size,
                 replace=True,
                 p=p_sample,  # reweights so we sample according to timesteps
@@ -154,62 +171,44 @@ def run_odt(
         
             s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
         
-            # Open the CSV file to log the data
-            with open('trajectory_logs.csv', mode='w', newline='') as file:
-                writer = csv.writer(file)
-                # Write the header
-                writer.writerow(['Trajectory Index', 'Observations', 'Actions', 'Rewards', 'Terminals'])
-        
-                for i in range(batch_size):
-                    if variant['online_training']:
-                        traj = trajectories[batch_inds[i]]
-                    else:
-                        traj = trajectories[int(sorted_inds[batch_inds[i]])]
-        
-                    # Continue with the existing operations on the data
-                    rewards = np.array(traj['rewards'])
-                    observations = np.array(traj['observations'])
-                    actions = np.array(traj['actions'])
-                    terminals = np.array(traj['terminals'])
+            for i in range(batch_size):
+                if variant['online_training']:
+                    traj = trajectories[batch_inds[i]]
+                else:
+                    traj = trajectories[int(sorted_inds[batch_inds[i]])]
     
-                    # if len(rewards) != len(observations) or len(rewards) != len(actions):
-                    #     continue  # Skip this trajectory
+                # Continue with the existing operations on the data
+                rewards = np.array(traj['rewards'])
+                observations = np.array(traj['observations'])
+                actions = np.array(traj['actions'])
+                terminals = np.array(traj['terminals'])
     
-                    # Convert the lists/arrays to a string format suitable for CSV
-                    observations_str = str(len(observations))
-                    actions_str = str(len(actions))
-                    rewards_str = str(len(rewards))
-                    terminals_str = str(len(terminals))
-        
-                    # Write the trajectory data to the CSV file
-                    writer.writerow([batch_inds[i], observations_str, actions_str, rewards_str, terminals_str])
-        
-                    si = random.randint(0, rewards.shape[0] - 1)
-        
-                    # get sequences from dataset
-                    s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
-                    a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
-                    r.append(rewards[si:si + max_len].reshape(1, -1, 1))
-                    if 'terminals' in traj:
-                        d.append(terminals[si:si + max_len].reshape(1, -1))
-                    else:
-                        d.append(traj['dones'][si:si + max_len].reshape(1, -1))
-                    timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-                    timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
-                    rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
-                    if rtg[-1].shape[1] <= s[-1].shape[1]:
-                        rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
-        
-                    # padding and state + reward normalization
-                    tlen = s[-1].shape[1]
-                    s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
-                    s[-1] = (s[-1] - state_mean) / state_std
-                    a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
-                    r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-                    d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-                    rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
-                    timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
-                    mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
+                si = random.randint(0, rewards.shape[0] - 1)
+    
+                # get sequences from dataset
+                s.append(observations[si:si + max_len].reshape(1, -1, state_dim))
+                a.append(actions[si:si + max_len].reshape(1, -1, act_dim))
+                r.append(rewards[si:si + max_len].reshape(1, -1, 1))
+                if 'terminals' in traj:
+                    d.append(terminals[si:si + max_len].reshape(1, -1))
+                else:
+                    d.append(traj['dones'][si:si + max_len].reshape(1, -1))
+                timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
+                timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+                rtg.append(discount_cumsum(rewards[si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+                if rtg[-1].shape[1] <= s[-1].shape[1]:
+                    rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
+    
+                # padding and state + reward normalization
+                tlen = s[-1].shape[1]
+                s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
+                s[-1] = (s[-1] - state_mean) / state_std
+                a[-1] = np.concatenate([np.ones((1, max_len - tlen, act_dim)) * 0., a[-1]], axis=1)
+                r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
+                d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
+                rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
+                timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
+                mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
         
             s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=device)
             a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=device)
@@ -238,6 +237,8 @@ def run_odt(
                                 act_dim,
                                 fixed_attributes,
                                 model,
+                                agent_models,
+                                agent_by_zone,
                                 max_ep_len=max_ep_len,
                                 scale=scale,
                                 target_return=target_rew/scale,
@@ -247,18 +248,6 @@ def run_odt(
                                 device=device,
                                 use_means=variant['use_action_means'],
                                 eval_context=variant['eval_context']
-                            )
-                        else:
-                            ret, length = evaluate_episode(
-                                env,
-                                act_dim,
-                                model,
-                                max_ep_len=max_ep_len,
-                                target_return=target_rew/scale,
-                                mode=mode,
-                                state_mean=state_mean,
-                                state_std=state_std,
-                                device=device,
                             )
                     # Ensure ret and length are moved to CPU before converting to numpy
                     ret = ret.cpu().detach().numpy() if isinstance(ret, torch.Tensor) else ret
@@ -275,15 +264,48 @@ def run_odt(
             return fn
     
     
-        if model_type == 'dt':
-            if variant['pretrained_model']:
+    if model_type == 'dt':
+        if variant['pretrained_model']:
+            if agent_by_zone == False:
+                #Make one model per car
+                for car in range(num_cars):
+                    agent_models[car] = torch.load(variant['pretrained_model'],map_location='cuda:1')
+                    model = agent_models[car]
+                    print(model.stochastic)
+                    model.stochastic_tanh = variant['stochastic_tanh']
+                    model.approximate_entropy_samples = variant['approximate_entropy_samples']
+                    model.to(device)
+            else:
                 model = torch.load(variant['pretrained_model'],map_location='cuda:1')
+    
                 print(model.stochastic)
                 #model.stochastic = variant['stochastic']
                 model.stochastic_tanh = variant['stochastic_tanh']
                 model.approximate_entropy_samples = variant['approximate_entropy_samples']
                 model.to(device)
-    
+
+        else:
+            if agent_by_zone == False:
+                #Make one model per car
+                for car in range(num_cars):
+                    agent_models[car]= DecisionTransformer(
+                        state_dim=env.state_dim,
+                        act_dim=act_dim,
+                        max_length=K,
+                        max_ep_len=max_ep_len*2,
+                        hidden_size=variant['embed_dim'],
+                        n_layer=variant['n_layer'],
+                        n_head=variant['n_head'],
+                        n_inner=4*variant['embed_dim'],
+                        activation_function=variant['activation_function'],
+                        n_positions=1024,
+                        resid_pdrop=variant['dropout'],
+                        attn_pdrop=variant['dropout'],
+                        stochastic = variant['stochastic'],
+                        remove_pos_embs=variant['remove_pos_embs'],
+                        approximate_entropy_samples = variant['approximate_entropy_samples'],
+                        stochastic_tanh=variant['stochastic_tanh']
+                    )
             else:
                 model = DecisionTransformer(
                     state_dim=env.state_dim,
@@ -303,28 +325,34 @@ def run_odt(
                     approximate_entropy_samples = variant['approximate_entropy_samples'],
                     stochastic_tanh=variant['stochastic_tanh']
                 )
-        elif model_type == 'bc':
-            model = MLPBCModel(
-                state_dim=env.state_dim,
-                act_dim=act_dim,
-                max_length=K,
-                hidden_size=variant['embed_dim'],
-                n_layer=variant['n_layer'],
-            )
-        else:
-            raise NotImplementedError
-    
-        model = model.to(device=device)
+            # else:
+            #     raise NotImplementedError
+        
         warmup_steps = variant['warmup_steps']
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=variant['learning_rate'],
-            weight_decay=variant['weight_decay'],
-        )
-        scheduler = torch.optim.lr_scheduler.LambdaLR(
-            optimizer,
-            lambda steps: min((steps+1)/warmup_steps, 1)
-        )
+
+        if agent_by_zone == False:
+            for car in range(num_cars):
+                agent_models[car] = agent_models[car].to(device=device)
+                agent_optimizers[car] = torch.optim.AdamW(
+                    agent_models[car].parameters(),
+                    lr=variant['learning_rate'],
+                    weight_decay=variant['weight_decay'],
+                )
+                agent_schedulers[car] = torch.optim.lr_scheduler.LambdaLR(
+                    agent_optimizers[car],
+                    lambda steps: min((steps+1)/warmup_steps, 1)
+                )
+        else:
+            model = model.to(device=device)
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=variant['learning_rate'],
+                weight_decay=variant['weight_decay'],
+            )
+            scheduler = torch.optim.lr_scheduler.LambdaLR(
+                optimizer,
+                lambda steps: min((steps+1)/warmup_steps, 1)
+            )
     
         if variant['online_training']:
             assert(variant['pretrained_model'] is not None), "Must specify pretrained model to perform online finetuning"
@@ -368,29 +396,36 @@ def run_odt(
             loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg, r, a_log_prob, entropies: torch.mean((a_hat - a)**2)
     
         if model_type == 'dt':
-            trainer = SequenceTrainer(
-                model=model,
-                optimizer=optimizer,
-                batch_size=batch_size,
-                get_batch=get_batch,
-                scheduler=scheduler,
-                loss_fn=loss_fn,
-                log_entropy_multiplier=log_entropy_multiplier,
-                entropy_loss_fn=entropy_loss_fn,
-                multiplier_optimizer=multiplier_optimizer,
-                multiplier_scheduler=multiplier_scheduler,
-                eval_fns=[eval_episodes(tar) for tar in env_targets],
-            )
-        elif model_type == 'bc':
-            trainer = ActTrainer(
-                model=model,
-                optimizer=optimizer,
-                batch_size=batch_size,
-                get_batch=get_batch,
-                scheduler=scheduler,
-                loss_fn=loss_fn,
-                eval_fns=[eval_episodes(tar) for tar in env_targets],
-            )
+            if agent_by_zone == False:
+                for car in range(num_cars):
+                    agent_trainers[car] = SequenceTrainer(
+                        model=agent_models[car],
+                        optimizer=agent_optimizers[car],
+                        batch_size=batch_size,
+                        get_batch=get_batch,
+                        scheduler=agent_schedulers[car],
+                        loss_fn=loss_fn,
+                        agent_idx=car,
+                        log_entropy_multiplier=log_entropy_multiplier,
+                        entropy_loss_fn=entropy_loss_fn,
+                        multiplier_optimizer=multiplier_optimizer,
+                        multiplier_scheduler=multiplier_scheduler,
+                        eval_fns=[eval_episodes(tar) for tar in env_targets],
+                    )
+            else: 
+                trainer = SequenceTrainer(
+                    model=model,
+                    optimizer=optimizer,
+                    batch_size=batch_size,
+                    get_batch=get_batch,
+                    scheduler=scheduler,
+                    loss_fn=loss_fn,
+                    log_entropy_multiplier=log_entropy_multiplier,
+                    entropy_loss_fn=entropy_loss_fn,
+                    multiplier_optimizer=multiplier_optimizer,
+                    multiplier_scheduler=multiplier_scheduler,
+                    eval_fns=[eval_episodes(tar) for tar in env_targets],
+                )
         if log_to_wandb:
             wandb.init(
                 name= (f' Seed: {seed} - Zone: {env_idx}'),
@@ -398,7 +433,6 @@ def run_odt(
                 project='decision-transformer',
                 config=variant
             )
-            # wandb.watch(model)  # wandb has some bug
         if variant['eval_only']:
             model.eval()
             eval_fns = [eval_episodes(tar) for tar in env_targets]
@@ -416,7 +450,7 @@ def run_odt(
                     print(f'{k}: {v}')
         else:
             if variant['online_training']:
-                for iter in range(variant['max_iters']): # FOR EACH EPISODE
+                for iter in range(variant['max_iters']):  # FOR EACH EPISODE
                     # Collect new rollouts, using stochastic policy
                     ret, length, new_trajectories = evaluate_episode_rtg(
                         env,
@@ -425,9 +459,11 @@ def run_odt(
                         act_dim,
                         fixed_attributes,
                         model,
+                        agent_models,
+                        agent_by_zone,
                         max_ep_len=max_ep_len,
                         scale=scale,
-                        target_return=target_online/scale,
+                        target_return=target_online / scale,
                         mode=mode,
                         state_mean=state_mean,
                         state_std=state_std,
@@ -435,32 +471,64 @@ def run_odt(
                         use_means=False,
                         return_traj=True
                     )
-                    
-                    # Update the buffer by removing the oldest trajectories and adding the new ones
+        
                     num_new_trajectories = len(new_trajectories)
-
                     print(f'Num New Trajectories {num_new_trajectories}')
-                    
-                    # Ensure the buffer maintains its maximum size by removing the oldest trajectories
-                    if len(trajectories) + num_new_trajectories > variant['online_buffer_size']:
-                        trajectories = trajectories[num_new_trajectories:]  # Remove as many old trajectories as there are new ones         
-                    # Add all the new trajectories to the buffer
-                    trajectories.extend(new_trajectories)
-                    # Perform update, eval using deterministic policy
-                    outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
-                    if log_to_wandb:
-                        wandb.log(outputs)
+        
+                    if agent_by_zone:       
+                        if len(trajectories) + num_new_trajectories > variant['online_buffer_size']:
+                            trajectories = trajectories[num_new_trajectories:]  # Remove as many old trajectories as there are new ones
+                        trajectories.extend(new_trajectories)
+        
+                        # Perform update, eval using deterministic policy
+                        outputs = trainer.train_iteration(
+                            num_steps=variant['num_steps_per_iter'],
+                            iter_num=iter + 1,
+                            print_logs=True
+                        )
+                        if log_to_wandb:
+                            wandb.log(outputs)
+                    else:
+                        # If agent_by_zone is False, process car-specific trajectories
+
+                        for idx in range(num_new_trajectories):
+                            agent_buffers[idx].append(new_trajectories[idx])  
+                            # Ensure the buffer maintains its maximum size
+                            if len(agent_buffers[idx]) > variant['online_buffer_size']:
+                                agent_buffers[idx] = agent_buffers[idx][-variant['online_buffer_size']:]  # Keep only the newest trajectories
+        
+                        for car_num in range(num_cars):
+                            outputs = agent_trainers[car_num].train_iteration(
+                                num_steps=variant['num_steps_per_iter'],
+                                iter_num=iter + 1,
+                                print_logs=True
+                            )
+                            new_trajectories = None
+                            ret = None
+                            length = None
+                            torch.cuda.empty_cache()  # Free GPU memory if applicable
+                            print(f' Car num: {car_num}')
+                            if log_to_wandb:
+                                wandb.log(outputs)
+       
             else:
                 for iter in range(variant['max_iters']):
-                    outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
+                    outputs = trainer.train_iteration(
+                        num_steps=variant['num_steps_per_iter'],
+                        iter_num=iter + 1,
+                        print_logs=True
+                    )
                     if log_to_wandb:
                         wandb.log(outputs)
+        
             if log_to_wandb:
                 wandb.finish()  # Close the current wandb run
+        
             if variant['online_training']:
-                torch.save(model,os.path.join(on_model_dir, model_type + '_' + exp_prefix + '.pt'))
+                torch.save(model, os.path.join(on_model_dir, model_type + '_' + exp_prefix + '.pt'))
             else:
-                torch.save(model,os.path.join(off_model_dir, model_type + '_' + exp_prefix + '.pt'))
+                torch.save(model, os.path.join(off_model_dir, model_type + '_' + exp_prefix + '.pt'))
+
 
 def format_data(data):
     # Initialize a defaultdict to aggregate data by unique identifiers

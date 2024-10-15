@@ -6,14 +6,14 @@ import time
 
 class Trainer:
 
-    def __init__(self, model, optimizer, batch_size, get_batch, loss_fn, scheduler=None, eval_fns=None, log_entropy_multiplier = None, multiplier_optimizer = None, multiplier_scheduler = None, entropy_loss_fn=None):
+    def __init__(self, model, optimizer, batch_size, get_batch, loss_fn, agent_idx=None, scheduler=None, eval_fns=None, log_entropy_multiplier = None, multiplier_optimizer = None, multiplier_scheduler = None, entropy_loss_fn=None):
         self.model = model
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.get_batch = get_batch
         self.loss_fn = loss_fn
         self.scheduler = scheduler
-        # Optional entropy multiplier and its loss, optimizer, scheduler
+        self.agent_idx = agent_idx
         self.log_entropy_multiplier = log_entropy_multiplier
         self.entropy_loss_fn = entropy_loss_fn
         self.multiplier_optimizer = multiplier_optimizer
@@ -71,7 +71,6 @@ class Trainer:
             print(f'Iteration {iter_num}')
             for k, v in logs.items():
                 print(f'{k}: {v}')
-
         return logs
 
     def train_step(self):
