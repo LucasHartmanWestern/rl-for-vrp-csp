@@ -1,0 +1,9 @@
+### Experiment 14: ###
+--------------------------------
+Seed: 5555
+Model: PPO
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 2000
+Number of aggregations: 5
