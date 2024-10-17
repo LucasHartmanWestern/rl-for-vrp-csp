@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gpus-per-node=2
 #SBATCH --time=00:07:12
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 
 echo "Starting training for experiment 0"
 nvidia-smi

@@ -59,7 +59,7 @@ for experiment in experiment_list:
 #SBATCH --cpus-per-task={num_gpus * 2}
 #SBATCH --gpus-per-node={num_gpus}
 #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 
 echo "Starting training for experiment {experiment}"
 nvidia-smi
