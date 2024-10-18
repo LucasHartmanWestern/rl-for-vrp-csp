@@ -7,11 +7,11 @@ import pathlib
 import wandb  # optional, only if you use Weights and Biases for logging
 import csv
 
-from decision_transformer.evaluation.evaluate_episodes import evaluate_episode_rtg
-from decision_transformer.models.decision_transformer import DecisionTransformer
+from .evaluation.evaluate_episodes import evaluate_episode_rtg
+from .models.decision_transformer import DecisionTransformer
 #from decision_transformer.models.mlp_bc import MLPBCModel
-from decision_transformer.training.act_trainer import ActTrainer
-from decision_transformer.training.seq_trainer import SequenceTrainer
+from .training.act_trainer import ActTrainer
+from .training.seq_trainer import SequenceTrainer
 from collections import defaultdict
 
 def run_odt(
@@ -28,15 +28,17 @@ def run_odt(
     exp_prefix='placeholder',
     max_ep_len=10
 ):
-    if agent_by_zone == False:
+    if agent_by_zone:
+        agent_models = None
+    else:
         agent_buffers = {i: [] for i in range(num_cars)}  # One buffer per agent
         agent_models = {}  # Dictionary to store models for each agent
         agent_optimizers = {}
         agent_schedulers = {}
         agent_trainers = {}
         model = None
-    else:
-        agent_models = None
+
+
         
 
     def discount_cumsum(x, gamma):
@@ -150,10 +152,11 @@ def run_odt(
         def get_batch(agent_idx, batch_size=256, max_len=K):
             # Dynamically recompute p_sample if online training
 
-            if agent_by_zone == False:
-                buffer = agent_buffers[agent_idx]  # Use the buffer of the corresponding agent
-            else:
+            if agent_by_zone:
                 buffer = trajectories
+            else:
+                buffer = agent_buffers[agent_idx]  # Use the buffer of the corresponding agent
+                
             state_dim = env.state_dim
             if variant['online_training']:
                 traj_lens = np.array([len(path['observations']) for path in buffer])
@@ -266,7 +269,15 @@ def run_odt(
     
     if model_type == 'dt':
         if variant['pretrained_model']:
-            if agent_by_zone == False:
+            if agent_by_zone:
+                model = torch.load(variant['pretrained_model'],map_location='cuda:1')
+    
+                print(model.stochastic)
+                #model.stochastic = variant['stochastic']
+                model.stochastic_tanh = variant['stochastic_tanh']
+                model.approximate_entropy_samples = variant['approximate_entropy_samples']
+                model.to(device)
+            else:
                 #Make one model per car
                 for car in range(num_cars):
                     agent_models[car] = torch.load(variant['pretrained_model'],map_location='cuda:1')
@@ -275,17 +286,28 @@ def run_odt(
                     model.stochastic_tanh = variant['stochastic_tanh']
                     model.approximate_entropy_samples = variant['approximate_entropy_samples']
                     model.to(device)
-            else:
-                model = torch.load(variant['pretrained_model'],map_location='cuda:1')
-    
-                print(model.stochastic)
-                #model.stochastic = variant['stochastic']
-                model.stochastic_tanh = variant['stochastic_tanh']
-                model.approximate_entropy_samples = variant['approximate_entropy_samples']
-                model.to(device)
 
         else:
-            if agent_by_zone == False:
+            if agent_by_zone:
+                    model = DecisionTransformer(
+                    state_dim=env.state_dim,
+                    act_dim=act_dim,
+                    max_length=K,
+                    max_ep_len=max_ep_len*2,
+                    hidden_size=variant['embed_dim'],
+                    n_layer=variant['n_layer'],
+                    n_head=variant['n_head'],
+                    n_inner=4*variant['embed_dim'],
+                    activation_function=variant['activation_function'],
+                    n_positions=1024,
+                    resid_pdrop=variant['dropout'],
+                    attn_pdrop=variant['dropout'],
+                    stochastic = variant['stochastic'],
+                    remove_pos_embs=variant['remove_pos_embs'],
+                    approximate_entropy_samples = variant['approximate_entropy_samples'],
+                    stochastic_tanh=variant['stochastic_tanh']
+                )
+            else:
                 #Make one model per car
                 for car in range(num_cars):
                     agent_models[car]= DecisionTransformer(
@@ -306,31 +328,21 @@ def run_odt(
                         approximate_entropy_samples = variant['approximate_entropy_samples'],
                         stochastic_tanh=variant['stochastic_tanh']
                     )
-            else:
-                model = DecisionTransformer(
-                    state_dim=env.state_dim,
-                    act_dim=act_dim,
-                    max_length=K,
-                    max_ep_len=max_ep_len*2,
-                    hidden_size=variant['embed_dim'],
-                    n_layer=variant['n_layer'],
-                    n_head=variant['n_head'],
-                    n_inner=4*variant['embed_dim'],
-                    activation_function=variant['activation_function'],
-                    n_positions=1024,
-                    resid_pdrop=variant['dropout'],
-                    attn_pdrop=variant['dropout'],
-                    stochastic = variant['stochastic'],
-                    remove_pos_embs=variant['remove_pos_embs'],
-                    approximate_entropy_samples = variant['approximate_entropy_samples'],
-                    stochastic_tanh=variant['stochastic_tanh']
-                )
-            # else:
-            #     raise NotImplementedError
         
         warmup_steps = variant['warmup_steps']
 
-        if agent_by_zone == False:
+        if agent_by_zone:
+            model = model.to(device=device)
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=variant['learning_rate'],
+                weight_decay=variant['weight_decay'],
+            )
+            scheduler = torch.optim.lr_scheduler.LambdaLR(
+                optimizer,
+                lambda steps: min((steps+1)/warmup_steps, 1)
+            )
+        else:
             for car in range(num_cars):
                 agent_models[car] = agent_models[car].to(device=device)
                 agent_optimizers[car] = torch.optim.AdamW(
@@ -342,17 +354,6 @@ def run_odt(
                     agent_optimizers[car],
                     lambda steps: min((steps+1)/warmup_steps, 1)
                 )
-        else:
-            model = model.to(device=device)
-            optimizer = torch.optim.AdamW(
-                model.parameters(),
-                lr=variant['learning_rate'],
-                weight_decay=variant['weight_decay'],
-            )
-            scheduler = torch.optim.lr_scheduler.LambdaLR(
-                optimizer,
-                lambda steps: min((steps+1)/warmup_steps, 1)
-            )
     
         if variant['online_training']:
             assert(variant['pretrained_model'] is not None), "Must specify pretrained model to perform online finetuning"
@@ -396,7 +397,21 @@ def run_odt(
             loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg, r, a_log_prob, entropies: torch.mean((a_hat - a)**2)
     
         if model_type == 'dt':
-            if agent_by_zone == False:
+            if agent_by_zone:
+                trainer = SequenceTrainer(
+                    model=model,
+                    optimizer=optimizer,
+                    batch_size=batch_size,
+                    get_batch=get_batch,
+                    scheduler=scheduler,
+                    loss_fn=loss_fn,
+                    log_entropy_multiplier=log_entropy_multiplier,
+                    entropy_loss_fn=entropy_loss_fn,
+                    multiplier_optimizer=multiplier_optimizer,
+                    multiplier_scheduler=multiplier_scheduler,
+                    eval_fns=[eval_episodes(tar) for tar in env_targets],
+                )
+            else:
                 for car in range(num_cars):
                     agent_trainers[car] = SequenceTrainer(
                         model=agent_models[car],
@@ -412,20 +427,7 @@ def run_odt(
                         multiplier_scheduler=multiplier_scheduler,
                         eval_fns=[eval_episodes(tar) for tar in env_targets],
                     )
-            else: 
-                trainer = SequenceTrainer(
-                    model=model,
-                    optimizer=optimizer,
-                    batch_size=batch_size,
-                    get_batch=get_batch,
-                    scheduler=scheduler,
-                    loss_fn=loss_fn,
-                    log_entropy_multiplier=log_entropy_multiplier,
-                    entropy_loss_fn=entropy_loss_fn,
-                    multiplier_optimizer=multiplier_optimizer,
-                    multiplier_scheduler=multiplier_scheduler,
-                    eval_fns=[eval_episodes(tar) for tar in env_targets],
-                )
+
         if log_to_wandb:
             wandb.init(
                 name= (f' Seed: {seed} - Zone: {env_idx}'),
@@ -484,7 +486,7 @@ def run_odt(
                         outputs = trainer.train_iteration(
                             num_steps=variant['num_steps_per_iter'],
                             iter_num=iter + 1,
-                            print_logs=True
+                            print_logs=variant['print_logs']
                         )
                         if log_to_wandb:
                             wandb.log(outputs)
@@ -501,7 +503,7 @@ def run_odt(
                             outputs = agent_trainers[car_num].train_iteration(
                                 num_steps=variant['num_steps_per_iter'],
                                 iter_num=iter + 1,
-                                print_logs=True
+                                print_logs=variant['print_logs']
                             )
                             new_trajectories = None
                             ret = None
