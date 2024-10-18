@@ -108,7 +108,6 @@ def evaluate_episode_rtg(
                     use_means=use_means,
                     custom_max_length=eval_context
                 )
-                #agent_models[car].to(device='cpu')
 
             car_traj['actions'] = torch.cat([car_traj['actions'], action.unsqueeze(0).detach()], dim=0)
             action_sig = torch.sigmoid(action)
