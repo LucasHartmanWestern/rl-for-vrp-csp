@@ -11,6 +11,7 @@ from datetime import datetime
 import numpy as np
 from evaluation import evaluate
 import pickle
+import shutil
 warnings.filterwarnings("ignore")
 
 try:
@@ -106,6 +107,9 @@ def train_rl_vrp_csp(args):
         metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
 
         print(f"Saving metrics to base path: {metrics_base_path}")
+
+        if os.path.exists(f'{metrics_base_path}/train') and run_mode == "Training":
+            shutil.rmtree(f'{metrics_base_path}/train')
 
         # Assign GPUs to zones in a round-robin fashion
         n_zones = len(env_c['coords'])
