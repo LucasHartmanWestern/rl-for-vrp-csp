@@ -66,7 +66,7 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
     aggregation_count = federated_c['aggregation_count']
     
     # Decay epsilon such that by the midway point it is 0.1
-    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 2))
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 5))
 
     avg_rewards = []
 
