@@ -236,7 +236,7 @@ def train_rl_vrp_csp(args):
 
                 processes = []
                 for ind, charger_list in enumerate(chargers):
-                    process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
+                    process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                         all_routes[ind], date, action_dim, global_weights, aggregate_step,\
                                         ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -317,7 +317,7 @@ def train_rl_vrp_csp(args):
 
             processes = []
             for ind, charger_list in enumerate(chargers):
-                process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
+                process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                     all_routes[ind], date, action_dim, global_weights, 0,\
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -375,13 +375,13 @@ def train_rl_vrp_csp(args):
         if not os.path.exists(f'{metrics_base_path}/train'):
             os.makedirs(f'{metrics_base_path}/train')
 
-        # Save all metrics from training into a file
-        if eval_c['save_data']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
+        # # Save all metrics from training into a file
+        # if eval_c['save_data']:
+        #     evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
 
-        # Generate the plots for the various metrics
-        if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
+        # # Generate the plots for the various metrics
+        # if eval_c['generate_plots']:
+        #     evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
 
         et = time.time() - start_time
         to_print = f"Total time elapsed for this run"+\
@@ -401,7 +401,7 @@ def train_rl_vrp_csp(args):
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
 
-def train_route(experiment_number, chargers, environment, routes, date, action_dim, global_weights,
+def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, agent_by_zone, save_offline_data, train_model):
 
@@ -458,9 +458,10 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
-            train(experiment_number, chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
-                  ind, sub_seed, main_seed, devices, agent_by_zone, fixed_attributes, verbose,\
-                  display_training_times, torch.float32, save_offline_data, train_model)
+            train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
+                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
+                  agent_by_zone, fixed_attributes, verbose, display_training_times, torch.float32, \
+                  save_offline_data, train_model)
 
         # Save results of training
         st = time.time()

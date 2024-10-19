@@ -11,11 +11,13 @@ import random
 from agents.ppo_agent import ActorCritic, compute_gae, ppo_update
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
+from evaluation import evaluate
+
 
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "action", "log_prob", "reward", "next_state", "done"])
 
-def train_ppo(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
@@ -58,6 +60,7 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
     num_episodes = nn_c['num_episodes'] if train_model else 1
+    eps_per_save = int(nn_c['eps_per_save'])
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
@@ -416,6 +419,15 @@ def train_ppo(experiment_number, chargers, environment, routes, date, action_dim
 
                     # Save the networks at the end of training
                     torch.save(actor_critics[agent_ind].state_dict(), f'{base_path}/actor_critic_{agent_ind}.pth')
+
+        if i % eps_per_save == 0 and i > 0 and train_model: # Save metrics data
+            # Create metrics path if it does not exist
+            metrics_path = f"{metrics_base_path}/train"
+            if not os.path.exists(metrics_path):
+                os.makedirs(metrics_path)
+
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+            metrics = []
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()
