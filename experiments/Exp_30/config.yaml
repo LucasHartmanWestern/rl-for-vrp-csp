@@ -5,9 +5,9 @@
 
 algorithm_settings:
     #Currently available options DQN, CMA_optimizer, ODT 
-    algorithm: 'CMA_optimizer' #'DQN', #'ODT', #'PPO', #'DDPG' #'DQN' #
+    algorithm: 'DQN' #'ODT', #'PPO', #'DDPG' #'DQN' # 'CMA_optimizer' #
     # Decision making agent definition
-    agent_by_zone: False # True if using one agent for each zone, and false using a agent for each car
+    agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
 
 federated_learning_settings:
     aggregation_count: 5 # Amount of aggregation steps for federated learning
@@ -19,7 +19,7 @@ federated_learning_settings:
 
 ############ Environment Settings ############
 environment_settings:
-    seed: 2020 #[1234, 5555, 2020, 5678, 9101] # Used for reproducibility
+    seed: 5555 #[1234, 5555, 2020, 5678, 9101] # Used for reproducibility
     num_of_cars: 100 #150 # Num of cars in simulation
     num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     action_dim: 3 # Multiplied by the number of chargers to represent how many output neurons there are for each NN
@@ -30,7 +30,7 @@ environment_settings:
     coords: 
         - [43.02120034946083, -81.28349087468504] # North London
         - [43.004969336049854, -81.18631870502043] # East London
-        # - [42.95923445066671, -81.26016049362336] # South London
+        - [42.95923445066671, -81.26016049362336] # South London
 #        - [42.98111190139387, -81.30953935839466] # West London
 #        - [42.9819404397449, -81.2508736429095] # Central London
     
@@ -44,6 +44,7 @@ environment_settings:
     increase_rate: 12500 
     max_sim_steps: 50
     max_mini_sim_steps: 10
+
 
 ############ Evaluation Settings ############
 eval_config:
@@ -63,11 +64,11 @@ eval_config:
     continue_training: False # Set to true if you want the option to continue training after a full training loop completes
 
     #path to store data from experiments
-    save_path_metrics: 'metrics/Experiment'
+    save_path_metrics: '../../../storage_1/metrics/Exp'
 
 ############ Hyperparameters ############
 nn_hyperparameters:
-    num_episodes: 1000 # Amount of training episodes per session
+    num_episodes: 2000 # Amount of training episodes per session
     learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.999 # Present value of future rewards
@@ -76,6 +77,9 @@ nn_hyperparameters:
     buffer_limit: 150 # Max number of experiences to store in a buffer
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
+
+    log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
+    num_epochs: 1 # Amount of epochs to train the neural network
 
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
@@ -86,7 +90,7 @@ nn_hyperparameters:
 cma_parameters:
     population_dimension: 20
     initial_sigma: 0.1
-    max_generations: 200 #50 # Amount of training episodes per session
+    max_generations: 50 # Amount of training episodes per session
     #submodel inside cma agent
     model_type: 'optimizer'
 

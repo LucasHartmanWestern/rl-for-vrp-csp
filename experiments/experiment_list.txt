@@ -5,13 +5,13 @@ Each experiment directory should contain:
 - `description.txt`: A description of the experiment.
 - `Experiment Analysis.ipynb`: A notebook for analyzing the results of the experiment.
 
-The first 18 experiments are used to determine the number of episodes and aggregations to use in each permutation.
+The first 27 experiments are used to determine the number of episodes and aggregations to use in each permutation.
 
 Set Name: Find Plateau DQN [1-9]
 Experiment 1:
 - Model: DQN
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -19,7 +19,7 @@ Experiment 1:
 Experiment 2:
 - Model: DQN
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -27,7 +27,7 @@ Experiment 2:
 Experiment 3:
 - Model: DQN
 - Seed: 2020
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -35,7 +35,7 @@ Experiment 3:
 Experiment 4:
 - Model: DQN
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -43,7 +43,7 @@ Experiment 4:
 Experiment 5:
 - Model: DQN
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -51,7 +51,7 @@ Experiment 5:
 Experiment 6:
 - Model: DQN
 - Seed: 2020
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -59,7 +59,7 @@ Experiment 6:
 Experiment 7:
 - Model: DQN
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
@@ -67,7 +67,7 @@ Experiment 7:
 Experiment 8:
 - Model: DQN
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
@@ -75,7 +75,7 @@ Experiment 8:
 Experiment 9:
 - Model: DQN
 - Seed: 2020
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
@@ -84,7 +84,7 @@ Set Name: Find Plateau PPO [10-18]
 Experiment 10:
 - Model: PPO
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -92,7 +92,7 @@ Experiment 10:
 Experiment 11:
 - Model: PPO
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -100,7 +100,7 @@ Experiment 11:
 Experiment 12:
 - Model: PPO
 - Seed: 2020
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 10000
 - Aggregations: 1
@@ -108,7 +108,7 @@ Experiment 12:
 Experiment 13:
 - Model: PPO
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -116,7 +116,7 @@ Experiment 13:
 Experiment 14:
 - Model: PPO
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -124,7 +124,7 @@ Experiment 14:
 Experiment 15:
 - Model: PPO
 - Seed: 2020
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 2000
 - Aggregations: 5
@@ -132,7 +132,7 @@ Experiment 15:
 Experiment 16:
 - Model: PPO
 - Seed: 1234
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
@@ -140,7 +140,7 @@ Experiment 16:
 Experiment 17:
 - Model: PPO
 - Seed: 5555
-- Season: spring
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
@@ -148,87 +148,160 @@ Experiment 17:
 Experiment 18:
 - Model: PPO
 - Seed: 2020
-- Season: spring
+- Season: winter
+- Agent-per-car
+- Episodes: 200
+- Aggregations: 50
+
+Set Name: Find Plateau PPO with 1 epoch instead of 10 [10-18]
+Experiment 19:
+- Model: PPO
+- Seed: 1234
+- Season: winter
+- Agent-per-car
+- Episodes: 10000
+- Aggregations: 1
+
+Experiment 20:
+- Model: PPO
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+- Episodes: 10000
+- Aggregations: 1
+
+Experiment 21:
+- Model: PPO
+- Seed: 2020
+- Season: winter
+- Agent-per-car
+- Episodes: 10000
+- Aggregations: 1
+
+Experiment 22:
+- Model: PPO
+- Seed: 1234
+- Season: winter
+- Agent-per-car
+- Episodes: 2000
+- Aggregations: 5
+
+Experiment 23:
+- Model: PPO
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+- Episodes: 2000
+- Aggregations: 5
+
+Experiment 24:
+- Model: PPO
+- Seed: 2020
+- Season: winter
+- Agent-per-car
+- Episodes: 2000
+- Aggregations: 5
+
+Experiment 25:
+- Model: PPO
+- Seed: 1234
+- Season: winter
+- Agent-per-car
+- Episodes: 200
+- Aggregations: 50
+
+Experiment 26:
+- Model: PPO
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+- Episodes: 200
+- Aggregations: 50
+
+Experiment 27:
+- Model: PPO
+- Seed: 2020
+- Season: winter
 - Agent-per-car
 - Episodes: 200
 - Aggregations: 50
 
 There are also 12 experiments run to demonstrate the effectiveness of using one agent per car instead of one agent per zone.
 
-Set Name: Demonstrate Effectiveness of Agent-per-car [19-30]
-Experiment 19:
-- Model: DQN
-- Seed: 1234
-- Season: spring
-- Agent-per-zone
-
-Experiment 20:
-- Model: DQN
-- Seed: 1234
-- Season: spring
-- Agent-per-car
-
-Experiment 21:
-- Model: DQN
-- Seed: 5555
-- Season: spring
-- Agent-per-zone
-
-Experiment 22:
-- Model: DQN
-- Seed: 5555
-- Season: spring
-- Agent-per-car
-
-Experiment 23:
-- Model: CMA
-- Seed: 1234
-- Season: spring
-- Agent-per-zone
-
-Experiment 24:
-- Model: CMA
-- Seed: 1234
-- Season: spring
-- Agent-per-car
-
-Experiment 25:
-- Model: CMA
-- Seed: 5555
-- Season: spring
-- Agent-per-zone
-
-Experiment 26:
-- Model: CMA
-- Seed: 5555
-- Season: spring
-- Agent-per-car
-
-Experiment 27:
-- Model: DQN + ODT
-- Seed: 1234
-- Season: spring
-- Agent-per-zone
-
+Set Name: Demonstrate Effectiveness of Agent-per-car [28-39]
 Experiment 28:
-- Model: DQN + MADT
+- Model: DQN
 - Seed: 1234
-- Season: spring
-- Agent-per-car
+- Season: winter
+- Agent-per-zone
 
 Experiment 29:
-- Model: DQN + ODT
-- Seed: 5555
-- Season: spring
-- Agent-per-zone
-
-Experiment 30:
-- Model: DQN + MADT
-- Seed: 5555
-- Season: spring
+- Model: DQN
+- Seed: 1234
+- Season: winter
 - Agent-per-car
 
-Experiments 31 and onwards are combinations of the following parameters.
+Experiment 30:
+- Model: DQN
+- Seed: 5555
+- Season: winter
+- Agent-per-zone
+
+Experiment 31:
+- Model: DQN
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+
+Experiment 32:
+- Model: CMA
+- Seed: 1234
+- Season: winter
+- Agent-per-zone
+
+Experiment 33:
+- Model: CMA
+- Seed: 1234
+- Season: winter
+- Agent-per-car
+
+Experiment 34:
+- Model: CMA
+- Seed: 5555
+- Season: winter
+- Agent-per-zone
+
+Experiment 35:
+- Model: CMA
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+
+Experiment 36:
+- Model: DQN + ODT
+- Seed: 1234
+- Season: winter
+- Agent-per-zone
+
+Experiment 37:
+- Model: DQN + MADT
+- Seed: 1234
+- Season: winter
+- Agent-per-car
+
+Experiment 38:
+- Model: DQN + ODT
+- Seed: 5555
+- Season: winter
+- Agent-per-zone
+
+Experiment 39:
+- Model: DQN + MADT
+- Seed: 5555
+- Season: winter
+- Agent-per-car
+
+Experiments 40 and onwards are combinations of the following parameters.
 
 There is one experiment for each combination of the following parameters:
 - Model: [DQN, DDPG, POLYGRAD, DQN + ODT, DDPG + ODT, POLYGRAD + ODT, ALL + ODT, DQN + MADT, DDPG + MADT, POLYGRAD + MADT, ALL + MADT, CMA] (12 models)
