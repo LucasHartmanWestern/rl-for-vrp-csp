@@ -211,7 +211,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
                         f'Generation: {generation + 1}/{cma_info.max_generation}) - avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, date, elapsed_time)
 
-        if generation % eps_per_save == 0 and generation > 0 and train_model: # Save metrics data
+        if (generation + 1) % eps_per_save == 0 and generation > 0 and train_model: # Save metrics data
             # Create metrics path if it does not exist
             metrics_path = f"{metrics_base_path}/train"
             if not os.path.exists(metrics_path):

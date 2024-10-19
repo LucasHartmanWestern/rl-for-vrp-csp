@@ -79,6 +79,8 @@ nn_hyperparameters:
     max_num_timesteps: 300 # Max amount of minutes per agent episode
     layers: [128, 64, 64] # Neural network hidden layers
 
+    eps_per_save: 200 # How many episodes can go by before saving
+
     log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
     num_epochs: 10 # Amount of epochs to train the neural network
 

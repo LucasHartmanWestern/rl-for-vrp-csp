@@ -251,13 +251,13 @@ def train_rl_vrp_csp(args):
                     process.join()
 
                 rewards = []
-                for metric in process_metrics:
-                    metric = metric[0]
-                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                        f" for aggregation: {metric['aggregation']+1}"
-                    print(to_print)
-                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                        print(to_print, file=file)
+                # for metric in process_metrics:
+                #     metric = metric[0]
+                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                #         f" for aggregation: {metric['aggregation']+1}"
+                #     print(to_print)
+                #     with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                #         print(to_print, file=file)
                         
                 print("Join Weights")
 
