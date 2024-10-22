@@ -1,0 +1,10 @@
+
+### Experiment 55: ###
+--------------------------------
+Seed: 2020
+Model: ODT + PPO
+Season: winter
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50

@@ -46,7 +46,8 @@ for experiment in experiment_list:
     if algorithm in algorithm_time_mapping:
         calculated_time = algorithm_time_mapping[algorithm] * total_episodes
     else:
-        raise Exception(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
+        print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
+        continue
 
     data_dir = f"/home/hartman/scratch/metrics/Exp"
 
@@ -55,14 +56,14 @@ for experiment in experiment_list:
 #SBATCH --job-name=Exp_{experiment}
 #SBATCH --output=experiments/Exp_{experiment}/output.log
 #SBATCH --error=experiments/Exp_{experiment}/error.log
+#SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={num_gpus * 2}
 #SBATCH --gpus-per-node={num_gpus}
 #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
-#SBATCH --mem=128G
+#SBATCH --mem=64G
 
 echo "Starting training for experiment {experiment}"
-nvidia-smi
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
