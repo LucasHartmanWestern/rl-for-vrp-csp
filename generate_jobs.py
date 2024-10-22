@@ -56,7 +56,6 @@ for experiment in experiment_list:
 #SBATCH --job-name=Exp_{experiment}
 #SBATCH --output=experiments/Exp_{experiment}/output.log
 #SBATCH --error=experiments/Exp_{experiment}/error.log
-#SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={num_gpus * 2}
 #SBATCH --gpus-per-node={num_gpus}
