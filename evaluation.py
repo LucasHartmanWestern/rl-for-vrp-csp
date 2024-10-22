@@ -5,7 +5,7 @@ import time
 from data_loader import save_to_csv, read_csv_data
 import mplcursors
 
-def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path):
+def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False):
     if purpose == 'save':
 
         agent_data = []
@@ -16,9 +16,51 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
         st = time.time()
 
-        # Flatten the data
-        for zone_agg in metrics:
-            for episode in zone_agg:
+        if not append:
+
+            # Flatten the data
+            for zone_agg in metrics:
+                for episode in zone_agg:
+                    # Loop through sim steps and stations
+                    for step_ind in range(len(episode['traffic'])):
+                        for station_ind in range(len(episode['traffic'][0])):
+                            station_data.append({
+                                "episode": episode['episode'],
+                                "timestep": episode['timestep'],
+                                "done": episode['done'],
+                                "zone": episode['zone'] + 1,
+                                "aggregation": episode['aggregation'],
+                                "simulation_step": step_ind,
+                                "station_index": station_ind,
+                                "traffic": episode['traffic'][step_ind][station_ind]
+                            })
+
+                    # Loop through the agents in each zone
+                    for agent_ind, car_model in enumerate(car_models[episode['zone']]):
+
+                        agent_data.append({
+                            "episode": episode['episode'],
+                            "timestep": episode['timestep'],
+                            "done": episode['done'],
+                            "zone": episode['zone'] + 1,
+                            "aggregation": episode['aggregation'],
+                            "agent_index": agent_ind,
+                            "car_model": car_model,
+                            "distance": episode['distances'][-1][agent_ind] * 100,
+                            "reward": episode['rewards'][agent_ind],
+                            "duration": np.where(np.array(episode['distances']).T[agent_ind] == episode['distances'][-1][agent_ind])[0][0],
+                            "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
+                            "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
+                            "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
+                            "origin": episode['paths'][0][agent_ind].tolist(),
+                            "destination": episode['paths'][-1][agent_ind].tolist(),
+                            "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
+                            "timestep_real_world_time": episode['timestep_real_world_time']
+                        })
+
+        else:
+            # Flatten the data
+            for episode in metrics:
 
                 # Loop through sim steps and stations
                 for step_ind in range(len(episode['traffic'])):
@@ -57,19 +99,20 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "timestep_real_world_time": episode['timestep_real_world_time']
                     })
 
+
         et = time.time() - st
 
-        if verbose:
+        if verbose and not append:
             print(f'\nSpent {et:.3f} seconds reformatting the results for evaluation\n')
 
         st = time.time()
 
-        save_to_csv(agent_data, f'{base_path}_agent_metrics.csv')
-        save_to_csv(station_data, f'{base_path}_station_metrics.csv')
+        save_to_csv(agent_data, f'{base_path}_agent_metrics.csv', append)
+        save_to_csv(station_data, f'{base_path}_station_metrics.csv', append)
 
         et = time.time() - st
 
-        if verbose: print(f'\nSpent {et:.3f} seconds saving the results for evaluation\n')
+        if verbose and not append: print(f'\nSpent {et:.3f} seconds saving the results for evaluation\n')
 
     if purpose == 'display':
 

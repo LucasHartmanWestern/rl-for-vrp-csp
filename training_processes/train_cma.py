@@ -5,12 +5,15 @@ import copy
 import torch
 import numpy as np
 
+from data_loader import load_config_file
+
 from agents.cma_agent import CMAAgent
+from evaluation import evaluate
 
 
 from merl_env._pathfinding import haversine
 
-def train_cma(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
+def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
               zone_index, seed, main_seed, device, agent_by_zone, fixed_attributes, verbose,
               display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
     """
@@ -55,6 +58,12 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
     state_dimension = (environment.num_chargers * 3 * 2) + 4  # Calculate the state dimension
     model_indices = environment.info['model_indices']
+
+    # Getting Neural Network parameters
+    config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
+    nn_c = load_config_file(config_fname)['nn_hyperparameters']
+    eps_per_save = int(nn_c['eps_per_save'])
+    num_episodes = nn_c['num_episodes'] if train_model else 1
 
     num_cars = environment.num_cars
     num_agents = 1 if agent_by_zone else num_cars  # Determine number of agents based on assignment mode
@@ -201,6 +210,15 @@ def train_cma(experiment_number, chargers, environment, routes, date, action_dim
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
                         f'Generation: {generation + 1}/{cma_info.max_generation}) - avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, date, elapsed_time)
+
+        if (generation + 1) % eps_per_save == 0 and generation > 0 and train_model: # Save metrics data
+            # Create metrics path if it does not exist
+            metrics_path = f"{metrics_base_path}/train"
+            if not os.path.exists(metrics_path):
+                os.makedirs(metrics_path)
+
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+            metrics = []
 
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:

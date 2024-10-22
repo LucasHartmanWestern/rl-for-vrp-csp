@@ -7,6 +7,8 @@ import os
 import time
 import copy
 
+from evaluation import evaluate
+
 from agents.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
@@ -14,7 +16,7 @@ from merl_env._pathfinding import haversine
 # Define the experience tuple
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
-def train_dqn(experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
+def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
@@ -64,9 +66,11 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
     aggregation_count = federated_c['aggregation_count']
+
+    eps_per_save = int(nn_c['eps_per_save'])
     
     # Decay epsilon such that by the midway point it is 0.1
-    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 2))
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 5))
 
     avg_rewards = []
 
@@ -359,6 +363,15 @@ def train_dqn(experiment_number, chargers, environment, routes, date, action_dim
                     # Save the networks at the end of training
                     save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
                     save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
+
+        if (i + 1) % eps_per_save == 0 and i > 0 and train_model: # Save metrics data
+            # Create metrics path if it does not exist
+            metrics_path = f"{metrics_base_path}/train"
+            if not os.path.exists(metrics_path):
+                os.makedirs(metrics_path)
+
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+            metrics = []
 
         #Wraping things at end of each episode
         avg_reward = episode_rewards.sum(axis=0).mean()

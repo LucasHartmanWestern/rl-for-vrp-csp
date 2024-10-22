@@ -185,3 +185,4 @@ cython_debug/
 eval/
 train/
 /myenv
+/merl_2_venv

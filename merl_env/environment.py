@@ -7,12 +7,17 @@ import copy
 import requests
 import datetime
 from geopy.distance import geodesic
+import os
+import csv
 
-from ._helpers_routing import *
-from ._pathfinding import dijkstra, build_graph, haversine
-from .agent_info import agent_info
+try:
+    from ._helpers_routing import *
+    from ._pathfinding import dijkstra, build_graph, haversine
+    from .agent_info import agent_info
+    from data_loader import load_config_file
+except ImportError:
+    print("Cannot import local files")
 
-from data_loader import load_config_file
 
 DEBUG = False
 
@@ -62,7 +67,48 @@ def get_closest_city(lat: float, lon: float) -> dict:
 
     return closest_city
 
-def get_temperature(season: str, coords: list, rng: np.random.Generator) -> float:
+def save_temps(coords_list: list, seed_list: list):
+    # Ensure the directory exists
+    os.makedirs('merl_env/temps', exist_ok=True)
+    
+    # Define the CSV file path
+    csv_file_path = 'merl_env/temps/temperatures.csv'
+    
+    # Open the CSV file for writing
+    with open(csv_file_path, 'w', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        
+        # Write the header row
+        csvwriter.writerow(['latitude', 'longitude', 'season', 'seed', 'temperature'])
+        
+        # Loop through every combination of coord, season, and seed then save the temperature to the CSV file
+        for coords in coords_list:
+            for seed in seed_list:
+                for season in ['spring', 'summer', 'autumn', 'winter']:
+
+                    temp = get_temperature(season, coords, np.random.default_rng(seed), seed)
+                    csvwriter.writerow([coords[0], coords[1], season, seed, temp])
+
+def get_temps_from_file(coords: list, seed: int, season: str):
+    # Define the CSV file path
+    csv_file_path = 'merl_env/temps/temperatures.csv'
+    
+    # Open the CSV file for reading
+    with open(csv_file_path, 'r') as csvfile:
+        csvreader = csv.DictReader(csvfile)
+        
+        # Loop through the rows to find the matching entry
+        for row in csvreader:
+            if (float(row['latitude']) == coords[0] and 
+                float(row['longitude']) == coords[1] and 
+                row['season'] == season and 
+                int(row['seed']) == seed):
+                return float(row['temperature'])
+    
+    # If no matching entry is found, raise an exception
+    raise Exception("Temperature data not found in CSV file")
+
+def get_temperature(season: str, coords: list, rng: np.random.Generator, seed: int) -> float:
     """
     Get the average temperature for the given season and coordinates.
 
@@ -100,7 +146,7 @@ def get_temperature(season: str, coords: list, rng: np.random.Generator) -> floa
         day = rng.integers(1, 28)  # Assuming 28 days to avoid issues with different month lengths
         date = datetime.date(2023, month, day).isoformat()
         
-        try:
+        try:        
             response = requests.get(
                 closest_city['url'],
                 params={
@@ -121,10 +167,15 @@ def get_temperature(season: str, coords: list, rng: np.random.Generator) -> floa
                             temperatures.append(temp)
             else:
                 print(f"No temperature data available for date {date}: {data}")
-        except requests.exceptions.RequestException as e:
-            print(f"Request failed for date {date}: {e}")
-        except ValueError as e:
-            print(f"Error processing JSON response for date {date}: {e}")
+        except requests.exceptions.RequestException:
+            print(f"Temperature request failed for date {date}. Using locally saved temp data instead.")
+            return get_temps_from_file(coords, seed, season)
+        except ValueError:
+            print(f"Error processing JSON response for date {date}. Using locally saved temp data instead.")
+            return get_temps_from_file(coords, seed, season)
+        except Exception:
+            print(f"Generic error for temperature request on date {date}. Using locally saved temp data instead.")
+            return get_temps_from_file(coords, seed, season)
 
     # Raise an exception if no temperature data was fetched
     if not temperatures:
@@ -138,12 +189,13 @@ class EnvironmentClass:
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, seed: int, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
         Parameters:
             config_fname (str): Path to the configuration file.
+            seed (int): Seed for getting the temp
             sub_seed (int): Seed for random number generator.
             zone_coords (list): Coordinates of the center of the zone.
             device (torch.device): Device to run tensor operations (CPU or CUDA).
@@ -158,7 +210,7 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        self.temperature = get_temperature(config['season'], zone_coords, rng)
+        self.temperature = get_temperature(config['season'], zone_coords, rng, seed)
 
         self.init_ev_info(config, self.temperature, rng)
 
@@ -659,3 +711,13 @@ class EnvironmentClass:
         self.store_paths = []
         self.store_charges_needed = []
         self.store_local_paths = []
+
+if __name__ == "__main__":
+    seeds = [1234, 5555, 2020, 5678, 9101]
+    coords_list = [[43.02120034946083, -81.28349087468504],
+                   [43.004969336049854, -81.18631870502043],
+                   [42.95923445066671, -81.26016049362336],
+                   [42.98111190139387, -81.30953935839466],
+                   [42.9819404397449, -81.2508736429095]]
+    
+    save_temps(coords_list, seeds)
