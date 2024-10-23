@@ -2,6 +2,7 @@
 #SBATCH --job-name=Exp_1
 #SBATCH --output=experiments/Exp_1/output.log
 #SBATCH --error=experiments/Exp_1/error.log
+#SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --gpus-per-node=3
