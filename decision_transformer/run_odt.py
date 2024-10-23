@@ -6,6 +6,8 @@ import pickle
 import pathlib
 import wandb  # optional, only if you use Weights and Biases for logging
 import csv
+import time
+
 
 from .evaluation.evaluate_episodes import evaluate_episode_rtg
 from .models.decision_transformer import DecisionTransformer
@@ -95,19 +97,18 @@ def eval_episodes(target_rew, num_eval_episodes, env, chargers, routes, act_dim,
                   agent_models, agent_by_zone, max_ep_len, scale, mode, state_mean, state_std, device, 
                   use_means, eval_context):
     returns, lengths = [], []
-    for _ in range(num_eval_episodes):
-        with torch.no_grad():
-            print(f'target_rew: {target_rew}')
-            ret, length = evaluate_episode_rtg(
-                env, chargers, routes, act_dim, fixed_attributes, model, agent_models, agent_by_zone,
-                max_ep_len=max_ep_len, scale=scale, target_return=target_rew / scale, mode=mode,
-                state_mean=state_mean, state_std=state_std, device=device, use_means=use_means,
-                eval_context=eval_context
-            )
-        ret = ret.cpu().numpy() if isinstance(ret, torch.Tensor) else ret
-        length = length.cpu().numpy() if isinstance(length, torch.Tensor) else length
-        returns.append(ret)
-        lengths.append(length)
+    
+    with torch.no_grad():
+        ret, length = evaluate_episode_rtg(
+            env, chargers, routes, act_dim, fixed_attributes, model, agent_models, agent_by_zone,
+            max_ep_len=max_ep_len, scale=scale, target_return=target_rew / scale, mode=mode,
+            state_mean=state_mean, state_std=state_std, device=device, use_means=use_means,
+            eval_context=eval_context
+        )
+    ret = ret.cpu().numpy() if isinstance(ret, torch.Tensor) else ret
+    length = length.cpu().numpy() if isinstance(length, torch.Tensor) else length
+    returns.append(ret)
+    lengths.append(length)
 
     return {
         f'target_{target_rew}_return_mean': np.mean(returns),
@@ -117,21 +118,26 @@ def eval_episodes(target_rew, num_eval_episodes, env, chargers, routes, act_dim,
     }
 
 def run_odt(
-    device,
+    devices,
     env_list,
     chargers,
     all_routes,
     act_dim,
     fixed_attributes,
-    variant ,
+    variant,
     seed,
     agent_by_zone,
     num_cars,
     exp_prefix='placeholder',
     max_ep_len=10
 ):
+    start_time = time.time()
     if agent_by_zone:
         agent_models = None
+        agent_buffers = None
+        agent_optimizers = None
+        agent_schedulers = None
+        agent_trainers = None
     else:
         agent_buffers = {i: [] for i in range(num_cars)}  # One buffer per agent
         agent_models = {}  # Dictionary to store models for each agent
@@ -147,23 +153,18 @@ def run_odt(
     #Normalization factor
     scale = 1
 
-    device = device[0]
-    # log_to_wandb = variant.get('log_to_wandb', False)
-
+    device = devices[0]
     dataset =  variant['dataset']
     model_type = variant['model_type']
     group_name = f'{dataset}'
     exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
-    # off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/offline_networks/')
-    # on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'/storage_1/epigou_storage/online_networks/')
     off_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
     on_model_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), f'')
 
     # load dataset
     #dataset_path = f"/storage_1/epigou_storage/datasets/{dataset}.pkl"
-    dataset_path = f"../Datasets/{dataset}.pkl"
-    
+    dataset_path = f"../Datasets/{dataset}.pkl"    
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -182,6 +183,8 @@ def run_odt(
     # used for input normalization
     states = np.concatenate(states, axis=0)
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+
+    #Clean up
     states = None  
     torch.cuda.empty_cache()  
 
@@ -190,7 +193,9 @@ def run_odt(
 
     num_timesteps = sum(traj_lens)
 
+    #Set target reward as max from dataset
     env_targets = [np.max(returns)]
+    target_return = env_targets[0]
 
     print('=' * 50)
     print(f'Starting new experiment: {dataset}')
@@ -260,10 +265,10 @@ def run_odt(
                 for car in range(num_cars):
                     agent_models[car] = torch.load(variant['pretrained_model'],map_location=device)
                     model = agent_models[car]
-                    print(model.stochastic)
                     model.stochastic_tanh = variant['stochastic_tanh']
                     model.approximate_entropy_samples = variant['approximate_entropy_samples']
                     model.to(device)
+        #ELSE THAN MUST BE OFFLINE TRAINING
         else:
             if agent_by_zone:
                     model = DecisionTransformer(
@@ -354,6 +359,7 @@ def run_odt(
             multiplier_scheduler = None
     
         entropy_loss_fn = None
+        #Loss Function creation
         if variant['stochastic']:
             if variant['use_entropy']:
                 if variant['target_entropy']:
@@ -367,23 +373,27 @@ def run_odt(
         else:
             loss_fn = lambda s_hat, a_hat, rtg_hat, r_hat, s, a, rtg, r, a_log_prob, entropies: torch.mean((a_hat - a)**2)
 
+        #create trainers for each model
         if model_type == 'dt':
             if agent_by_zone:
                 trainer = SequenceTrainer(
                     model=model,
                     optimizer=optimizer,
                     batch_size=batch_size,
-                    get_batch=get_batch,
+                                            get_batch=lambda agent_idx, batch_size: get_batch(agent_idx, env, agent_by_zone, trajectories, agent_buffers, 
+                                                                          state_mean, state_std, sorted_inds, variant, device, scale, 
+                                                                          starting_p_sample, act_dim, batch_size, K, max_ep_len),
                     scheduler=scheduler,
                     loss_fn=loss_fn,
                     log_entropy_multiplier=log_entropy_multiplier,
                     entropy_loss_fn=entropy_loss_fn,
                     multiplier_optimizer=multiplier_optimizer,
                     multiplier_scheduler=multiplier_scheduler,
-                    eval_fns=[eval_episodes(tar) for tar in env_targets],
+                    eval_fns=[lambda model: eval_episodes(target_return, num_eval_episodes, env, chargers, routes, act_dim, 
+                                                        fixed_attributes, model, agent_models, agent_by_zone, max_ep_len, 
+                                                        scale, mode, state_mean, state_std, device, use_means, eval_context)]
                 )
             else:
-                target_return = env_targets[0]
                 for car in range(num_cars):
                     agent_trainers[car] = SequenceTrainer(
                         model=agent_models[car],
@@ -451,7 +461,6 @@ def run_odt(
                     )
         
                     num_new_trajectories = len(new_trajectories)
-                    print(f'Num New Trajectories {num_new_trajectories}')
         
                     if agent_by_zone:       
                         if len(trajectories) + num_new_trajectories > variant['online_buffer_size']:
@@ -506,6 +515,15 @@ def run_odt(
                 torch.save(model, os.path.join(on_model_dir, model_type + '_' + exp_prefix + '.pt'))
             else:
                 torch.save(model, os.path.join(off_model_dir, model_type + '_' + exp_prefix + '.pt'))
+                
+            # Stop the timer
+            end_time = time.time()
+            
+            # Calculate elapsed time
+            elapsed_time = end_time - start_time
+            
+            # Display the elapsed time
+            print(f"Elapsed time: {elapsed_time} seconds")
 
 
 def format_data(data):

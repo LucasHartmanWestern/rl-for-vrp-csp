@@ -33,8 +33,6 @@ def evaluate_episode_rtg(
     if agent_by_zone:
         model.eval()
         model.to(device=device)
-    
-
     state_mean = torch.from_numpy(state_mean).to(device=device)
     state_std = torch.from_numpy(state_std).to(device=device)
 
@@ -98,6 +96,7 @@ def evaluate_episode_rtg(
                     custom_max_length=eval_context
                 )
             else:
+                agent_models[car].eval()
                 agent_models[car].to(device=device)
                 action = agent_models[car].get_action(
                     (car_traj['observations'].to(dtype=torch.float32) - state_mean) / state_std,
@@ -110,9 +109,7 @@ def evaluate_episode_rtg(
                 )
 
             car_traj['actions'] = torch.cat([car_traj['actions'], action.unsqueeze(0).detach()], dim=0)
-            action_sig = torch.sigmoid(action)
-            action_sig = action_sig.detach().cpu().numpy()
-    
+            action_sig = action.detach().cpu().numpy()
             env.generate_paths(action_sig, None, car)
             
         sim_done = env.simulate_routes()
