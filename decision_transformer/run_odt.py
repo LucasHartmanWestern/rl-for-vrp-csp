@@ -464,13 +464,13 @@ def run_odt(
 
 def format_data(data):
     # Initialize a defaultdict to aggregate data by unique identifiers
-    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_num': None})
+    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_idx': None})
     
     # Iterate over each data entry to aggregate the data
     for sublist in data:
         for entry in sublist:
             # Unique identifier for each car's trajectory
-            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_num'])
+            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
             
             # Aggregate data for this car's trajectory
             trajectories[identifier]['observations'].extend(entry['observations'])
@@ -481,7 +481,7 @@ def format_data(data):
             trajectories[identifier]['zone'] = entry['zone']
             trajectories[identifier]['aggregation'] = entry['aggregation']
             trajectories[identifier]['episode'] = entry['episode']
-            trajectories[identifier]['car_num'] = entry['car_num']
+            trajectories[identifier]['car_idx'] = entry['car_idx']
     
     # Convert the defaultdict to a list of dictionaries
     formatted_trajectories = list(trajectories.values())
