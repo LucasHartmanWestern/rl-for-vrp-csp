@@ -11,6 +11,7 @@ from datetime import datetime
 import numpy as np
 from evaluation import evaluate
 import pickle
+import shutil
 warnings.filterwarnings("ignore")
 
 from decision_transformer.run_odt import run_odt, format_data
@@ -57,6 +58,8 @@ def train_rl_vrp_csp(args):
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
 
+    data_dir = args.data_dir
+
     #Fire up initialization
     init_fname = 'experiments/initial_config.yaml'
     init_config = load_config_file(init_fname)
@@ -76,6 +79,11 @@ def train_rl_vrp_csp(args):
     #Should continue the training
     load_existing_model = init_config['continue_training']
 
+    # Make logs directory if it doesn't already exist
+    logs_dir = 'logs'
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
     # Run each experiment on experiments list
     for experiment_number in experiment_list:    
         config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
@@ -93,7 +101,12 @@ def train_rl_vrp_csp(args):
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
-        metrics_base_path = f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
+        metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
+
+        print(f"Saving metrics to base path: {metrics_base_path}")
+
+        if os.path.exists(f'{metrics_base_path}/train') and run_mode == "Training":
+            shutil.rmtree(f'{metrics_base_path}/train')
 
         # Assign GPUs to zones in a round-robin fashion
         n_zones = len(env_c['coords'])
@@ -131,13 +144,12 @@ def train_rl_vrp_csp(args):
         ev_info = []
         start_time = time.time()
         for area_idx in range(n_zones):
-            environment = EnvironmentClass(config_fname, chargers_seeds[area_idx], env_c['coords'][area_idx], devices[area_idx], dtype=torch.float32)
+            environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx], env_c['coords'][area_idx], device=devices[area_idx], dtype=torch.float32)
 
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
-           
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
@@ -226,7 +238,7 @@ def train_rl_vrp_csp(args):
 
                 processes = []
                 for ind, charger_list in enumerate(chargers):
-                    process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
+                    process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                         all_routes[ind], date, action_dim, global_weights, aggregate_step,\
                                         ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -241,13 +253,13 @@ def train_rl_vrp_csp(args):
                     process.join()
 
                 rewards = []
-                for metric in process_metrics:
-                    metric = metric[0]
-                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                        f" for aggregation: {metric['aggregation']+1}"
-                    print(to_print)
-                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                        print(to_print, file=file)
+                # for metric in process_metrics:
+                #     metric = metric[0]
+                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                #         f" for aggregation: {metric['aggregation']+1}"
+                #     print(to_print)
+                #     with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                #         print(to_print, file=file)
                         
                 print("Join Weights")
 
@@ -307,7 +319,7 @@ def train_rl_vrp_csp(args):
 
             processes = []
             for ind, charger_list in enumerate(chargers):
-                process = mp.Process(target=train_route, args=(experiment_number, charger_list, environment_list[ind],\
+                process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                     all_routes[ind], date, action_dim, global_weights, 0,\
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
@@ -365,13 +377,13 @@ def train_rl_vrp_csp(args):
         if not os.path.exists(f'{metrics_base_path}/train'):
             os.makedirs(f'{metrics_base_path}/train')
 
-        # Save all metrics from training into a file
-        if eval_c['save_data']:
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
+        # # Save all metrics from training into a file
+        # if eval_c['save_data']:
+        #     evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
 
-        # Generate the plots for the various metrics
-        if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
+        # # Generate the plots for the various metrics
+        # if eval_c['generate_plots']:
+        #     evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
 
         et = time.time() - start_time
         to_print = f"Total time elapsed for this run"+\
@@ -384,14 +396,15 @@ def train_rl_vrp_csp(args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"/storage_1/epigou_storage/datasets/[{seed}]-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            dataset_path = f"{metrics_base_path}/{experiment_number}[{seed}]-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            print({dataset_path})
 
             traj_format = format_data(trajectories)
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
 
-def train_route(experiment_number, chargers, environment, routes, date, action_dim, global_weights,
+def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, agent_by_zone, save_offline_data, train_model):
 
@@ -448,9 +461,10 @@ def train_route(experiment_number, chargers, environment, routes, date, action_d
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
-            train(experiment_number, chargers_copy, environment, routes, date, action_dim, global_weights, aggregate_step,\
-                  ind, sub_seed, main_seed, devices, agent_by_zone, fixed_attributes, verbose,\
-                  display_training_times, torch.float32, save_offline_data, train_model)
+            train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
+                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
+                  agent_by_zone, fixed_attributes, verbose, display_training_times, torch.float32, \
+                  save_offline_data, train_model)
 
         # Save results of training
         st = time.time()
@@ -483,7 +497,8 @@ if __name__ == '__main__':
     parser.add_argument('-c','--number_processors', type=int, default=1,help='number of processors used to run MERL')
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
-    
+    parser.add_argument('-d','--data_dir', type=str, default='', help='Directory to save data to')
+
     args = parser.parse_args()
 
     train_rl_vrp_csp(args)

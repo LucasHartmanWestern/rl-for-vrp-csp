@@ -7,6 +7,7 @@ from geopy.distance import geodesic
 import numpy as np
 import csv
 import ast  # Ensure ast is imported for literal_eval
+import os
 
 def get_charger_data():
     """
@@ -225,18 +226,22 @@ def read_excel_data(file_path, sheet_name):
     df = pd.read_excel(file_path, sheet_name=sheet_name)
     return df
 
-def save_to_csv(data, filename):
-    # Assuming data is a list of dictionaries
+def save_to_csv(data, filename, append=False):
+    mode = 'a' if append else 'w'
+    file_exists = os.path.isfile(filename)
     if data and isinstance(data[0], dict):
         keys = data[0].keys()  # Extract the headers from the first dictionary
-        with open(filename, 'w', newline='') as file:
+        with open(filename, mode, newline='') as file:
             writer = csv.DictWriter(file, fieldnames=keys)
-            writer.writeheader()  # Write header
+            if not append or not file_exists:
+                writer.writeheader()  # Write header if not appending or file doesn't exist
             writer.writerows(data)  # Write data rows
     else:
         # If data is a list of lists or other structure
-        with open(filename, 'w', newline='') as file:
+        with open(filename, mode, newline='') as file:
             writer = csv.writer(file)
+            if not append or not file_exists:
+                writer.writerow(data[0])  # Write header if not appending or file doesn't exist
             writer.writerows(data)  # Write rows for lists of lists
 
 
