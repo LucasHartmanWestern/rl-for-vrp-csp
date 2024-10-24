@@ -12,3 +12,6 @@ argparse
 requests
 cma
 plotly
+jupyterlab
+tenacity
+jupyterlab-plotly
