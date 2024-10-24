@@ -14,10 +14,7 @@ import pickle
 import shutil
 warnings.filterwarnings("ignore")
 
-try:
-    from decision_transformer.run_odt import run_odt, format_data
-except Exception as e:
-    warnings.warn("Decision Transformer not found. Skipping import.")
+from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -153,7 +150,6 @@ def train_rl_vrp_csp(args):
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
-
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
 
@@ -197,6 +193,7 @@ def train_rl_vrp_csp(args):
                 nn_c = c['odt_hyperparameters']               
                 print(f"Training using ODT - Seed {seed}")
                 chargers_copy = copy.deepcopy(chargers)
+                num_cars = c['environment_settings']['num_of_cars']
                 run_odt(devices,
                           environment_list,
                           chargers_copy,
@@ -204,8 +201,9 @@ def train_rl_vrp_csp(args):
                           action_dim,
                           eval_c['fixed_attributes'],
                           nn_c, 
-                          seed
-                         )
+                          seed,
+                          c['algorithm_settings']['agent_by_zone'],
+                          num_cars)
                 return
 
             
