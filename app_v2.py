@@ -396,7 +396,7 @@ def train_rl_vrp_csp(args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"{metrics_base_path}/{experiment_number}[{seed}]-{env_c['num_of_cars']}-{env_c['num_of_chargers']}-{federated_c['aggregation_count']}-{num_episodes}-{current_time}.pkl"
+            dataset_path = f"{metrics_base_path}/offline_data/data-{current_time}.pkl"
             print({dataset_path})
 
             traj_format = format_data(trajectories)
