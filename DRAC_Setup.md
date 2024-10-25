@@ -151,7 +151,7 @@ cd ~
 cd ../../storage_1/metrics
 ```
 
-### 2. Use SCP to retrieve data
+### 2. Retrieve metrics data
 Use the following command to copy the results from DRAC to the current directory:
 ```
 rsync -av --ignore-existing --remove-source-files <your_username>@beluga.computecanada.ca:/lustre04/scratch/<your_username>/metrics/ ./
@@ -163,3 +163,15 @@ Use the below command if you want to delete empty directories after the transfer
 ```
 ssh <your_username>@beluga.computecanada.ca 'find /lustre04/scratch/<your_username>/metrics/ -type d -empty -delete'
 ```
+
+### 4. Retrieve saved models
+Use the following command to copy the saved models from DRAC to the current directory:
+```
+rsync -av --ignore-existing --remove-source-files <your_username>@beluga.computecanada.ca:projects/def-mcapretz/<your_username>/rl-for-vrp-csp/saved_networks/ ./
+```
+Note that when using the above command, the files on DRAC that were copied will be deleted, and files that already exist on the lab server will not be copied from the DRAC server.
+
+### 5. Delete empty model directories (optional)
+Use the below command if you want to delete empty directories after the transfer:
+```
+ssh <your_username>@beluga.computecanada.ca 'find projects/def-mcapretz/<your_username>/rl-for-vrp-csp/saved_networks/ -type d -empty -delete'
