@@ -244,7 +244,7 @@ def train_rl_vrp_csp(args):
                 for ind, charger_list in enumerate(chargers):
                     process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                         all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                        ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
+                                        ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
                                         barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
                                         agent_by_zone, eval_c['save_offline_data'], True))
