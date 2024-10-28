@@ -14,7 +14,7 @@ from evaluation import evaluate
 from merl_env._pathfinding import haversine
 
 def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
-              zone_index, seed, main_seed, device, agent_by_zone, fixed_attributes, verbose,
+              zone_index, seed, main_seed, device, agent_by_zone, args, fixed_attributes, verbose,
               display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
     """
     Trains decision-making agents using the Covariance Matrix Adaptation (CMA) algorithm.
@@ -32,6 +32,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
         main_seed (int): Seed used for the overall experiment setup.
         device (torch.device): Device (CPU/GPU) where the models are trained.
         agent_by_zone (bool): Flag indicating if agents are assigned by zone or by car.
+        args (argparse.Namespace): Command-line arguments.
         fixed_attributes (dict): Fixed attributes for initializing the environment.
         verbose (bool): Flag to control the verbosity of output messages.
         display_training_times (bool): Flag to display the total training time after execution.

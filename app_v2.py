@@ -127,9 +127,13 @@ def train_rl_vrp_csp(args):
             
 
         #to ask Lucas
-        if eval_c['evaluate_on_diff_seed']:
-            print(f'Running experiments with model trained on seed {seed} on new seed {seed*5} (seed * 5)')
-            seed *= 5 # Multiply seed by 5 to get a different seed
+        if eval_c['evaluate_on_diff_seed'] or args.eval:
+            seed_options = [1234, 5555, 2020]
+            seed_index = seed_options.index(seed)
+            old_seed = seed
+            seed = seed_options[(seed_index + 1) % len(seed_options)]
+
+            print(f'Running experiments with model trained on seed {old_seed} on new seed {seed}')
 
         else:
             print(f'Running experiment {experiment_number} in {run_mode} mode with seed -> {seed}')
@@ -321,7 +325,7 @@ def train_rl_vrp_csp(args):
             for ind, charger_list in enumerate(chargers):
                 process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                     all_routes[ind], date, action_dim, global_weights, 0,\
-                                    ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
+                                    ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
                                     agent_by_zone, eval_c['save_offline_data'], False))
@@ -405,7 +409,7 @@ def train_rl_vrp_csp(args):
                 print('Offline Dataset Saved')
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
+                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
                 verbose, display_training_times, agent_by_zone, save_offline_data, train_model):
 
     """
@@ -424,6 +428,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         main_seed (int): Main seed for initializing the environment.
         num_of_cars (int): Number of agents (EVs) in the environment.
         num_of_chargers (int): Number of charging stations.
+        args (argparse.Namespace): Command-line arguments.
         fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
         local_weights_list (list): List to store the local weights of each agent.
         rewards (list): List to store the average rewards for each episode.
@@ -463,7 +468,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
                   date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
-                  agent_by_zone, fixed_attributes, verbose, display_training_times, torch.float32, \
+                  agent_by_zone, args, fixed_attributes, verbose, display_training_times, torch.float32, \
                   save_offline_data, train_model)
 
         # Save results of training
@@ -498,6 +503,7 @@ if __name__ == '__main__':
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
     parser.add_argument('-d','--data_dir', type=str, default='', help='Directory to save data to')
+    parser.add_argument('-eval', type=bool, default=False, help='Evaluate the model')
 
     args = parser.parse_args()
 

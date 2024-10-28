@@ -17,7 +17,7 @@ from merl_env._pathfinding import haversine
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
+    seed, main_seed, device, agent_by_zone, args, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 
@@ -35,6 +35,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         zone_index (int): Index of the current zone being processed.
         seed (int): Seed for reproducibility of training.
         main_seed (int): Main seed for initializing the environment.
+        args (argparse.Namespace): Command-line arguments.
         fixed_attributes (list, optional): List of fixed attributes for redefining weights in the graph.
         devices (list, optional): list of two devices to run the environment and model, default both are cpu. 
                                  device[0] for environment setting, device[1] for model trainning.
@@ -100,7 +101,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
 
         if global_weights is not None:
-            if eval_c['evaluate_on_diff_seed']:
+            if eval_c['evaluate_on_diff_zone'] or args.eval:
                 q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
                 target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
             else:
@@ -121,7 +122,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
 
             if global_weights is not None:
-                if eval_c['evaluate_on_diff_seed']:
+                if eval_c['evaluate_on_diff_zone'] or args.eval:
                     q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
                     target_q_network.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
                 else:
