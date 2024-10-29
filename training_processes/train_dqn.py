@@ -365,9 +365,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
                     save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
 
-        if (i + 1) % eps_per_save == 0 and i > 0 and train_model: # Save metrics data
+        if ((i + 1) % eps_per_save == 0 and i > 0 and train_model) or (i == num_episodes - 1): # Save metrics data
             # Create metrics path if it does not exist
-            metrics_path = f"{metrics_base_path}/train"
+            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
             if not os.path.exists(metrics_path):
                 os.makedirs(metrics_path)
 

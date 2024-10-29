@@ -44,7 +44,12 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
                     model_weights.append(w)
 
         if not nn_by_zone:
-            model_aggregates.append(aggregate_weights(model_weights))
+            if model_weights:
+                model_aggregates.append(aggregate_weights(model_weights))
+            else:
+                # Use a completely random network for that model's weights when the model is not present in the zone
+                random_weights = {key: torch.randn_like(value.float()) for key, value in zone_weights[0][0].items()}
+                model_aggregates.append(random_weights)
 
     city_aggregates = aggregate_weights(city_weights)
 
