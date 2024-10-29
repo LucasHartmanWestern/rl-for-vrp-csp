@@ -36,7 +36,7 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': 15 / 10000,
             'PPO': 40 / 10000,
-            'CMA': 10 / 100
+            'CMA': 10 / 1000
         }
     
         if algorithm in algorithm_time_mapping:
@@ -75,7 +75,7 @@ def create_job(args):
     # Enable multi-threading
     export OMP_NUM_THREADS={num_gpus * 2}
     
-    python app_v2.py -g {" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}"
+    python app_v2.py -g {" ".join(str(g) for g in range(int(num_gpus)))} -e {experiment} -d "{data_dir}"
     """
     
         # Save job script to file
@@ -89,6 +89,6 @@ if __name__ == "__main__":
     # Determine which experiments to create job config for
     parser = argparse.ArgumentParser(description="Generate job configuration files for experiments")
     parser.add_argument('-e', type=str, nargs='+', help="List of experiment numbers or 'all' to include all experiments")
-    parser.add_argument('-u', type=str, nargs='', help="user account at DRAC")
+    parser.add_argument('-u', type=str, default='hartman', help="user account at DRAC")
     args = parser.parse_args()
     create_job(args)
