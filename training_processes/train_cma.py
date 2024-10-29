@@ -263,6 +263,8 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     trajectories = []
     weights_list = [agent.get_weights() for agent in cma_agents_list]
+        
+    print(f'weight list line 265 {len(weights_list)}')
   
     return weights_list, avg_rewards, avg_output_values, metrics, trajectories
 

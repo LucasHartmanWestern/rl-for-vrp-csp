@@ -14,7 +14,7 @@ import pickle
 import shutil
 warnings.filterwarnings("ignore")
 
-from decision_transformer.run_odt import run_odt, format_data
+# from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -96,8 +96,12 @@ def train_rl_vrp_csp(args):
 
         if algorithm_dm in ["DQN", "PPO", "DDPG"]:
             num_episodes = c['nn_hyperparameters']['num_episodes']
-        elif algorithm_dm == 'CMA_optimizer':
+        elif algorithm_dm == 'CMA':
             num_episodes = c['cma_parameters']['max_generations']
+
+        #Loading transformer modules if in ODT mode
+        if algorithm_dm == 'ODT':
+            from decision_transformer.run_odt import run_odt, format_data
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
@@ -459,7 +463,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         elif algorithm_dm == 'DDPG':
             from training_processes.train_ddpg import train_ddpg as train
 
-        elif algorithm_dm == 'CMA_optimizer':
+        elif algorithm_dm == 'CMA':
             from training_processes.train_cma import train_cma as train
         
         else:
