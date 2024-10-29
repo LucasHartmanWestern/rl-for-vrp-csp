@@ -95,7 +95,7 @@ nn_hyperparameters = {
 cma_parameters = {
     "population_dimension": 20,
     "initial_sigma": 0.1,
-    "max_generations": 50,
+    "max_generations": 200,
     "model_type": 'optimizer' 
 }
 
