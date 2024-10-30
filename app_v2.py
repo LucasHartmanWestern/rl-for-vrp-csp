@@ -209,8 +209,7 @@ def train_rl_vrp_csp(args):
                 output_dir=emission_output_dir,
                 save_to_file=f"emissions_{unique_id}.csv",
                 tracking_mode='process',
-                log_level='error',
-                check_if_already_run=False
+                log_level='error'
             )
             tracker.start()
 
