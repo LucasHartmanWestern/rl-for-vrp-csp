@@ -340,7 +340,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 
-        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
+        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes # TODO: Make this a parameter
             if agent_by_zone:
                 soft_update(target_q_networks[0], q_networks[0])
 

@@ -57,26 +57,26 @@ def create_job(args):
     
         # Generate the job config files
         job_script_content = f"""#!/bin/bash
-    #SBATCH --job-name=Exp_{experiment}
-    #SBATCH --output=experiments/Exp_{experiment}/output.log
-    #SBATCH --error=experiments/Exp_{experiment}/error.log
-    #SBATCH -A rrg-kgroling
-    #SBATCH --ntasks=1
-    #SBATCH --cpus-per-task={num_cpus}
-    #SBATCH --gpus-per-node={num_gpus}
-    #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
-    #SBATCH --mem={mem_size}
-    
-    echo "Starting training for experiment {experiment}"
-    
-    module load python/3.10 cuda cudnn
-    source ~/envs/merl_env/bin/activate
-    
-    # Enable multi-threading
-    export OMP_NUM_THREADS={num_gpus * 2}
-    
-    python app_v2.py -g {" ".join(str(g) for g in range(int(num_gpus)))} -e {experiment} -d "{data_dir}"
-    """
+#SBATCH --job-name=Exp_{experiment}
+#SBATCH --output=experiments/Exp_{experiment}/output.log
+#SBATCH --error=experiments/Exp_{experiment}/error.log
+#SBATCH -A rrg-kgroling
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task={num_cpus}
+#SBATCH --gpus-per-node={num_gpus}
+#SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
+#SBATCH --mem={mem_size}
+
+echo "Starting training for experiment {experiment}"
+
+module load python/3.10 cuda cudnn
+source ~/envs/merl_env/bin/activate
+
+# Enable multi-threading
+export OMP_NUM_THREADS={num_gpus * 2}
+
+python app_v2.py -g {" ".join(str(g) for g in range(int(num_gpus)))} -e {experiment} -d "{data_dir}"
+"""
     
         # Save job script to file
         with open(f'experiments/Exp_{experiment}/train_job.sh', 'w') as job_file:
