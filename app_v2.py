@@ -198,7 +198,7 @@ def train_rl_vrp_csp(args):
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
         # Store carbon emissions data
-        emission_output_dir = f'{metrics_base_path}/{'train' if run_mode == "Training" else 'eval'}'
+        emission_output_dir = f"{metrics_base_path}/{'train' if run_mode == 'Training' else 'eval'}"
         if not os.path.exists(emission_output_dir):
             os.makedirs(emission_output_dir)
 
