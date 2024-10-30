@@ -320,6 +320,9 @@ def train_rl_vrp_csp(args):
                     # Read the temporary emissions report
                     temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
 
+                    # Remove the temporary emissions file
+                    os.remove(f"{emission_output_dir}/emissions.csv")
+
                     # Add the aggregate_step column
                     temp_df['aggregate_step'] = aggregate_step
 
