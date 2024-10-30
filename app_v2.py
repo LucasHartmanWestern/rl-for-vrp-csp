@@ -240,7 +240,7 @@ def train_rl_vrp_csp(args):
                     # Start tracking emissions
                     tracker = EmissionsTracker(
                         output_dir=emission_output_dir,
-                        save_to_file=f"emissions_report_temp.csv",  # Temporary file
+                        save_to_file=f"emissions.csv",  # Temporary file
                         tracking_mode='process',
                         log_level='error'
                     )
@@ -318,7 +318,7 @@ def train_rl_vrp_csp(args):
                     print(f"Total CO₂ emissions: {emissions} kg")
 
                     # Read the temporary emissions report
-                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions_report_temp.csv")
+                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
 
                     # Add the aggregate_step column
                     temp_df['aggregate_step'] = aggregate_step
