@@ -34,9 +34,9 @@ def create_job(args):
         # Calculate the time based on the total number of episodes
         # Note: these are rough estimates based on how long takes to train 10k episodes
         algorithm_time_mapping = {
-            'DQN': 15 / 10000,
-            'PPO': 40 / 10000,
-            'CMA': 10 / 1000
+            'DQN': 15 / 10000, # 15 hours / 10k episodes
+            'PPO': 40 / 10000, # 40 hours / 10k episodes
+            'CMA': 2 / 10000 # 2 hours / 10k generations
         }
     
         if algorithm in algorithm_time_mapping:
