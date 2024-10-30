@@ -312,6 +312,7 @@ def train_rl_vrp_csp(args):
 
                     print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n",)
 
+                finally:
                     # Stop tracking emissions
                     emissions = tracker.stop()
                     print(f"Total CO₂ emissions: {emissions} kg")
@@ -328,11 +329,6 @@ def train_rl_vrp_csp(args):
                     # Write or append the updated DataFrame to the main CSV
                     with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
                         temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
-
-                finally:
-                    # Stop tracking emissions
-                    emissions = tracker.stop()
-                    print(f"Total CO₂ emissions: {emissions} kg")
 
             # Plot the aggregated data
             if eval_c['save_aggregate_rewards']:
