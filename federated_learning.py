@@ -1,6 +1,7 @@
 import torch
 
-def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone):
+#Delete odt param once federated learning is implemented
+def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone, is_odt=False):
 
     """
     Aggregates weights from different zones and models to compute global weights for each zone-model pair.
@@ -17,6 +18,17 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
         list: A 2D list (zones x models) containing the global weights for each zone-model pair.
     """
 
+    if is_odt:
+        zone_weights = [
+    [{'weight1': torch.tensor([1.0]), 'weight2': torch.tensor([2.0])}],  # A single zone with a single model's weights
+    [{'weight1': torch.tensor([1.0]), 'weight2': torch.tensor([2.0])}]   # Another zone with the same structure
+]
+        ev_info = [
+    {'model_indices': [0]},  # First zone with model index 0
+    {'model_indices': [0]}   # Second zone with model index 0
+]
+
+    
     max_model_index = 0
 
     for info in ev_info:
