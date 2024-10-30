@@ -421,7 +421,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                     # Save the networks at the end of training
                     torch.save(actor_critics[agent_ind].state_dict(), f'{base_path}/actor_critic_{agent_ind}.pth')
 
-        if ((i + 1) % eps_per_save == 0 and i > 0 and train_model) or (i == num_episodes - 1): # Save metrics data
+        if ((i + 1) % eps_per_save == 0 and i > 0 and train_model) or (i == num_episodes - 2): # Save metrics data
             # Create metrics path if it does not exist
             metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
             if not os.path.exists(metrics_path):

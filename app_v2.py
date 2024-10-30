@@ -11,6 +11,8 @@ from datetime import datetime
 import numpy as np
 from evaluation import evaluate
 import pickle
+from codecarbon import EmissionsTracker
+import uuid
 import shutil
 warnings.filterwarnings("ignore")
 
@@ -85,7 +87,8 @@ def train_rl_vrp_csp(args):
         os.makedirs(logs_dir)
 
     # Run each experiment on experiments list
-    for experiment_number in experiment_list:    
+    for experiment_number in experiment_list:
+
         config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
         c = load_config_file(config_fname)
         env_c = c['environment_settings']
@@ -194,40 +197,142 @@ def train_rl_vrp_csp(args):
 
         print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
 
-        
-        if run_mode == "Training":
-            # to ask Ethan
-            if algorithm_dm == 'ODT':
-                nn_c = c['odt_hyperparameters']               
-                print(f"Training using ODT - Seed {seed}")
-                chargers_copy = copy.deepcopy(chargers)
-                num_cars = c['environment_settings']['num_of_cars']
-                run_odt(devices,
-                          environment_list,
-                          chargers_copy,
-                          all_routes,
-                          action_dim,
-                          eval_c['fixed_attributes'],
-                          nn_c, 
-                          seed,
-                          c['algorithm_settings']['agent_by_zone'],
-                          num_cars)
-                return
+        # Store carbon emissions data
+        emission_output_dir = f'{metrics_base_path}/carbon_reports'
+        if not os.path.exists(emission_output_dir):
+            os.makedirs(emission_output_dir)
 
-            
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
+        try:
+            unique_id = uuid.uuid4()
+            # Start tracking emissions
+            tracker = EmissionsTracker(
+                output_dir=emission_output_dir,
+                save_to_file=f"emissions_{unique_id}.csv",
+                tracking_mode='process',
+                log_level='error',
+                check_if_already_run=False
+            )
+            tracker.start()
 
-            print(f"Training using {algorithm_dm} - Seed {seed}")
+            if run_mode == "Training":
+                # to ask Ethan
+                if algorithm_dm == 'ODT':
+                    nn_c = c['odt_hyperparameters']               
+                    print(f"Training using ODT - Seed {seed}")
+                    chargers_copy = copy.deepcopy(chargers)
+                    num_cars = c['environment_settings']['num_of_cars']
+                    run_odt(devices,
+                            environment_list,
+                            chargers_copy,
+                            all_routes,
+                            action_dim,
+                            eval_c['fixed_attributes'],
+                            nn_c, 
+                            seed,
+                            c['algorithm_settings']['agent_by_zone'],
+                            num_cars)
+                    return
+
+                
+                with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                    print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
+
+                print(f"Training using {algorithm_dm} - Seed {seed}")
 
 
-            metrics = []  # Used to track all metrics
-            rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-            output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-            trajectories = []
-            global_weights = None
+                metrics = []  # Used to track all metrics
+                rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
+                output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
+                trajectories = []
+                global_weights = None
 
-            for aggregate_step in range(federated_c['aggregation_count']):
+                for aggregate_step in range(federated_c['aggregation_count']):
+
+                    manager = mp.Manager()
+                    local_weights_list = manager.list([None for _ in range(len(chargers))])
+                    process_rewards = manager.list()
+                    process_output_values = manager.list()
+                    process_metrics = manager.list()
+                    process_trajectories = manager.list()
+
+                    # Barrier for synchronization
+                    barrier = mp.Barrier(len(chargers))
+
+                    # Creating output directory
+                    folder = 'outputs/best_paths/'
+                    if not os.path.exists(folder):
+                        os.makedirs(folder)
+
+                    processes = []
+                    for ind, charger_list in enumerate(chargers):
+                        process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
+                                            all_routes[ind], date, action_dim, global_weights, aggregate_step,\
+                                            ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
+                                            local_weights_list, process_rewards, process_metrics, process_output_values,\
+                                            barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
+                                            agent_by_zone, eval_c['save_offline_data'], True))
+                        processes.append(process)
+                        process.start()
+
+                    print("Join Processes")
+
+                    for process in processes:
+                        process.join()
+
+                    rewards = []
+                    # for metric in process_metrics:
+                    #     metric = metric[0]
+                    #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                    #         f" for aggregation: {metric['aggregation']+1}"
+                    #     print(to_print)
+                    #     with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                    #         print(to_print, file=file)
+                            
+                    print("Join Weights")
+
+                    # Aggregate the weights from all local models
+                    global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
+                                                        federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                                                        agent_by_zone)
+
+                    save_global_path = f'saved_networks/Exp_{experiment_number}/'
+                    if not os.path.exists(save_global_path):
+                        os.makedirs(save_global_path)
+                    # Save the global weights
+                    torch.save(global_weights, f'{save_global_path}/global_weights.pth')
+
+                    # Extend the main lists with the contents of the process lists
+                    sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
+                    print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
+                    rewards.extend(process_rewards)
+                    output_values.extend(process_output_values)
+                    metrics.extend(process_metrics)
+                    trajectories.extend(process_trajectories)
+
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n", file=file)
+
+                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n",)
+
+                # Plot the aggregated data
+                if eval_c['save_aggregate_rewards']:
+                    save_to_csv(rewards, 'outputs/rewards.csv')
+                    save_to_csv(output_values, 'outputs/output_values.csv')
+
+                    loaded_rewards = load_from_csv('outputs/rewards.csv')
+                    loaded_output_values = load_from_csv('outputs/output_values.csv')
+
+                    plot_aggregate_reward_data(loaded_rewards)
+                    plot_aggregate_output_values_per_route(loaded_output_values)
+
+            elif run_mode == "Testing":
+                metrics = []  # Used to track all metrics
+                rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
+                output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
+                trajectories = []
+                
+                print(f"Loading saved models - Seed {seed}")
+                global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
                 manager = mp.Manager()
                 local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -239,19 +344,14 @@ def train_rl_vrp_csp(args):
                 # Barrier for synchronization
                 barrier = mp.Barrier(len(chargers))
 
-                # Creating output directory
-                folder = 'outputs/best_paths/'
-                if not os.path.exists(folder):
-                    os.makedirs(folder)
-
                 processes = []
                 for ind, charger_list in enumerate(chargers):
                     process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                        all_routes[ind], date, action_dim, global_weights, aggregate_step,\
+                                        all_routes[ind], date, action_dim, global_weights, 0,\
                                         ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
                                         barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                        agent_by_zone, eval_c['save_offline_data'], True))
+                                        agent_by_zone, eval_c['save_offline_data'], False))
                     processes.append(process)
                     process.start()
 
@@ -261,26 +361,13 @@ def train_rl_vrp_csp(args):
                     process.join()
 
                 rewards = []
-                # for metric in process_metrics:
-                #     metric = metric[0]
-                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                #         f" for aggregation: {metric['aggregation']+1}"
-                #     print(to_print)
-                #     with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                #         print(to_print, file=file)
-                        
-                print("Join Weights")
-
-                # Aggregate the weights from all local models
-                global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
-                                                    federated_c['zone_multiplier'], federated_c['model_multiplier'],\
-                                                    agent_by_zone)
-
-                save_global_path = f'saved_networks/Exp_{experiment_number}/'
-                if not os.path.exists(save_global_path):
-                    os.makedirs(save_global_path)
-                # Save the global weights
-                torch.save(global_weights, f'{save_global_path}/global_weights.pth')
+                for metric in process_metrics:
+                    metric = metric[0]
+                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                        f" for aggregation: {metric['aggregation']+1}"
+                    print(to_print)
+                    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+                        print(to_print, file=file)
 
                 # Extend the main lists with the contents of the process lists
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -290,90 +377,26 @@ def train_rl_vrp_csp(args):
                 metrics.extend(process_metrics)
                 trajectories.extend(process_trajectories)
 
-                with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n", file=file)
-
-                print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n",)
-
-            # Plot the aggregated data
-            if eval_c['save_aggregate_rewards']:
-                save_to_csv(rewards, 'outputs/rewards.csv')
-                save_to_csv(output_values, 'outputs/output_values.csv')
-
-                loaded_rewards = load_from_csv('outputs/rewards.csv')
-                loaded_output_values = load_from_csv('outputs/output_values.csv')
-
-                plot_aggregate_reward_data(loaded_rewards)
-                plot_aggregate_output_values_per_route(loaded_output_values)
-
-        elif run_mode == "Testing":
-            metrics = []  # Used to track all metrics
-            rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-            output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-            trajectories = []
-            
-            print(f"Loading saved models - Seed {seed}")
-            global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
-
-            manager = mp.Manager()
-            local_weights_list = manager.list([None for _ in range(len(chargers))])
-            process_rewards = manager.list()
-            process_output_values = manager.list()
-            process_metrics = manager.list()
-            process_trajectories = manager.list()
-
-            # Barrier for synchronization
-            barrier = mp.Barrier(len(chargers))
-
-            processes = []
-            for ind, charger_list in enumerate(chargers):
-                process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                    all_routes[ind], date, action_dim, global_weights, 0,\
-                                    ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
-                                    local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                    barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                    agent_by_zone, eval_c['save_offline_data'], False))
-                processes.append(process)
-                process.start()
-
-            print("Join Processes")
-
-            for process in processes:
-                process.join()
-
-            rewards = []
-            for metric in process_metrics:
-                metric = metric[0]
-                to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                    f" for aggregation: {metric['aggregation']+1}"
-                print(to_print)
-                with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                    print(to_print, file=file)
-
-            # Extend the main lists with the contents of the process lists
-            sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
-            print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
-            rewards.extend(process_rewards)
-            output_values.extend(process_output_values)
-            metrics.extend(process_metrics)
-            trajectories.extend(process_trajectories)
-
-            if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
-                attr_label = 'learned'
-            else:
-                fixed_attributes = eval_c['fixed_attributes']
-                attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
+                if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
+                    attr_label = 'learned'
+                else:
+                    fixed_attributes = eval_c['fixed_attributes']
+                    attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
 
-            if not os.path.exists(f'{metrics_base_path}/eval'):
-                os.makedirs(f'{metrics_base_path}/eval')
-            # Save all metrics from evaluation into a file
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
+                if not os.path.exists(f'{metrics_base_path}/eval'):
+                    os.makedirs(f'{metrics_base_path}/eval')
+                # Save all metrics from evaluation into a file
+                evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
 
-            # Generate the plots for the various metrics
-            if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
+                # Generate the plots for the various metrics
+                if eval_c['generate_plots']:
+                    evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
 
+        finally:
+            # Stop tracking emissions
+            emissions = tracker.stop()
+            print(f"Total CO₂ emissions: {emissions} kg")
 
         if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
             attr_label = 'learned'
