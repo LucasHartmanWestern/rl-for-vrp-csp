@@ -287,7 +287,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
                 "traffic": sim_traffic,
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
-                "rewards": rewards,
+                "rewards": time_step_rewards,
                 "best_reward": best_avg,
                 "timestep_real_world_time": time_step_time,
                 "done": sim_done

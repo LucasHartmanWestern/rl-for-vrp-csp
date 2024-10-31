@@ -316,22 +316,24 @@ def train_rl_vrp_csp(args):
                     # Stop tracking emissions
                     emissions = tracker.stop()
                     print(f"Total CO₂ emissions: {emissions} kg")
+                    try:
+                        # Read the temporary emissions report
+                        temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
 
-                    # Read the temporary emissions report
-                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
+                        # Remove the temporary emissions file
+                        os.remove(f"{emission_output_dir}/emissions.csv")
 
-                    # Remove the temporary emissions file
-                    os.remove(f"{emission_output_dir}/emissions.csv")
+                        # Add the aggregate_step column
+                        temp_df['aggregate_step'] = aggregate_step
 
-                    # Add the aggregate_step column
-                    temp_df['aggregate_step'] = aggregate_step
+                        # Determine the write mode based on the aggregate_step
+                        write_mode = 'w' if aggregate_step == 0 else 'a'
 
-                    # Determine the write mode based on the aggregate_step
-                    write_mode = 'w' if aggregate_step == 0 else 'a'
-
-                    # Write or append the updated DataFrame to the main CSV
-                    with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
-                        temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
+                        # Write or append the updated DataFrame to the main CSV
+                        with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
+                            temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
+                    except Exception as e:
+                        print(f"Error saving emissions report")
 
             # Plot the aggregated data
             if eval_c['save_aggregate_rewards']:
