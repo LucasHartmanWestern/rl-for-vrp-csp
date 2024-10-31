@@ -14,7 +14,7 @@ import pickle
 import shutil
 warnings.filterwarnings("ignore")
 
-from decision_transformer.run_odt import run_odt, format_data
+#from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -188,25 +188,7 @@ def train_rl_vrp_csp(args):
 
         
         if run_mode == "Training":
-            # to ask Ethan
-            if algorithm_dm == 'ODT':
-                nn_c = c['odt_hyperparameters']               
-                print(f"Training using ODT - Seed {seed}")
-                chargers_copy = copy.deepcopy(chargers)
-                num_cars = c['environment_settings']['num_of_cars']
-                run_odt(devices,
-                          environment_list,
-                          chargers_copy,
-                          all_routes,
-                          action_dim,
-                          eval_c['fixed_attributes'],
-                          nn_c, 
-                          seed,
-                          c['algorithm_settings']['agent_by_zone'],
-                          num_cars)
-                return
 
-            
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(f"Training using {algorithm_dm} - Seed {seed}", file=file)
 
@@ -263,10 +245,17 @@ def train_rl_vrp_csp(args):
                         
                 print("Join Weights")
 
-                # Aggregate the weights from all local models
-                global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
-                                                    federated_c['zone_multiplier'], federated_c['model_multiplier'],\
-                                                    agent_by_zone)
+                if algorithm_dm == 'ODT':
+                    # Aggregate the weights from all local models
+                    global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
+                                                        federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                                                        agent_by_zone, True)
+                else:
+                                        # Aggregate the weights from all local models
+                    global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
+                                                        federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                                                        agent_by_zone)
+
 
                 save_global_path = f'saved_networks/Exp_{experiment_number}/'
                 if not os.path.exists(save_global_path):
@@ -276,7 +265,12 @@ def train_rl_vrp_csp(args):
 
                 # Extend the main lists with the contents of the process lists
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
-                print(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
+                # Check if sorted_list has elements before accessing its first and last elements
+                if sorted_list:
+                    print(f'Min and Max rewards for the aggregation step: {sorted_list[0], sorted_list[-1]}')
+                else:
+                    print("No rewards found for this aggregation step.")
+
                 rewards.extend(process_rewards)
                 output_values.extend(process_output_values)
                 metrics.extend(process_metrics)
@@ -456,6 +450,9 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'CMA_optimizer':
             from training_processes.train_cma import train_cma as train
+
+        elif algorithm_dm == 'ODT':
+            from training_processes.train_odt import train_odt as train
         
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
