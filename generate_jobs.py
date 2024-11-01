@@ -36,18 +36,21 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': 15 / 10000, # 15 hours / 10k episodes
             'PPO': 40 / 10000, # 40 hours / 10k episodes
-            'CMA': 2 / 10000 # 2 hours / 10k generations
+            'CMA': 16 / 10000 # 2 hours / 10k generations
         }
     
         if algorithm in algorithm_time_mapping:
             num_cpus = num_gpus * 2
             mem_size = "64G"
+            allocation = 'rrg-kgroling'
             total_episodes = num_episodes * num_aggregations
             if algorithm == 'CMA':
                 total_episodes = num_generations*num_aggregations
-                mem_size = "24G"
-                num_gpus /= 2 #on CMA two zones per gpu but 4 cpus per gpu
-                num_cpus = num_gpus * 4
+                mem_size = "8G"
+                num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
+                num_cpus = 6
+                allocation = "def-mcapretz"
+
             calculated_time = algorithm_time_mapping[algorithm] * total_episodes
         else:
             print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
@@ -60,7 +63,7 @@ def create_job(args):
 #SBATCH --job-name=Exp_{experiment}
 #SBATCH --output=experiments/Exp_{experiment}/output.log
 #SBATCH --error=experiments/Exp_{experiment}/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A {allocation}
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={num_cpus}
 #SBATCH --gpus-per-node={num_gpus}
@@ -73,9 +76,9 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS={num_gpus * 2}
+export OMP_NUM_THREADS=2
 
-python app_v2.py -g {" ".join(str(g) for g in range(int(num_gpus)))} -e {experiment} -d "{data_dir}"
+python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}"
 """
     
         # Save job script to file
