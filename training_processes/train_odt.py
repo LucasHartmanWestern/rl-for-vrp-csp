@@ -144,7 +144,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"../Datasets/[2020]-3-3-2-20-20241002_141918.pkl"
+        dataset_path = f"../Datasets/[5555]-Exp_902_formatted.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -486,7 +486,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
             "num_updates_per_pretrain_iter": 500,
         
             # finetuning options
-            "max_online_iters": 2,
+            "max_online_iters": 1000,
             "online_rtg": -65,
             "num_online_rollouts": 1,
             "replay_size": 500,
@@ -494,10 +494,10 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
             "eval_interval": 1,
         
             # environment options
-            "device": "cuda:1",
+            "device": "cuda:0",
             "log_to_tb": True,
             "save_dir": "./exp",
-            "exp_name": "25_iters"
+            "exp_name": "5555-25_iters"
         }
 
     
