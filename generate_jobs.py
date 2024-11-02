@@ -37,7 +37,8 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': 15 / 10000, # 15 hours / 10k episodes
             'PPO': 40 / 10000, # 40 hours / 10k episodes
-            'CMA': 16 / 10000 # 2 hours / 10k generations
+            'CMA': 16 / 10000, # 2 hours / 10k generations
+            'ODT': 17 / 5000
         }
     
         if algorithm in algorithm_time_mapping:
@@ -51,31 +52,6 @@ def create_job(args):
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
-=======
-    # Get the number of episodes and aggregations
-    num_episodes = config['nn_hyperparameters']['num_episodes']
-    num_aggregations = config['federated_learning_settings']['aggregation_count']
-    total_episodes = num_episodes * num_aggregations
-
-    # Get the algorithm
-    algorithm = config['algorithm_settings']['algorithm']
-
-    # Calculate the time based on the total number of episodes
-    # Note: these are rough estimates based on how long takes to train 10k episodes
-    algorithm_time_mapping = {
-        'DQN': 15 / 10000,
-        'PPO': 40 / 10000,
-        'ODT': 17 / 5000,
-    }
-
-    if algorithm in algorithm_time_mapping:
-        calculated_time = algorithm_time_mapping[algorithm] * total_episodes
-    else:
-        print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
-        continue
-
-    data_dir = f"/home/hartman/scratch/metrics/Exp"
->>>>>>> origin/odt-facebook
 
             calculated_time = algorithm_time_mapping[algorithm] * total_episodes
         else:
