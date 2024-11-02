@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 algorithm_settings:
   agent_by_zone: false
   algorithm: CMA
@@ -110,3 +111,143 @@ odt_hyperparameters:
   warmup_steps: 10000
   weight_decay: 0.0001
   zone_index: 1
+=======
+# Created by Santiago 26/04/2024
+### Configuration file with parameters to run MERL
+
+############ Algorithm ############
+
+algorithm_settings:
+    #Currently available options DQN, CMA_optimizer, ODT 
+    algorithm: 'ODT' #'ODT', #'PPO', #'DDPG' #'DQN' # 'CMA_optimizer' #
+    # Decision making agent definition
+    agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
+
+federated_learning_settings:
+    aggregation_count: 1 # Amount of aggregation steps for federated learning
+    
+    # Multipliers to control aggregation
+    city_multiplier: 0.15 # Importance of city-wide average
+    zone_multiplier: 0.35 # Importance of zone-wide average
+    model_multiplier: 0.50 # Importance of model-wide average
+
+############ Environment Settings ############
+environment_settings:
+    seed: 1234 #[1234, 5555, 2020, 5678, 9101] # Used for reproducibility
+    num_of_cars: 100 #150 # Num of cars in simulation
+    num_of_chargers: 3 # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    action_dim: 3 # Multiplied by the number of chargers to represent how many output neurons there are for each NN
+
+    season: 'winter' # 'spring', 'summer', 'autumn', 'winter'
+
+    # Coordinates of city regions in London
+    coords: 
+        - [43.02120034946083, -81.28349087468504] # North London
+#        - [43.004969336049854, -81.18631870502043] # East London
+#        - [42.95923445066671, -81.26016049362336] # South London
+#        - [42.98111190139387, -81.30953935839466] # West London
+#        - [42.9819404397449, -81.2508736429095] # Central London
+    
+    radius: 20 # Max radius of the circle containing the entire trip
+    starting_charge: 6000 # 6kw base starting charge
+
+    models: ['Tesla Model Y', 'BYD Song', 'Tesla Model 3'] # The 3 most popular EV models
+    usage_per_hour: [9840, 8460, 9360] # Average usage per hour for each model in Wh/60 km
+    max_charge: [170000, 90000, 170000] # in Watts
+    step_size: 0.01  # 60km per hour / 60 minutes per hour = 1 km per minute
+    increase_rate: 12500 
+    max_sim_steps: 50
+    max_mini_sim_steps: 10
+
+
+############ Evaluation Settings ############
+eval_config:
+    # Determine if agent or baseline is used
+    # fixed_attributes = [0.5, 0.5] # Assign fixed attributes to compare a baseline [Traffic_mult, Distance_mult]
+    fixed_attributes: [] # Determine impact ratings through training
+    verbose: True # Log episode-specific data during training
+    display_training_times: False # Display breakdown of how much each step takes
+
+    evaluate_on_diff_seed: False # Set to true to evaluate a model on a different seed than it was trained on
+    evaluate_on_diff_zone: False # Set to true to evaluate a model on a different zone than it was trained on
+        
+    save_data: False # Set to true if you want to save simulation results in a csv file
+    save_offline_data: False # Set true to save trajectories for offline training
+    generate_plots: False # Set to true if you want to generate plots of the simulation environments
+    save_aggregate_rewards: False # Set to true if you want to save the rewards across aggregations
+    continue_training: False # Set to true if you want the option to continue training after a full training loop completes
+
+    #path to store data from experiments
+    save_path_metrics: 'metrics/Exp'
+
+############ Hyperparameters ############
+nn_hyperparameters:
+    num_episodes: 5000 # Amount of training episodes per session
+    learning_rate: 0.00001 # Rate of change for model parameters
+    epsilon: 1 # Introduce noise during training
+    discount_factor: 0.999 # Present value of future rewards
+    epsilon_decay: 0.999 # Rate of decrease for training noise
+    batch_size: 75 # Amount of experiences to use when training
+    buffer_limit: 150 # Max number of experiences to store in a buffer
+    max_num_timesteps: 300 # Max amount of minutes per agent episode
+    layers: [128, 64, 64] # Neural network hidden layers
+
+    eps_per_save: 200 # How many episodes can go by before saving
+
+    log_std_decay_rate: 0.01 # Rate of decay for the log std of the action distribution
+    num_epochs: 10 # Amount of epochs to train the neural network
+
+    # Multipliers to control aggregation
+    city_multiplier: 0.15 # Importance of city-wide average
+    zone_multiplier: 0.35 # Importance of zone-wide average
+    model_multiplier: 0.50 # Importance of model-wide average
+
+############ CMA Settings ############
+cma_parameters:
+    population_dimension: 20
+    initial_sigma: 0.1
+    max_generations: 50 # Amount of training episodes per session
+    #submodel inside cma agent
+    model_type: 'optimizer'
+
+############ ODT Hyperparameters ############
+odt_hyperparameters:
+    K: 20
+    embed_dim: 512
+    n_layer: 4
+    n_head: 4
+    activation_function: relu
+    dropout: 0.1
+    eval_context_length: 5
+    ordering: 0
+
+    # shared evaluation options
+    eval_rtg: -60
+    num_eval_episodes: 1
+
+    # shared training options
+    init_temperature: 0.1
+    batch_size: 128
+    learning_rate: 0.0001
+    weight_decay: 0.0005
+    warmup_steps: 10000
+
+    # pretraining options
+    max_pretrain_iters: 1
+    num_updates_per_pretrain_iter: 500
+
+    # finetuning options
+    max_online_iters: 5000  # Duplicate
+    online_rtg: -60
+    num_online_rollouts: 1
+    replay_size: 500
+    num_updates_per_online_iter: 50
+    eval_interval: 1
+
+    # environment options
+    log_to_tb: False
+    save_dir: "./exp"
+    exp_name: "1234-50_iters"
+
+
+>>>>>>> origin/odt-facebook

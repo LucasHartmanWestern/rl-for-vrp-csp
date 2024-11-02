@@ -109,4 +109,3 @@ odt_hyperparameters:
   use_entropy: false
   warmup_steps: 10000
   weight_decay: 0.0001
-  zone_index: 1

@@ -36,7 +36,8 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': 15 / 10000, # 15 hours / 10k episodes
             'PPO': 40 / 10000, # 40 hours / 10k episodes
-            'CMA': 16 / 10000 # 2 hours / 10k generations
+            'CMA': 16 / 10000, # 2 hours / 10k generations
+            'ODT': 17 / 5000
         }
     
         if algorithm in algorithm_time_mapping:
