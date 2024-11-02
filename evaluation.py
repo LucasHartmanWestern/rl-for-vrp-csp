@@ -141,15 +141,62 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     df = pd.DataFrame(data)
 
     if metric_name == 'reward':
-        # If there are multiple done values for a single (zone, episode, aggregation, agent_index) then discard all except the first one
-        df = df.drop_duplicates(subset=['episode', 'zone', 'aggregation', 'agent_index', 'done'], keep='first')
+        cumulative_reward_df = df.groupby(['episode', 'zone', 'aggregation', 'agent_index'])['reward'].sum().reset_index()
 
-        # Make the last timestep of each episode include the cumulative reward from each previous timestep within that episode
-        # This should only apply to the timestep for which done is true
-        df['reward'] = df.groupby(['episode', 'zone', 'aggregation', 'agent_index'])['reward'].cumsum()
+        cumulative_reward_df.rename(columns={'reward': 'cumulative_reward'}, inplace=True)
+        cumulative_reward_df['episode'] = cumulative_reward_df['aggregation'] * num_episodes + cumulative_reward_df['episode']
 
-    # Filter data to only include the last timestep within each episode
-    df = df[df['done'] == True]
+        cumulative_avg_reward_by_zone = cumulative_reward_df.groupby(['episode', 'zone'])['cumulative_reward'].mean().reset_index()
+        cumulative_avg_reward_by_zone['cumulative_reward'] = cumulative_avg_reward_by_zone.groupby(['zone'])['cumulative_reward'].expanding().mean().reset_index(level=[0, 1], drop=True)
+
+        # Plot the cumulative average reward per episode by zone
+        plt.figure(figsize=(8, 6))
+        for zone in df['zone'].unique():
+            # Filter the data for the current zone
+            zone_data = cumulative_avg_reward_by_zone.loc[cumulative_avg_reward_by_zone['zone'] == zone]
+            mean_cumulative_avg_reward = zone_data.groupby('episode')['cumulative_reward'].mean()
+
+            plt.plot(
+                mean_cumulative_avg_reward.index, 
+                mean_cumulative_avg_reward.values, 
+                label=f'Zone {zone} Reward'
+            )
+
+        plt.xlabel('Episode')
+        plt.ylabel('Cumulative Average Reward')
+        plt.title(f'Cumulative Average Reward per Episode')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Plot the cumulative average reward across all zones
+        plt.figure(figsize=(8, 6))
+        for zone in df['zone'].unique():
+            # Filter the data for the current zone
+            min_cumulative_avg_reward = zone_data.groupby('episode')['cumulative_reward'].min()
+            max_cumulative_avg_reward = zone_data.groupby('episode')['cumulative_reward'].max()
+            mean_cumulative_avg_reward = zone_data.groupby('episode')['cumulative_reward'].mean()
+
+            plt.fill_between(
+                min_cumulative_avg_reward.index, 
+                min_cumulative_avg_reward.values, 
+                max_cumulative_avg_reward.values, 
+                alpha=0.3
+            )
+            plt.plot(
+                mean_cumulative_avg_reward.index, 
+                mean_cumulative_avg_reward.values
+            )
+
+        plt.xlabel('Episode')
+        plt.ylabel('Cumulative Average Reward')
+        plt.title(f'Cumulative Average Reward per Episode')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    # Sum all data to one timestep
+    df = df.groupby(['episode', 'zone', 'aggregation', 'agent_index', 'car_model'])[metric_name].sum().reset_index()
 
     # Get recalculated episodes using (aggregation number * episodes per aggregation) + episode number
     df['recalculated_episode'] = df['aggregation'] * num_episodes + df['episode']
@@ -177,34 +224,6 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
 
     # Evaluate average per episode of training by aggregation
     avg_by_episode_aggregation = df.groupby(['episode', 'aggregation'])[metric_name].mean().unstack()
-
-    if metric_name == 'reward':
-        # Calculate the average reward per episode and zone
-        avg_reward_by_episode_zone = df.groupby(['recalculated_episode', 'zone'])['reward'].mean()
-
-        # Calculate cumulative average reward per episode and zone
-        cumulative_avg_reward_by_zone = avg_reward_by_episode_zone.groupby('zone').cumsum() / (avg_reward_by_episode_zone.groupby('zone').cumcount() + 1)
-
-        # Calculate the min, max, and mean cumulative average reward across zones
-        min_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').min()
-        max_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').max()
-        mean_cumulative_avg_reward = cumulative_avg_reward_by_zone.groupby('recalculated_episode').mean()
-
-        # Plot the cloud plot
-        plt.figure(figsize=(8, 6))
-        plt.fill_between(min_cumulative_avg_reward.index, 
-                         min_cumulative_avg_reward.values, 
-                         max_cumulative_avg_reward.values, 
-                         color='lightblue', alpha=0.5, label='Reward Range Across Zones')
-        plt.plot(mean_cumulative_avg_reward.index, 
-                 mean_cumulative_avg_reward.values, 
-                 label='Average Reward', color='blue')
-        plt.xlabel('Episode')
-        plt.ylabel('Cumulative Average Reward')
-        plt.title(f'Seed {seed} - Algo. {algorithm} - Cumulative Average Reward per Episode')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
 
     # Average Total
     plt.figure(figsize=(8, 6))
