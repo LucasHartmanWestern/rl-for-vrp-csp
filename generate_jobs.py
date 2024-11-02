@@ -51,7 +51,6 @@ def create_job(args):
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
-
             calculated_time = algorithm_time_mapping[algorithm] * total_episodes
         else:
             print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
@@ -80,7 +79,7 @@ source ~/envs/merl_env/bin/activate
 export OMP_NUM_THREADS=2
 
 python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}"
-"""
+    """
     
         # Save job script to file
         with open(f'experiments/Exp_{experiment}/train_job.sh', 'w') as job_file:
