@@ -226,6 +226,9 @@ class EnvironmentClass:
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
 
+        self.action_space = self.num_chargers * 3
+        self.observation_space = self.state_dim
+
     def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
         """
         Initialize electric vehicle (EV) information based on the configuration.
@@ -596,8 +599,8 @@ class EnvironmentClass:
         Returns:
             np.ndarray: State array for the agent.
         """
-        if is_odt or is_madt:
-            agent_chargers = self.chargers[ 0, agent_idx, :]
+        if is_odt:
+            agent_chargers = self.chargers[0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
         agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
@@ -608,21 +611,21 @@ class EnvironmentClass:
         dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agent_unique_chargers])
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
-        if is_madt:
-            local_state = np.hstack((
-                np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),  # Traffic levels and distances to chargers
-                np.array([route_dist]),  # Distance to the final destination
-                np.array([self.info['model_indices'][agent_idx]])  # Model index of the agent's car
-            ))
+        # if is_madt:
+        #     local_state = np.hstack((
+        #         np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),  # Traffic levels and distances to chargers
+        #         np.array([route_dist]),  # Distance to the final destination
+        #         np.array([self.info['model_indices'][agent_idx]])  # Model index of the agent's car
+        #     ))
             
-            # Global state
-            global_state = np.hstack((
-                np.array([self.num_chargers * 3]),  # Total number of chargers
-                np.array([self.num_cars])  # Total number of cars
-            ))
-            self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
-                                    agent_unique_chargers, agent_unique_traffic)
-            return global_state, local_state
+        #     # Global state
+        #     global_state = np.hstack((
+        #         np.array([self.num_chargers * 3]),  # Total number of chargers
+        #         np.array([self.num_cars])  # Total number of cars
+        #     ))
+        #     self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
+        #                             agent_unique_chargers, agent_unique_traffic)
+        #     return global_state, local_state
 
         # Traffic level and distance of each station plus total charger num, total distance,
         # number of EVs, car model index, and temperature

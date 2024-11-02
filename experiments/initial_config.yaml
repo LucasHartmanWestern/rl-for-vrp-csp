@@ -1,4 +1,4 @@
 # initial_run:
-experiment_list: [10,11,12,13,14,15,16,17,18] #list of experiments to run
+experiment_list: [206] #list of experiments to run
 model_run_mode: 'Training' # can either be Training or Testing
 continue_training: False # Configures running model from scratch or continuing training
