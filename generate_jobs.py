@@ -19,7 +19,6 @@ def create_job(args):
         with open(f'experiments/Exp_{experiment}/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
     
-<<<<<<< HEAD
         # Use 1 gpu per zone
         num_gpus = len(config['environment_settings']['coords'])
         
