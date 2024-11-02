@@ -145,7 +145,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
+        dataset_path = f"../Datasets/[{self.seed}]-Exp_902_formatted.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -456,8 +456,8 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
     
-        utils.set_seed_everywhere(seed)
-        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, seed)
+        utils.set_seed_everywhere(main_seed)
+        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, main_seed)
     
         print("=" * 50)
         experiment()

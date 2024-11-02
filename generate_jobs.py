@@ -40,7 +40,8 @@ for experiment in experiment_list:
     # Note: these are rough estimates based on how long takes to train 10k episodes
     algorithm_time_mapping = {
         'DQN': 15 / 10000,
-        'PPO': 40 / 10000
+        'PPO': 40 / 10000,
+        'ODT': 17 / 5000,
     }
 
     if algorithm in algorithm_time_mapping:
