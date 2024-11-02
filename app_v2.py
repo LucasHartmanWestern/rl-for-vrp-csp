@@ -98,6 +98,10 @@ def train_rl_vrp_csp(args):
             num_episodes = c['nn_hyperparameters']['num_episodes']
         elif algorithm_dm == 'CMA_optimizer':
             num_episodes = c['cma_parameters']['max_generations']
+        if algorithm_dm == 'ODT':
+            variant = c['odt_hyperparameters']
+        else:
+            variant = None
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
@@ -225,7 +229,7 @@ def train_rl_vrp_csp(args):
                                         ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
                                         barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                        agent_by_zone, eval_c['save_offline_data'], True))
+                                        agent_by_zone, variant, eval_c['save_offline_data'], True))
                     processes.append(process)
                     process.start()
 
@@ -318,7 +322,7 @@ def train_rl_vrp_csp(args):
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                    agent_by_zone, eval_c['save_offline_data'], False))
+                                    agent_by_zone, variant, eval_c['save_offline_data'], False))
                 processes.append(process)
                 process.start()
 
@@ -400,7 +404,7 @@ def train_rl_vrp_csp(args):
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
-                verbose, display_training_times, agent_by_zone, save_offline_data, train_model):
+                verbose, display_training_times, agent_by_zone, variant, save_offline_data, train_model):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -460,7 +464,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
                   date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
-                  agent_by_zone, fixed_attributes, verbose, display_training_times, torch.float32, \
+                  agent_by_zone, variant, fixed_attributes, verbose, display_training_times, torch.float32, \
                   save_offline_data, train_model)
 
         # Save results of training

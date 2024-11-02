@@ -29,23 +29,24 @@ from training_processes.misc.logger import Logger
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim):
+    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed):
 
         self.state_dim = state_dim
         self.act_dim = action_dim
         self.environment = environment
         self.chargers = chargers
         self.routes = routes
+        self.seed = seed
         self.action_range = self._get_env_spec(variant)
         self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(
-            variant["env"]
+            'merl'
         )
         # initialize by offline trajs
         self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
 
         self.aug_trajs = []
 
-        self.device = variant.get("device", "cuda")
+        self.device = device
         self.target_entropy = -self.act_dim
         self.model = DecisionTransformer(
             state_dim=self.state_dim,
@@ -144,7 +145,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"../Datasets/[5555]-Exp_902_formatted.pkl"
+        dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -399,7 +400,7 @@ class Experiment:
 
     def __call__(self):
 
-        utils.set_seed_everywhere(self.variant['seed'])
+        utils.set_seed_everywhere(self.seed)
 
         #import d4rl
 
@@ -429,7 +430,7 @@ class Experiment:
             return make_env_fn
 
         print("\n\nMaking Eval Env.....")
-        env_name = self.variant["env"]
+        env_name = 'merl'
         if "antmaze" in env_name:
             #env = gym.make(env_name)
             target_goal = env.target_goal
@@ -451,58 +452,12 @@ class Experiment:
 
         #eval_envs.close()
 
-def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, agent_by_zone, fixed_attributes=None, verbose=False, display_training_times=False, 
+def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
-        
-        variant = {
-            "seed": 1234,
-            "env": "hopper-medium-v2",
-        
-            # model options
-            "K": 20,
-            "embed_dim": 512,
-            "n_layer": 4,
-            "n_head": 4,
-            "activation_function": "relu",
-            "dropout": 0.1,
-            "eval_context_length": 5,
-            "ordering": 0,
-        
-            # shared evaluation options
-            "eval_rtg": 3600,
-            "num_eval_episodes": 1,
-        
-            # shared training options
-            "init_temperature": 0.1,
-            "batch_size": 128,
-            "learning_rate": 1e-4,
-            "weight_decay": 5e-4,
-            "warmup_steps": 10000,
-        
-            # pretraining options
-            "max_pretrain_iters": 1,
-            "num_updates_per_pretrain_iter": 500,
-        
-            # finetuning options
-            "max_online_iters": 1000,
-            "online_rtg": -65,
-            "num_online_rollouts": 1,
-            "replay_size": 500,
-            "num_updates_per_online_iter": 1,
-            "eval_interval": 1,
-        
-            # environment options
-            "device": "cuda:0",
-            "log_to_tb": True,
-            "save_dir": "./exp",
-            "exp_name": "5555-25_iters"
-        }
-
     
-        utils.set_seed_everywhere(variant['seed'])
-        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim)
+        utils.set_seed_everywhere(seed)
+        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, seed)
     
         print("=" * 50)
         experiment()
