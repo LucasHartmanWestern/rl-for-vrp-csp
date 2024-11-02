@@ -245,10 +245,13 @@ def save_to_csv(data, filename, append=False):
             writer.writerows(data)  # Write rows for lists of lists
 
 
-def read_csv_data(filename):
+def read_csv_data(filename, columns=None):
     try:
-        # Read the CSV file with the 'path' column as a string
-        df = pd.read_csv(filename, converters={'path': str})
+        if columns is None:
+            # Read the CSV file with the 'path' column as a string
+            df = pd.read_csv(filename, converters={'path': str})
+        else:
+            df = pd.read_csv(filename, converters={'path': str}, usecols=columns)
 
         # Parse the 'path' column using ast.literal_eval
         if 'path' in df.columns:

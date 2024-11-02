@@ -34,9 +34,9 @@ def create_job(args):
         # Calculate the time based on the total number of episodes
         # Note: these are rough estimates based on how long takes to train 10k episodes
         algorithm_time_mapping = {
-            'DQN': 15 / 10000,
-            'PPO': 40 / 10000,
-            'CMA': 16 / 10000
+            'DQN': 15 / 10000, # 15 hours / 10k episodes
+            'PPO': 40 / 10000, # 40 hours / 10k episodes
+            'CMA': 16 / 10000 # 2 hours / 10k generations
         }
     
         if algorithm in algorithm_time_mapping:
@@ -91,6 +91,6 @@ if __name__ == "__main__":
     # Determine which experiments to create job config for
     parser = argparse.ArgumentParser(description="Generate job configuration files for experiments")
     parser.add_argument('-e', type=str, nargs='+', help="List of experiment numbers or 'all' to include all experiments")
-    parser.add_argument('-u', type=str, help="user account at DRAC")
+    parser.add_argument('-u', type=str, default='hartman', help="user account at DRAC")
     args = parser.parse_args()
     create_job(args)

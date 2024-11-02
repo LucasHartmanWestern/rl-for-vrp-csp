@@ -5,16 +5,20 @@ import os
 
 def run_exp_on_drac(start_experiment, end_experiment, algorithm=None):
     for experiment_number in range(start_experiment, end_experiment + 1):
-        if algorithm:
-            # Load config.yaml file for experiment
-            config_file = os.path.join(f"./experiments/Exp_{experiment_number}", "config.yaml")
-            with open(config_file, 'r') as f:
-                config = yaml.safe_load(f)
+        try:
+            if algorithm:
+                # Load config.yaml file for experiment
+                config_file = os.path.join(f"./experiments/Exp_{experiment_number}", "config.yaml")
+                with open(config_file, 'r') as f:
+                    config = yaml.safe_load(f)
 
-                # Check if the experiment uses the specified algorithm
-                if config.get("algorithm_settings", {}).get("algorithm") != algorithm:
-                    print(f"Experiment {experiment_number} does not use algorithm {algorithm}")
-                    continue
+                    # Check if the experiment uses the specified algorithm
+                    if config.get("algorithm_settings", {}).get("algorithm") != algorithm:
+                        print(f"Experiment {experiment_number} does not use algorithm {algorithm}")
+                        continue
+        except Exception as e:
+            print(f"Error loading config.yaml file for experiment {experiment_number}: {e}")
+            continue
 
         cmd = f"sbatch experiments/Exp_{experiment_number}/train_job.sh"
         print(f"Running command: {cmd}")

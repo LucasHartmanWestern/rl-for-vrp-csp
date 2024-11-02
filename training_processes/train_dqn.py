@@ -258,6 +258,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+            
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
@@ -286,7 +287,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 "traffic": sim_traffic,
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
-                "rewards": rewards,
+                "rewards": time_step_rewards,
                 "best_reward": best_avg,
                 "timestep_real_world_time": time_step_time,
                 "done": sim_done
@@ -340,7 +341,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 
-        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
+        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes # TODO: Make this a parameter
             if agent_by_zone:
                 soft_update(target_q_networks[0], q_networks[0])
 
@@ -365,9 +366,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
                     save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
 
-        if (i + 1) % eps_per_save == 0 and i > 0 and train_model: # Save metrics data
+        if ((i + 1) % eps_per_save == 0 and i > 0 and train_model) or (i == num_episodes - 2): # Save metrics data
             # Create metrics path if it does not exist
-            metrics_path = f"{metrics_base_path}/train"
+            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
             if not os.path.exists(metrics_path):
                 os.makedirs(metrics_path)
 
