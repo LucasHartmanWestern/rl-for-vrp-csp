@@ -181,8 +181,13 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
 
-            rewards.extend(time_step_rewards)
-            # rewards.append(episode_rewards.sum(axis=0))
+            if nn_c['average_rewards_when_training']: # Train the model only using the average of all timestep rewards
+                avg_reward = time_step_rewards.sum(axis=0).mean()
+                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
+                rewards.extend(time_step_rewards_avg)
+            else: # Train the model using the rewards from it's own experiences
+                rewards.extend(time_step_rewards)
+
             time_step_time = time.time() - start_time_step
 
             metric = {

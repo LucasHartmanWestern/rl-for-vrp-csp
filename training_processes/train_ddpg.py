@@ -264,7 +264,12 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
             
-            rewards.extend(time_step_rewards)
+            if nn_c['average_rewards_when_training']: # Train the model only using the average of all timestep rewards
+                avg_reward = time_step_rewards.sum(axis=0).mean()
+                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
+                rewards.extend(time_step_rewards_avg)
+            else: # Train the model using the rewards from it's own experiences
+                rewards.extend(time_step_rewards)
 
             if save_offline_data:
                 arrived = environment.get_odt_info()
