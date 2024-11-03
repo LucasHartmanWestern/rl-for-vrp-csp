@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_3_eval
-#SBATCH --output=experiments/Exp_3/output.log
-#SBATCH --error=experiments/Exp_3/error.log
+#SBATCH --job-name=Exp_79_eval
+#SBATCH --output=experiments/Exp_79/output.log
+#SBATCH --error=experiments/Exp_79/error.log
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
@@ -9,7 +9,7 @@
 #SBATCH --time=15:00:00
 #SBATCH --mem=64G
 
-echo "Starting training for experiment 3"
+echo "Starting evaluation for experiment 79"
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate

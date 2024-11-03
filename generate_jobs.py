@@ -70,7 +70,7 @@ def create_job(args):
 #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
 #SBATCH --mem={mem_size}
 
-echo "Starting training for experiment {experiment}"
+echo "Starting {'evaluation' if args.eval else 'training'} for experiment {experiment}"
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
