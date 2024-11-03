@@ -264,7 +264,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
             
-            rewards.extend(episode_rewards.sum(axis=0))
+            rewards.extend(time_step_rewards)
 
             if save_offline_data:
                 arrived = environment.get_odt_info()
@@ -303,8 +303,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         done = True
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], rewards[d],\
-                                                states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
-                                                                     done))  # Store experience
+                            states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
 
         st = time.time()
 

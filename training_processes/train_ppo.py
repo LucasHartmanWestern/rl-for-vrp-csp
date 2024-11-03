@@ -260,7 +260,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
             
-            rewards.extend(episode_rewards.sum(axis=0))
+            rewards.extend(time_step_rewards)
 
             if save_offline_data:
                 arrived = environment.get_odt_info()

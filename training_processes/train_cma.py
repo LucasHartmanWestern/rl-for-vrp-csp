@@ -181,7 +181,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
 
-            rewards.extend(episode_rewards.sum(axis=0))
+            rewards.extend(time_step_rewards)
             # rewards.append(episode_rewards.sum(axis=0))
             time_step_time = time.time() - start_time_step
 
