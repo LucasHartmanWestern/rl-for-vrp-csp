@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_13
+#SBATCH --job-name=Exp_13_train
 #SBATCH --output=experiments/Exp_13/output.log
 #SBATCH --error=experiments/Exp_13/error.log
 #SBATCH -A rrg-kgroling
@@ -17,5 +17,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g0 1 2 -e 13 -d "/home/hartman/scratch/metrics/Exp"
+python app_v2.py -g0 1 2 -e 13 -d "/home/hartman/scratch/metrics/Exp" 
     

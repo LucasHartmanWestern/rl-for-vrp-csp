@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_202
+#SBATCH --job-name=Exp_202_train
 #SBATCH --output=experiments/Exp_202/output.log
 #SBATCH --error=experiments/Exp_202/error.log
 #SBATCH -A def-mcapretz
@@ -17,5 +17,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 202 -d "/home/hartman/scratch/metrics/Exp"
+python app_v2.py  -e 202 -d "/home/hartman/scratch/metrics/Exp" 
     

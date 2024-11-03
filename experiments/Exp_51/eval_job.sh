@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_51
+#SBATCH --job-name=Exp_51_eval
 #SBATCH --output=experiments/Exp_51/output.log
 #SBATCH --error=experiments/Exp_51/error.log
 #SBATCH -A def-mcapretz
@@ -17,5 +17,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 51 -d "/home/hartman/scratch/metrics/Exp -eval True"
+python app_v2.py  -e 51 -d "/home/hartman/scratch/metrics/Exp" -eval True
     

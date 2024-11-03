@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_206
+#SBATCH --job-name=Exp_206_eval
 #SBATCH --output=experiments/Exp_206/output.log
 #SBATCH --error=experiments/Exp_206/error.log
 #SBATCH -A rrg-kgroling
@@ -17,5 +17,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g0 -e 206 -d "/home/hartman/scratch/metrics/Exp -eval True"
+python app_v2.py -g0 -e 206 -d "/home/hartman/scratch/metrics/Exp" -eval True
     
