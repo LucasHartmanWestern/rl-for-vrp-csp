@@ -34,10 +34,10 @@ def create_job(args):
         # Calculate the time based on the total number of episodes
         # Note: these are rough estimates based on how long takes to train 10k episodes
         algorithm_time_mapping = {
-            'DQN': 15 / 10000, # 15 hours / 10k episodes
-            'PPO': 40 / 10000, # 40 hours / 10k episodes
-            'CMA': 16 / 10000, # 2 hours / 10k generations
-            'ODT': 17 / 5000
+            'DQN': (15 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
+            'PPO': (40 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
+            'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
+            'ODT': (17 / 5000) / 3 # 17 hours / 5k episodes / 3 zones
         }
     
         if algorithm in algorithm_time_mapping:
@@ -51,7 +51,7 @@ def create_job(args):
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
-            calculated_time = algorithm_time_mapping[algorithm] * total_episodes
+            calculated_time = algorithm_time_mapping[algorithm] * total_episodes * num_gpus
         else:
             print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
             continue
