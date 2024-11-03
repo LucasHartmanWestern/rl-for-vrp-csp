@@ -264,12 +264,16 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             else:
                 episode_rewards = np.vstack((episode_rewards,time_step_rewards))
             
-            if nn_c['average_rewards_when_training']: # Train the model only using the average of all timestep rewards
+            # Train the model only using the average of all timestep rewards
+            if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
                 avg_reward = time_step_rewards.sum(axis=0).mean()
                 time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
                 rewards.extend(time_step_rewards_avg)
-            else: # Train the model using the rewards from it's own experiences
+            # Train the model using the rewards from it's own experiences
+            else:
                 rewards.extend(time_step_rewards)
+
+            time_step_time = time.time() - start_time_step
 
             if save_offline_data:
                 arrived = environment.get_odt_info()
