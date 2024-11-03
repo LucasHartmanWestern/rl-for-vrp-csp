@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_ 82_train
+#SBATCH --job-name=Exp_82_train
 #SBATCH --output=experiments/Exp_82/output.log
 #SBATCH --error=experiments/Exp_82/error.log
 #SBATCH -A rrg-kgroling
