@@ -78,7 +78,7 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}" {"-eval True" if args.eval else ""}
+python app_v2.py {"" if num_gpus==0 else "-g"} {" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}" {"-eval True" if args.eval else ""}
     """
     
         # Save job script to file
