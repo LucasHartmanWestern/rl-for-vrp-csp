@@ -78,11 +78,11 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}"
+python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir} {"-eval True" if args.eval else ""}"
     """
     
         # Save job script to file
-        with open(f'experiments/Exp_{experiment}/train_job.sh', 'w') as job_file:
+        with open(f'experiments/Exp_{experiment}/{"eval" if args.eval else "train"}_job.sh', 'w') as job_file:
             job_file.write(job_script_content)
 
 
@@ -93,5 +93,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate job configuration files for experiments")
     parser.add_argument('-e', type=str, nargs='+', help="List of experiment numbers or 'all' to include all experiments")
     parser.add_argument('-u', type=str, default='hartman', help="user account at DRAC")
+    parser.add_argument('-eval', type=bool, default=False, help="Evaluate the model")
     args = parser.parse_args()
     create_job(args)
