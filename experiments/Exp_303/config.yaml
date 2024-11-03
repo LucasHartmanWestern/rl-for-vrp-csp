@@ -131,6 +131,6 @@ odt_hyperparameters:
     eval_interval: 1
 
     # environment options
-    log_to_tb: False
+    log_to_tb: True
     save_dir: "./exp"
     exp_name: "2020-25_iters"

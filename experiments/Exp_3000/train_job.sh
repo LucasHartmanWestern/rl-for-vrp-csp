@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gpus-per-node=1
-#SBATCH --time=00:01:01
+#SBATCH --time=00:24:00
 #SBATCH --mem=64G
 
 echo "Starting training for experiment 3000"
@@ -17,4 +17,5 @@ source ~/envs/merl3.9/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g0 -e 3000 -d "/home/hartman/scratch/metrics/Exp"
+python app_v2.py -g0 -e 3000 -d "/home/epigou/scratch/metrics/Exp"
+    
