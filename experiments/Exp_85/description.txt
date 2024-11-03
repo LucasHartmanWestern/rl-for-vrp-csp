@@ -1,0 +1,9 @@
+### Experiment 9: ###
+--------------------------------
+Seed: 2020
+Model: DQN
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50

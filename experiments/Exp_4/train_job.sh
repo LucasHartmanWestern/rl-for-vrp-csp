@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4
+#SBATCH --job-name=Exp_4_train
 #SBATCH --output=experiments/Exp_4/output.log
 #SBATCH --error=experiments/Exp_4/error.log
 #SBATCH -A rrg-kgroling
@@ -15,6 +15,7 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS=6
+export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 -e 4 -d "/home/hartman/scratch/metrics/Exp"
+python app_v2.py -g0 1 2 -e 4 -d "/home/hartman/scratch/metrics/Exp" 
+    

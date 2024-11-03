@@ -3,7 +3,7 @@ import argparse
 import yaml
 import os
 
-def run_exp_on_drac(start_experiment, end_experiment, algorithm=None):
+def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False):
     for experiment_number in range(start_experiment, end_experiment + 1):
         try:
             if algorithm:
@@ -20,7 +20,7 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None):
             print(f"Error loading config.yaml file for experiment {experiment_number}: {e}")
             continue
 
-        cmd = f"sbatch experiments/Exp_{experiment_number}/train_job.sh"
+        cmd = f"sbatch experiments/Exp_{experiment_number}/{'eval' if eval else 'train'}_job.sh"
         print(f"Running command: {cmd}")
         try:
             subprocess.run(cmd, shell=True)
@@ -33,6 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=('MERL Project'))
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
     parser.add_argument('-a', '--algorithm', type=str, help='Algorithm to run.')
+    parser.add_argument('-eval', type=bool, default=False, help="Evaluate the model")
     args = parser.parse_args()
 
     start_experiment = args.experiments_list[0]
@@ -43,4 +44,4 @@ if __name__ == "__main__":
     else:
         print(f"Running experiments from {start_experiment} to {end_experiment}")
 
-    run_exp_on_drac(start_experiment, end_experiment, args.algorithm)
+    run_exp_on_drac(start_experiment, end_experiment, args.algorithm, args.eval)

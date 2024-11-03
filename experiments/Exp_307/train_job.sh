@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_307
+#SBATCH --job-name=Exp_307_train
 #SBATCH --output=experiments/Exp_307/output.log
 #SBATCH --error=experiments/Exp_307/error.log
 #SBATCH -A rrg-kgroling
@@ -12,7 +12,7 @@
 echo "Starting training for experiment 307"
 
 module load python/3.10 cuda cudnn
-source ~/envs/merl3.9/bin/activate
+source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
 export OMP_NUM_THREADS=2

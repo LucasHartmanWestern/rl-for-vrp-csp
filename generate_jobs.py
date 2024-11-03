@@ -34,10 +34,10 @@ def create_job(args):
         # Calculate the time based on the total number of episodes
         # Note: these are rough estimates based on how long takes to train 10k episodes
         algorithm_time_mapping = {
-            'DQN': 15 / 10000, # 15 hours / 10k episodes
-            'PPO': 40 / 10000, # 40 hours / 10k episodes
-            'CMA': 16 / 10000, # 2 hours / 10k generations
-            'ODT': 17 / 5000
+            'DQN': (15 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
+            'PPO': (40 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
+            'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
+            'ODT': (17 / 5000) / 3 # 17 hours / 5k episodes / 3 zones
         }
     
         if algorithm in algorithm_time_mapping:
@@ -51,7 +51,7 @@ def create_job(args):
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
-            calculated_time = algorithm_time_mapping[algorithm] * total_episodes
+            calculated_time = algorithm_time_mapping[algorithm] * total_episodes * num_gpus
         else:
             print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
             continue
@@ -60,7 +60,7 @@ def create_job(args):
     
         # Generate the job config files
         job_script_content = f"""#!/bin/bash
-#SBATCH --job-name=Exp_{experiment}
+#SBATCH --job-name=Exp_{experiment}_{'eval' if args.eval else 'train'}
 #SBATCH --output=experiments/Exp_{experiment}/output.log
 #SBATCH --error=experiments/Exp_{experiment}/error.log
 #SBATCH -A {allocation}
@@ -70,7 +70,7 @@ def create_job(args):
 #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
 #SBATCH --mem={mem_size}
 
-echo "Starting training for experiment {experiment}"
+echo "Starting {'evaluation' if args.eval else 'training'} for experiment {experiment}"
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
@@ -78,11 +78,11 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}"
+python app_v2.py {"" if num_gpus==0 else "-g"}{" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}" {"-eval True" if args.eval else ""}
     """
     
         # Save job script to file
-        with open(f'experiments/Exp_{experiment}/train_job.sh', 'w') as job_file:
+        with open(f'experiments/Exp_{experiment}/{"eval" if args.eval else "train"}_job.sh', 'w') as job_file:
             job_file.write(job_script_content)
 
 
@@ -93,5 +93,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate job configuration files for experiments")
     parser.add_argument('-e', type=str, nargs='+', help="List of experiment numbers or 'all' to include all experiments")
     parser.add_argument('-u', type=str, default='hartman', help="user account at DRAC")
+    parser.add_argument('-eval', type=bool, default=False, help="Evaluate the model")
     args = parser.parse_args()
     create_job(args)
