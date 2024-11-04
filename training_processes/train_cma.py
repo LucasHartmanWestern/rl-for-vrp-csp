@@ -14,7 +14,7 @@ from evaluation import evaluate
 from merl_env._pathfinding import haversine
 
 def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
-              zone_index, seed, main_seed, device, agent_by_zone, args, fixed_attributes, verbose,
+              zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes, verbose,
               display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
     """
     Trains decision-making agents using the Covariance Matrix Adaptation (CMA) algorithm.

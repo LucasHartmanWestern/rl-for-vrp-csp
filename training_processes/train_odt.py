@@ -452,7 +452,7 @@ class Experiment:
 
         #eval_envs.close()
 
-def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, fixed_attributes=None, verbose=False, display_training_times=False, 
+def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
     
