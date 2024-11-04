@@ -17,7 +17,7 @@ from merl_env._pathfinding import haversine
 experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, agent_by_zone, args, fixed_attributes=None, verbose=False, display_training_times=False, 
+    seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
           dtype=torch.float32, save_offline_data=False, train_model=True
 ):
 

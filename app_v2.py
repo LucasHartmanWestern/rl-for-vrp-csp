@@ -504,7 +504,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
                   date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
-                  agent_by_zone, variant, fixed_attributes, verbose, display_training_times, torch.float32, \
+                  agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
                   save_offline_data, train_model)
 
         # Save results of training
