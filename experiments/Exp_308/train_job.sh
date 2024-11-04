@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gpus-per-node=1
-#SBATCH --time=20:00:00
+#SBATCH --time=31:59:59
 #SBATCH --mem=64G
 
 echo "Starting training for experiment 308"
@@ -18,3 +18,4 @@ source ~/envs/merl_env/bin/activate
 export OMP_NUM_THREADS=2
 
 python app_v2.py -g0 -e 308 -d "/home/epigou/scratch/metrics/Exp" 
+    

@@ -123,7 +123,7 @@ odt_hyperparameters:
     num_updates_per_pretrain_iter: 500
 
     # finetuning options
-    max_online_iters: 2  # Duplicate
+    max_online_iters: 5000  # Duplicate
     online_rtg: -60
     num_online_rollouts: 1
     replay_size: 500
