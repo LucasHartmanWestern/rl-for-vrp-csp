@@ -41,8 +41,8 @@ def create_job(args):
         }
     
         if algorithm in algorithm_time_mapping:
-            num_cpus = num_gpus * 2
-            mem_size = "64G"
+            num_cpus = num_gpus + 1
+            mem_size = "24G"
             allocation = 'rrg-kgroling'
             total_episodes = num_episodes * num_aggregations
             if algorithm == 'CMA':

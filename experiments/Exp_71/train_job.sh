@@ -4,10 +4,10 @@
 #SBATCH --error=experiments/Exp_71/error.log
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=5
 #SBATCH --gpus-per-node=4
 #SBATCH --time=53:19:59
-#SBATCH --mem=64G
+#SBATCH --mem=24G
 
 echo "Starting training for experiment 71"
 
