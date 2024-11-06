@@ -20,8 +20,11 @@ def create_job(args):
             config = yaml.safe_load(file)
     
         # Use 1 gpu per zone
-        num_gpus = len(config['environment_settings']['coords'])
+        # num_gpus = len(config['environment_settings']['coords'])
         
+        # For now, use 1 gpu per zone
+        num_gpus = 1
+
         # Get the number of episodes and aggregations
         num_episodes = config['nn_hyperparameters']['num_episodes']
         num_aggregations = config['federated_learning_settings']['aggregation_count']
@@ -36,12 +39,17 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': (15 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
             'PPO': (40 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
-            'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
-            'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
+            # 'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
+            # 'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
         }
     
         if algorithm in algorithm_time_mapping:
-            num_cpus = num_gpus + 1
+            
+            # num_cpus = num_gpus + 1
+
+            # For now, use 1 cpu per zone
+            num_cpus = len(config['environment_settings']['coords'])
+
             mem_size = "24G"
             allocation = 'rrg-kgroling'
             total_episodes = num_episodes * num_aggregations
