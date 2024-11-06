@@ -124,6 +124,7 @@ class Experiment:
             with open(f"{path_prefix}/pretrain_model.pt", "wb") as f:
                 torch.save(to_save, f)
             print(f"Model saved at {path_prefix}/pretrain_model.pt")
+        self.model_path = f"{path_prefix}/model.pt"
 
     def _load_model(self, path_prefix):
         if Path(f"{path_prefix}/model.pt").exists():
@@ -391,12 +392,34 @@ class Experiment:
                 writer=writer,
             )
 
+            if self.online_iter == (self.variant["max_online_iters"] - 1):
+                is_last_iter = True
+                # Load the model directly if it was saved as an entire object
+                model = self.model
+                
+                # Get the number of attention layers and their dimensions
+                attn_number = len(model.transformer.h)
+                attn_layer_size = model.transformer.h[0].attn.c_attn.weight.shape
+                
+                # Extract attention layers into a tensor
+                attn_layers = torch.empty((attn_number, attn_layer_size[0], attn_layer_size[1]), dtype=torch.float32, device=self.device)
+                for i in range(attn_number):
+                    attn_layers[i, :, :] = model.transformer.h[i].attn.c_attn.weight
+
+                self.attn_layers = attn_layers
+            else:
+                is_last_iter = False
+                
             self._save_model(
                 path_prefix=self.logger.log_path,
-                is_pretrain_model=False,
+                is_pretrain_model=False
+ 
             )
-
             self.online_iter += 1
+            
+    def get_model_path(self):
+        return self.attn_layers
+        
 
     def __call__(self):
 
@@ -461,8 +484,10 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     
         print("=" * 50)
         experiment()
-
-        weights_list = []
+        
+        # Load the model from the specified path
+        attn_layers = experiment.get_model_path().detach().cpu()
+        weights_list = attn_layers
         avg_rewards = []
         avg_output_values = []
         metrics = []
