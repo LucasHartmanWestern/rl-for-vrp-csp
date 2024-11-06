@@ -45,6 +45,15 @@ def train_rl_vrp_csp(args):
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
+        # Get the list of available GPUs from the environment variable
+    cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
+    if cuda_visible_devices is not None:
+        # Split the string into a list of GPU indices
+        available_gpus = cuda_visible_devices.split(',')
+    else:
+        # If the environment variable is not set, use all available GPUs
+        available_gpus = [str(i) for i in range(torch.cuda.device_count())]
+
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)
     if n_gpus == 0:
@@ -60,6 +69,12 @@ def train_rl_vrp_csp(args):
     
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
+
+    # Verify that the GPUs requested by the user are available
+    for gpu in gpus:
+        gpu_index = gpu.replace('cuda:', '')
+        if gpu_index not in available_gpus and gpu != 'cpu':
+            raise RuntimeError(f"Requested GPU {gpu_index} is not available.")
 
     data_dir = args.data_dir
 
@@ -116,27 +131,12 @@ def train_rl_vrp_csp(args):
         if os.path.exists(f'{metrics_base_path}/train') and run_mode == "Training":
             shutil.rmtree(f'{metrics_base_path}/train')
 
-        if torch.cuda.is_available():
-            print("CUDA is available")
-            print(f"GPU Name: {torch.cuda.get_device_name(0)}")
-        else:
-            print("CUDA is not available")
-
-        # Get the list of available GPUs from the environment variable
-        cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
-        if cuda_visible_devices is not None:
-            # Split the string into a list of GPU indices
-            gpus = cuda_visible_devices.split(',')
-        else:
-            # If the environment variable is not set, use all available GPUs
-            gpus = [i for i in range(torch.cuda.device_count())]
-
         # Now assign GPUs to zones
         n_zones = len(env_c['coords'])
         gpus_size = len(gpus)
-        devices = [gpus[i % gpus_size] for i in range(n_zones)]
-        for i, gpu in enumerate(devices):
-            print(f'Zone {i} with GPU {gpu}')
+        exp_devices = [gpus[i % gpus_size] for i in range(n_zones)]
+        for i, gpu in enumerate(exp_devices):
+            print(f'Zone {i} with GPU {gpu} - {torch.cuda.get_device_name(gpu)}')
 
         # get seed for current experiment
         seed = env_c['seed']
