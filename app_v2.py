@@ -457,8 +457,9 @@ def train_rl_vrp_csp(args):
                 print('Offline Dataset Saved')
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
-                verbose, display_training_times, agent_by_zone, variant, save_offline_data, train_model):
+                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,
+                rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
+                save_offline_data, train_model):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -518,7 +519,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
-                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
+                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
                   agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
                   save_offline_data, train_model)
 
