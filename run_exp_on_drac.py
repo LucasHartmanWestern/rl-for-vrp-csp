@@ -17,10 +17,10 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
                         print(f"Experiment {experiment_number} does not use algorithm {algorithm}")
                         continue
 
-                    if seed:
-                        if int(config.get("environment_settings", {}).get("seed")) != int(seed):
-                            print(f"Experiment {experiment_number} does not use seed {seed}")
-                            continue
+            if seed:
+                if int(config.get("environment_settings", {}).get("seed")) != int(seed):
+                    print(f"Experiment {experiment_number} does not use seed {seed}")
+                    continue
                             
                         
         except Exception as e:
