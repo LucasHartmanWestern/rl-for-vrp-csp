@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=3
 #SBATCH --gpus-per-node=1
-#SBATCH --time=00:04:30
+#SBATCH --time=00:13:29
 #SBATCH --mem=24G
 
 echo "Starting evaluation for experiment 0"

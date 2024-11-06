@@ -39,8 +39,8 @@ def create_job(args):
         algorithm_time_mapping = {
             'DQN': (15 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
             'PPO': (40 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
-            # 'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
-            # 'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
+            'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
+            'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
         }
     
         if algorithm in algorithm_time_mapping:
@@ -59,7 +59,7 @@ def create_job(args):
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
-            calculated_time = algorithm_time_mapping[algorithm] * total_episodes * num_gpus
+            calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
         else:
             print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
             continue
