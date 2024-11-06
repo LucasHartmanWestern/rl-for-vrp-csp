@@ -4,10 +4,10 @@
 #SBATCH --error=experiments/Exp_28/error.log
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=6
+#SBATCH --cpus-per-task=4
 #SBATCH --gpus-per-node=3
 #SBATCH --time=15:00:00
-#SBATCH --mem=64G
+#SBATCH --mem=24G
 
 echo "Starting evaluation for experiment 28"
 
