@@ -249,15 +249,15 @@ class EnvironmentClass:
         # Based on https://www.mdpi.com/2032-6653/12/3/115
         # Efficiency drops significantly below 0°C, gradually above it
         if temperature < 0:
-            temp_efficiency = 0.5 # 50% efficiency at freezing
+            temp_efficiency = 1.5 # 50% efficiency at freezing
         elif 0 <= temperature <= 25:
-            temp_efficiency =  (25 - temperature) * 0.02 # 2% efficiency drop per degree below 25°C
+            temp_efficiency =  1 + ((25 - temperature) * 0.02) # 2% efficiency drop per degree below 25°C
         else:
-            temp_efficiency = 0 # Full efficiency at or above 25°C
+            temp_efficiency = 1 # Full efficiency at or above 25°C
 
         # Modify usage_per_hour based on the efficiency factor and convert back to int
         # Higher efficiency means less power usage
-        usage_per_hour = (usage_per_hour * (1 + temp_efficiency)).astype(int)
+        usage_per_hour = (usage_per_hour * temp_efficiency).astype(int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
         starting_charge = config['starting_charge'] + 2000 * (rng.random(config['num_of_cars']) - 0.5)
