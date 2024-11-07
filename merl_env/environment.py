@@ -590,7 +590,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, timestep_counter: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -633,7 +633,7 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-                           np.array([self.temperature])))
+                           np.array([self.temperature]), np.array([timestep_counter])))
         
         # Normalize the state values
         state = (state - np.mean(state)) / np.std(state)

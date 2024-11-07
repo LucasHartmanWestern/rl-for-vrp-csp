@@ -196,7 +196,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
                 ########### Starting environment rutting
-                state = environment.reset_agent(car_idx)
+                state = environment.reset_agent(car_idx, timestep_counter)
                 states.append(state)  # Track states
 
                 if save_offline_data:

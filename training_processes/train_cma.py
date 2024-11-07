@@ -132,7 +132,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
                 for car_idx in range(num_cars):
 
                     start_time_step = time.time()
-                    state = environment.reset_agent(car_idx)  # Reset environment for the car #MAYBE A PROBLEM HERE!
+                    state = environment.reset_agent(car_idx, timestep_counter)  # Reset environment for the car #MAYBE A PROBLEM HERE!
                     agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                     agent = cma_agents_list[agent_idx]
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
