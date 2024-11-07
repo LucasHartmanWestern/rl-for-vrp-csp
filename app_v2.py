@@ -234,6 +234,7 @@ def train_rl_vrp_csp(args):
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
+            old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             global_weights = None
 
             for aggregate_step in range(federated_c['aggregation_count']):
@@ -253,6 +254,7 @@ def train_rl_vrp_csp(args):
                     process_output_values = manager.list()
                     process_metrics = manager.list()
                     process_trajectories = manager.list()
+                    process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
@@ -269,7 +271,7 @@ def train_rl_vrp_csp(args):
                                             ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                             local_weights_list, process_rewards, process_metrics, process_output_values,\
                                             barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                            agent_by_zone, variant, eval_c['save_offline_data'], True))
+                                            agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers))
                         processes.append(process)
                         process.start()
 
@@ -317,6 +319,7 @@ def train_rl_vrp_csp(args):
                     output_values.extend(process_output_values)
                     metrics.extend(process_metrics)
                     trajectories.extend(process_trajectories)
+                    old_buffers = list(process_buffers)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
                         print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n", file=file)
@@ -362,6 +365,7 @@ def train_rl_vrp_csp(args):
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
+            old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             
             print(f"Loading saved models - Seed {seed}")
             global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
@@ -372,6 +376,7 @@ def train_rl_vrp_csp(args):
             process_output_values = manager.list()
             process_metrics = manager.list()
             process_trajectories = manager.list()
+            process_buffers = manager.list([None for _ in range(len(chargers))])
 
             # Barrier for synchronization
             barrier = mp.Barrier(len(chargers))
@@ -383,7 +388,7 @@ def train_rl_vrp_csp(args):
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                    agent_by_zone, variant, eval_c['save_offline_data'], False))
+                                    agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers))
                 processes.append(process)
                 process.start()
 
@@ -408,6 +413,7 @@ def train_rl_vrp_csp(args):
             output_values.extend(process_output_values)
             metrics.extend(process_metrics)
             trajectories.extend(process_trajectories)
+            old_buffers = list(process_buffers)
 
             if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
@@ -464,7 +470,7 @@ def train_rl_vrp_csp(args):
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,
                 rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
-                save_offline_data, train_model):
+                save_offline_data, train_model, old_buffers, process_buffers):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -522,11 +528,11 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per, new_buffers =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
                   date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
                   agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
-                  save_offline_data, train_model)
+                  save_offline_data, train_model, old_buffers)
 
         # Save results of training
         st = time.time()
@@ -534,6 +540,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         output_values.append(avg_output_values)
         metrics.append(training_metrics)
         trajectories.append(trajectories_per)
+        process_buffers[ind] = new_buffers
         et = time.time() - st
 
         if verbose:

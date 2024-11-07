@@ -57,7 +57,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
     # Extract unique charger configurations and prepare environment-specific variables
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
-    state_dimension = (environment.num_chargers * 3 * 2) + 4  # Calculate the state dimension
+    state_dimension = (environment.num_chargers * 3 * 2) + 5  # Calculate the state dimension
     model_indices = environment.info['model_indices']
 
     # Getting Neural Network parameters

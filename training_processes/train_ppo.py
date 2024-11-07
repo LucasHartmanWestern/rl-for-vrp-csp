@@ -15,11 +15,11 @@ from evaluation import evaluate
 
 
 # Define the experience tuple
-experience = namedtuple("Experience", field_names=["state", "action", "log_prob", "reward", "next_state", "done"])
+Experience = namedtuple("Experience", field_names=["state", "action", "log_prob", "reward", "next_state", "done"])
 
 def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True
+          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
 ):
 
     """
@@ -44,7 +44,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
         display_training_times (bool, optional): Flag to display training times for different operations.
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
         train_model (bool): True if training the model, False if evaluating
-
+        old_buffers (list, optional): Old buffers to reuse if available
     Returns:
         tuple: A tuple containing:
             - List of trained actor-critic state dictionaries.
@@ -79,7 +79,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (environment.num_chargers * 3 * 2) + 5
+    state_dimension = (environment.num_chargers * 3 * 2) + 6
 
     model_indices = environment.info['model_indices']
     
@@ -124,6 +124,9 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     random_threshold = np.random.random((num_episodes, num_cars))
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
+
+    if old_buffers is not None and len(old_buffers) > 0:
+        buffers = old_buffers
 
     trajectories = []
 
@@ -307,7 +310,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], log_probs[d], rewards[d],\
+            buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], log_probs[d], rewards[d],\
                                                 states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
                                                                      done))  # Store experience
 
@@ -413,7 +416,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 
-        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
+        if i % 25 == 0 and i >= batch_size:  # Every 25 episodes
             if agent_by_zone:
                 # Add this before you save your model
                 if not os.path.exists(base_path):
@@ -477,7 +480,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [actor_critic.cpu().state_dict() for actor_critic in actor_critics], avg_rewards, avg_output_values, metrics, trajectories
+    return [actor_critic.cpu().state_dict() for actor_critic in actor_critics], avg_rewards, avg_output_values, metrics, trajectories, buffers
 
 
 def print_time(label, time):
