@@ -22,10 +22,6 @@ warnings.filterwarnings("ignore")
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
 
-mp.set_sharing_strategy('file_system')
-
-mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
-
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 def train_rl_vrp_csp(args):
@@ -554,6 +550,10 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         raise
 
 if __name__ == '__main__':
+
+    mp.set_sharing_strategy('file_system')
+
+    mp.set_start_method('spawn', force=True)
 
     parser = argparse.ArgumentParser(description=('MERL Project'))
     parser.add_argument('-c','--number_processors', type=int, default=1,help='number of processors used to run MERL')
