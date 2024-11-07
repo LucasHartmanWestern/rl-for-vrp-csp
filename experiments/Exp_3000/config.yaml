@@ -10,7 +10,7 @@ algorithm_settings:
     agent_by_zone: True # True if using one agent for each zone, and false using a agent for each car
 
 federated_learning_settings:
-    aggregation_count: 1 # Amount of aggregation steps for federated learning
+    aggregation_count: 5 # Amount of aggregation steps for federated learning
     
     # Multipliers to control aggregation
     city_multiplier: 0.15 # Importance of city-wide average
@@ -29,7 +29,7 @@ environment_settings:
     # Coordinates of city regions in London
     coords: 
         - [43.02120034946083, -81.28349087468504] # North London
-#        - [43.004969336049854, -81.18631870502043] # East London
+        - [43.004969336049854, -81.18631870502043] # East London
 #        - [42.95923445066671, -81.26016049362336] # South London
 #        - [42.98111190139387, -81.30953935839466] # West London
 #        - [42.9819404397449, -81.2508736429095] # Central London
@@ -68,7 +68,7 @@ eval_config:
 
 ############ Hyperparameters ############
 nn_hyperparameters:
-    num_episodes: 5 # Amount of training episodes per session
+    num_episodes: 1000 # Amount of training episodes per session
     learning_rate: 0.00001 # Rate of change for model parameters
     epsilon: 1 # Introduce noise during training
     discount_factor: 0.999 # Present value of future rewards
@@ -123,7 +123,7 @@ odt_hyperparameters:
     num_updates_per_pretrain_iter: 500
 
     # finetuning options
-    max_online_iters: 2  # Duplicate
+    max_online_iters: 200  # Duplicate
     online_rtg: -60
     num_online_rollouts: 1
     replay_size: 500
@@ -131,6 +131,6 @@ odt_hyperparameters:
     eval_interval: 1
 
     # environment options
-    log_to_tb: False
+    log_to_tb: True
     save_dir: "./exp"
-    exp_name: "1234-Test"
+    exp_name: "3000.2"

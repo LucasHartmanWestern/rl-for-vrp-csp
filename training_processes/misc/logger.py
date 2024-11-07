@@ -11,9 +11,9 @@ from training_processes.misc import utils
 
 
 class Logger:
-    def __init__(self, variant):
+    def __init__(self, variant, agg_num, zone):
 
-        self.log_path = self.create_log_path(variant)
+        self.log_path = self.create_log_path(variant, agg_num, zone)
         utils.mkdir(self.log_path)
         print(f"Experiment log path: {self.log_path}")
 
@@ -31,8 +31,8 @@ class Logger:
                         total_transitions_sampled,
                     )
 
-    def create_log_path(self, variant):
-        now = datetime.now().strftime("%Y.%m.%d/%H%M%S")
+    def create_log_path(self, variant, agg_num, zone):
+        #now = datetime.now().strftime("%Y.%m.%d/%H%M%S")
         exp_name = variant["exp_name"]
         prefix = variant["save_dir"]
-        return f"{prefix}/{now}-{exp_name}"
+        return f"{prefix}/Exp_{exp_name}/Agg:{agg_num}-Zone:{zone}"
