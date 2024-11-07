@@ -47,7 +47,12 @@ def train_rl_vrp_csp(args):
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
-        # Get the list of available GPUs from the environment variable
+    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    print(f"Available GPUs: {torch.cuda.device_count()}")
+    print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
+    print(f"PyTorch version: {torch.__version__}")
+
+    # Get the list of available GPUs from the environment variable
     cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
     if cuda_visible_devices is not None:
         # Split the string into a list of GPU indices
