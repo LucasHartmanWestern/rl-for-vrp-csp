@@ -135,8 +135,13 @@ def train_rl_vrp_csp(args):
         n_zones = len(env_c['coords'])
         gpus_size = len(gpus)
         exp_devices = [gpus[i % gpus_size] for i in range(n_zones)]
-        for i, gpu in enumerate(exp_devices):
-            print(f'Zone {i} with GPU {gpu} - {torch.cuda.get_device_name(gpu)}')
+        if n_gpus == 0:
+            devices = ['cpu' for _ in range(n_zones)]
+        else:
+            for i, gpu in enumerate(exp_devices):
+                print(f'Zone {i} with GPU {gpu} - {torch.cuda.get_device_name(gpu)}')
+
+        devices = [gpus[i % gpus_size] for i in range(n_zones)]
 
         # get seed for current experiment
         seed = env_c['seed']
