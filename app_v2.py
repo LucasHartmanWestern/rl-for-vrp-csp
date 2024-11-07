@@ -15,9 +15,11 @@ from codecarbon import EmissionsTracker
 import uuid
 import shutil
 import pandas as pd
+
+from collections import defaultdict
+
 warnings.filterwarnings("ignore")
 
-#from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
@@ -459,7 +461,7 @@ def train_rl_vrp_csp(args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"{metrics_base_path}/offline_data/data-{current_time}.pkl"
+            dataset_path = f"{metrics_base_path}/data-{current_time}.pkl"
             print({dataset_path})
 
             traj_format = format_data(trajectories)
@@ -559,7 +561,33 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         raise
-
+        
+def format_data(data):
+    # Initialize a defaultdict to aggregate data by unique identifiers
+    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_idx': None})
+    
+    # Iterate over each data entry to aggregate the data
+    for sublist in data:
+        for entry in sublist:
+            # Unique identifier for each car's trajectory
+            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
+            
+            # Aggregate data for this car's trajectory
+            trajectories[identifier]['observations'].extend(entry['observations'])
+            trajectories[identifier]['actions'].extend(entry['actions'])
+            trajectories[identifier]['rewards'].extend(entry['rewards'])
+            trajectories[identifier]['terminals'].extend(entry['terminals'])
+            trajectories[identifier]['terminals_car'].extend(entry['terminals_car'])  # Aggregate terminals_car
+            trajectories[identifier]['zone'] = entry['zone']
+            trajectories[identifier]['aggregation'] = entry['aggregation']
+            trajectories[identifier]['episode'] = entry['episode']
+            trajectories[identifier]['car_idx'] = entry['car_idx']
+    
+    # Convert the defaultdict to a list of dictionaries
+    formatted_trajectories = list(trajectories.values())
+    
+    return formatted_trajectories
+    
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=('MERL Project'))
