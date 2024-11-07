@@ -634,6 +634,12 @@ class EnvironmentClass:
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
                            np.array([self.temperature])))
+        
+        # Normalize the state values
+        state = (state - np.mean(state)) / np.std(state)
+
+        # Round the state values to 3 decimal places
+        state = np.round(state, 3)
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
