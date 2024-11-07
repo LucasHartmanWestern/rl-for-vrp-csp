@@ -37,8 +37,8 @@ def create_job(args):
         # Calculate the time based on the total number of episodes
         # Note: these are rough estimates based on how long takes to train 10k episodes
         algorithm_time_mapping = {
-            'DQN': (20 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
-            'PPO': (45 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
+            'DQN': (25 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
+            'PPO': (50 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
             'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
             'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
         }

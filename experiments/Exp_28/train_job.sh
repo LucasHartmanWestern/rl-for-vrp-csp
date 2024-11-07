@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=3
 #SBATCH --gpus-per-node=1
-#SBATCH --time=20:00:00
+#SBATCH --time=25:00:00
 #SBATCH --mem=24G
 
 echo "Starting training for experiment 28"
