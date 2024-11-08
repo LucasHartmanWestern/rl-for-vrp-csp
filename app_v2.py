@@ -15,6 +15,7 @@ from codecarbon import EmissionsTracker
 import uuid
 import shutil
 import pandas as pd
+import sys
 
 from collections import defaultdict
 
@@ -565,7 +566,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
     except Exception as e:
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
-        raise
+        sys.exit(1) # Exit the program with a non-zero status
         
 def format_data(data):
     # Initialize a defaultdict to aggregate data by unique identifiers

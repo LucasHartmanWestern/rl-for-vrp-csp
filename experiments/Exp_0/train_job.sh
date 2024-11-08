@@ -5,11 +5,13 @@
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=3
-#SBATCH --gpus-per-node=1
 #SBATCH --time=00:22:30
 #SBATCH --mem=24G
+#SBATCH --gpus-per-node=1
 
 echo "Starting training for experiment 0"
+
+set -e  # Exit immediately if a command exits with a non-zero status
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
