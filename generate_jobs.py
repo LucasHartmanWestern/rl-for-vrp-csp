@@ -40,27 +40,26 @@ def create_job(args):
             algorithm_time_mapping = {
                 'DQN': (25 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
                 'PPO': (50 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
-                # 'CMA': (16 / 10000) / 3, # 2 hours / 10k generations / 3 zones
+                'CMA': (16 / 10000) , # 16 hours / 10k generations 4 zones
                 # 'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
             }
         
             if algorithm in algorithm_time_mapping:
-                
-                # num_cpus = num_gpus + 1
-
-                # For now, use 1 cpu per zone
-                num_cpus = len(config['environment_settings']['coords'])
-
-                mem_size = "24G"
-                allocation = 'rrg-kgroling'
-                total_episodes = num_episodes * num_aggregations
                 if algorithm == 'CMA':
                     total_episodes = num_generations*num_aggregations
                     mem_size = "16G"
                     num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                     num_cpus = 6
                     allocation = "def-mcapretz"
-                calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
+                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes
+                else:
+                    # num_cpus = num_gpus + 1
+                    # For now, use 1 cpu per zone
+                    num_cpus = len(config['environment_settings']['coords'])
+                    mem_size = "24G"
+                    allocation = 'rrg-kgroling'
+                    total_episodes = num_episodes * num_aggregations
+                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
             else:
                 print(f"Algorithm {algorithm} not supported. Need to add estimated duration for this algorithm.")
                 continue
