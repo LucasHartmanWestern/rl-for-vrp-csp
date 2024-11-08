@@ -16,19 +16,7 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
 
     Returns:
         list: A 2D list (zones x models) containing the global weights for each zone-model pair.
-    """
-
-    if is_odt:
-        zone_weights = [
-    [{'weight1': torch.tensor([1.0]), 'weight2': torch.tensor([2.0])}],  # A single zone with a single model's weights
-    [{'weight1': torch.tensor([1.0]), 'weight2': torch.tensor([2.0])}]   # Another zone with the same structure
-]
-        ev_info = [
-    {'model_indices': [0]},  # First zone with model index 0
-    {'model_indices': [0]}   # Second zone with model index 0
-]
-
-    
+    """ 
     max_model_index = 0
 
     for info in ev_info:
@@ -36,6 +24,15 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
 
     print(f"Num of Models: {max_model_index + 1} - Num of Zones: {len(zone_weights)}")
 
+
+    #If ODT weights
+    if isinstance(zone_weights[0], torch.Tensor):
+        zone_weights = list(zone_weights)
+        stacked_layers = torch.stack(zone_weights)  # Shape: [num_saved_layers, attn_number, dim1, dim2]      
+
+        avg_attn_layers = torch.mean(stacked_layers, dim=0)  # Shape: [attn_number, dim1, dim2]
+        return avg_attn_layers
+        
     # Get aggregated weights for each zone
     zone_aggregates = [aggregate_weights(weights) for weights in zone_weights]
 
@@ -104,9 +101,9 @@ def aggregate_weights(local_weights_list):
     Returns:
         dict: A dictionary containing the averaged weights.
     """
-
-    # Initialize the aggregated weights with the structure of the first model's weights
+        
     aggregated_weights = {key: torch.zeros_like(value) for key, value in local_weights_list[0].items()}
+
 
     # Sum the weights from all local models
     for local_weights in local_weights_list:
