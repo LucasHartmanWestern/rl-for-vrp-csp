@@ -55,7 +55,7 @@ def create_job(args):
             total_episodes = num_episodes * num_aggregations
             if algorithm == 'CMA':
                 total_episodes = num_generations*num_aggregations
-                mem_size = "8G"
+                mem_size = "16G"
                 num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
                 num_cpus = 6
                 allocation = "def-mcapretz"
@@ -74,9 +74,9 @@ def create_job(args):
 #SBATCH -A {allocation}
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={num_cpus}
-#SBATCH --gpus-per-node={num_gpus}
 #SBATCH --time={str(int(calculated_time // 1)).zfill(2)}:{str(int((calculated_time * 60) % 60)).zfill(2)}:{str(int((calculated_time * 3600) % 60)).zfill(2)}
 #SBATCH --mem={mem_size}
+{f"#SBATCH --gpus-per-node={num_gpus}" if num_gpus > 0 else""}
 
 echo "Starting {'evaluation' if args.eval else 'training'} for experiment {experiment}"
 
