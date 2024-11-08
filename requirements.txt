@@ -16,3 +16,4 @@ jupyterlab
 tenacity
 jupyterlab-plotly
 codecarbon
+python-dotenv
