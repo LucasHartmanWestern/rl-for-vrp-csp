@@ -249,13 +249,14 @@ class EnvironmentClass:
         # Based on https://www.mdpi.com/2032-6653/12/3/115
         # Efficiency drops significantly below 0°C, gradually above it
         if temperature < 0:
-            temp_efficiency = 0.5 # 50% efficiency at freezing
+            temp_efficiency = 1.5 # 50% efficiency at freezing
         elif 0 <= temperature <= 25:
-            temp_efficiency =  1 - (25 - temperature) * 0.02 # 2% efficiency drop per degree below 25°C
+            temp_efficiency =  1 + ((25 - temperature) * 0.02) # 2% efficiency drop per degree below 25°C
         else:
             temp_efficiency = 1 # Full efficiency at or above 25°C
 
         # Modify usage_per_hour based on the efficiency factor and convert back to int
+        # Higher efficiency means less power usage
         usage_per_hour = (usage_per_hour * temp_efficiency).astype(int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
@@ -589,7 +590,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, timestep_counter: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -632,7 +633,13 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-                           np.array([self.temperature])))
+                           np.array([self.temperature]), np.array([timestep_counter])))
+        
+        # Normalize the state values
+        state = (state - np.mean(state)) / np.std(state)
+
+        # Round the state values to 3 decimal places
+        state = np.round(state, 3)
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
