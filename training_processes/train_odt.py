@@ -89,6 +89,8 @@ class Experiment:
         )
 
         if agg_num > 0:
+            start_time = time.time() 
+            
             path = self.logger.log_path
             current_agg_num = int(re.search(r'Agg:(\d+)', path ).group(1))
             new_agg_num = current_agg_num - 1
@@ -99,6 +101,9 @@ class Experiment:
             save_global_path = f'saved_networks/Exp_{experiment_number}/'
             attn_layers = load_global_weights(save_global_path)
             self.set_attn_layers(self.model, attn_layers.to(device))
+            end_time = time.time()
+            elapsed = end_time - start_time
+            print(f'Loading aggregated models took {elapsed}')
             
 
 
@@ -163,7 +168,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"../Datasets/[{self.seed}]-Exp_902_formatted.pkl"
+        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Exp_902_formatted.pkl"
         #dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
