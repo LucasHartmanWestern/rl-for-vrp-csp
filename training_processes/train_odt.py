@@ -515,8 +515,9 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
         avg_output_values = []
         metrics = []
         trajectories = []
+        buffer = []
         
-        return weights_list, avg_rewards, avg_output_values, metrics, trajectories
+        return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
 
 def load_global_weights(save_global_path):
     """
