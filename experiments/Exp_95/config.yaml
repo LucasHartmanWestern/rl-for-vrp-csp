@@ -68,8 +68,6 @@ nn_hyperparameters:
   epsilon_decay: 0.999
   layers:
   - 1024
-  - 1024
-  - 512
   - 512
   - 256
   - 128
