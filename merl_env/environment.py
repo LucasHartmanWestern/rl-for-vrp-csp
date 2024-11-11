@@ -506,7 +506,6 @@ class EnvironmentClass:
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
         reward_scale = (timestep + 1) if self.reward_version == 2 else 1
-        print(f"REWARD SCALE: {reward_scale}")
         self.simulation_reward = -((distance_factor + peak_traffic + energy_used) / (reward_scale))
 
         # Save results in class
