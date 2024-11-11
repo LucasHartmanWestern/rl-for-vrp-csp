@@ -258,7 +258,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done = environment.simulate_routes()
+            sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()

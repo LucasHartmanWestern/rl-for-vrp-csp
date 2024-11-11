@@ -159,7 +159,7 @@ def train_cma(ev_info,
                     environment.generate_paths(car_route, None, agent_idx)  # Stack the generated paths in the environment
     
                 # Once all cars have routes, simulate routes in environment and get results
-                sim_done = environment.simulate_routes()
+                sim_done = environment.simulate_routes(timestep_counter)
                 _, _, _, _, rewards_pop = environment.get_results()  # Retrieve rewards
                 # reward_timestep += rewards_pop
 
@@ -197,7 +197,7 @@ def train_cma(ev_info,
                 environment.generate_paths(car_route, None, agent_idx)
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
     
-            sim_done = environment.simulate_routes()  # Simulate the environment with the best solutions
+            sim_done = environment.simulate_routes(timestep_counter)  # Simulate the environment with the best solutions
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()  # Get the resulting rewards
 
             if timestep_counter == 0:

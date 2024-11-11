@@ -225,6 +225,7 @@ class EnvironmentClass:
         self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
+        self.reward_version = config.get('reward_version', 1)
 
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
@@ -368,7 +369,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self):
+    def simulate_routes(self, timestep: int):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -504,8 +505,9 @@ class EnvironmentClass:
         energy_used = energy_used / 100
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
-        
-        self.simulation_reward = -(distance_factor + peak_traffic + energy_used)
+        reward_scale = (timestep + 1) if self.reward_version == 2 else 1
+        print(f"REWARD SCALE: {reward_scale}")
+        self.simulation_reward = -((distance_factor + peak_traffic + energy_used) / (reward_scale))
 
         # Save results in class
         self.tokens = tokens
