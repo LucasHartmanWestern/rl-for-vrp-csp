@@ -13,9 +13,28 @@ from evaluation import evaluate
 
 from merl_env._pathfinding import haversine
 
-def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num,
-              zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes, verbose,
-              display_training_times=False, dtype=torch.float32, save_offline_data=False, train_model=True):
+def train_cma(ev_info, 
+              metrics_base_path,
+              experiment_number,
+              chargers, environment,
+              routes, date,
+              action_dim,
+              global_weights,
+              aggregation_num,
+              zone_index,
+              seed,
+              main_seed,
+              device,
+              agent_by_zone,
+              variant,
+              args,
+              fixed_attributes,
+              verbose,
+              display_training_times=False,
+              dtype=torch.float32,
+              save_offline_data=False,
+              train_model=True,
+              old_buffers=None):
     """
     Trains decision-making agents using the Covariance Matrix Adaptation (CMA) algorithm.
 
@@ -141,18 +160,23 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes()
-                _, _, _, _, rewards = environment.get_results()  # Retrieve rewards
-                reward_timestep += rewards
+                _, _, _, _, rewards_pop = environment.get_results()  # Retrieve rewards
+                # reward_timestep += rewards_pop
 
                 if agent_by_zone:
-                    fitnesses[pop_idx] = -1 * reward_timestep.mean()
+                    fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0).mean()
+                elif 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
+                    fitnesses[pop_idx] =  np.array(-1 * rewards_pop.sum(axis=0).mean())*num_cars
+                    
                 else:
-                    fitnesses[pop_idx] =  np.array(-1 * reward_timestep.mean())*num_cars
+                    fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0)
 
+ 
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
             agent.es.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
 
+        #--- Start simulate route with best CMA agents
         # Get rewards with best solutions after evolving population
         environment.reset_episode(chargers, routes, unique_chargers)
 
@@ -160,12 +184,12 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
         timestep_counter = 0
 
         rewards = []
-        while not sim_done:  # Keep going until every EV reaches its destination
+        while not sim_done:  # Keep going until every EV reachewr its destination
             # environment.cma_copy_store()  # Restore environment to its stored state
             environment.init_routing()
             
             for car_idx in range(num_cars):
-                state = environment.reset_agent(car_idx)
+                state = environment.reset_agent(car_idx, timestep_counter)
                 agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                 agent = cma_agents_list[agent_idx]
                 weights = agent.get_best_solutions()  # Get the best solutions
@@ -271,9 +295,7 @@ def train_cma(ev_info, metrics_base_path, experiment_number, chargers, environme
     trajectories = []
     weights_list = [agent.get_weights() for agent in cma_agents_list]
         
-    print(f'weight list line 265 {len(weights_list)}')
-  
-    return weights_list, avg_rewards, avg_output_values, metrics, trajectories
+    return weights_list, avg_rewards, avg_output_values, metrics, trajectories, None
 
 
 def print_log(label, date, et):
