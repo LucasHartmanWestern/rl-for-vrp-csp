@@ -326,7 +326,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
                 # Prepare the experiences by converting tensors to numpy arrays
                 experiences_list = [
-                    experience(
+                    Experience(
                         to_numpy_if_tensor(exp.state),
                         to_numpy_if_tensor(exp.action),
                         to_numpy_if_tensor(exp.log_prob),
