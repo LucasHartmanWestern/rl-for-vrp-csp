@@ -68,6 +68,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     layers = nn_c['layers']
     aggregation_count = federated_c['aggregation_count']
 
+    target_network_update_frequency = nn_c['target_network_update_frequency'] if 'target_network_update_frequency' in nn_c else 25
+
     eps_per_save = int(nn_c['eps_per_save'])
     
     # Decay epsilon such that by the midway point it is 0.1
@@ -351,8 +353,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 
-        if i % 25 == 0 and i >= batch_size:  # Every 25 episodes
-            if agent_by_zone:
+        if ((i + 1) % target_network_update_frequency == 0) and i >= batch_size:
+            print(f'Updating target network at episode {i}')
+            if agent_by_zone:                
                 soft_update(target_q_networks[0], q_networks[0])
 
                 # Add this before you save your model
