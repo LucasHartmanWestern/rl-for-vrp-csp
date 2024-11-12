@@ -1,6 +1,6 @@
 ### Experiment 7: ###
 --------------------------------
-CPPU ONLY!
+CPU ONLY!
 
 Seed: 1234
 Model: DQN

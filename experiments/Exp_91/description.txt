@@ -1,6 +1,6 @@
 ### Experiment 91: ###
 --------------------------------
-CONTROL!
+CONTROL FOR NETWORK SIZE COMPARISON!
 
 Seed: 1234
 Model: DQN

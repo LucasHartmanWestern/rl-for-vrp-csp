@@ -1,5 +1,7 @@
-### Experiment 7: ###
+### Experiment 88: ###
 --------------------------------
+Learning rate: 0.1
+
 Seed: 1234
 Model: DQN
 Season: Spring
