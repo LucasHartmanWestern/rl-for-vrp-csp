@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from collections import namedtuple
 
 # Define the QNetwork architecture
@@ -47,9 +48,8 @@ def initialize(state_dim, action_dim, layers, device_agents):
     return q_network.to(device_agents), target_q_network.to(device_agents)
 
 def compute_loss(experiences, gamma, q_network, target_q_network):
-
     """
-    Computes the loss for training the Q-network using the Huber loss function.
+    Computes the loss for training the Q-network when optimizing all outputs in the Q-value distribution.
 
     Parameters:
         experiences (tuple): A tuple containing:
@@ -68,16 +68,23 @@ def compute_loss(experiences, gamma, q_network, target_q_network):
 
     states, distributions, rewards, next_states, dones = experiences
 
-    current_Q = q_network(states)
-    next_Q_values = target_q_network(next_states).detach()
-    max_next_Q_values = next_Q_values.max(1)[0].unsqueeze(1)
-    target_Q = rewards + (gamma * max_next_Q_values * (1 - dones))
+    # Compute current Q-value predictions for all actions
+    current_Q_values = q_network(states)
 
-    # Expand target_Q to have the same size as current_Q
-    target_Q = target_Q.expand_as(current_Q)
+    # Compute the next Q-values for all actions from the target network
+    with torch.no_grad():
+        next_Q_values = target_q_network(next_states)
+        # Get the maximum Q-value for each next state to use for each distribution element
+        max_next_Q_values = next_Q_values.max(1, keepdim=True)[0]  # Max Q-value per next state, shaped as (batch_size, 1)
 
-    # Use the Huber loss (SmoothL1Loss)
-    loss = nn.SmoothL1Loss()(current_Q, target_Q)
+    # Compute target Q-values for each output in the distribution
+    # We add (gamma * max_next_Q_values * (1 - dones)) to each element in the distribution to create per-action targets
+    target_Q_values = rewards + (gamma * max_next_Q_values * (1 - dones))
+
+    # Use a loss that can handle the entire Q-value distribution
+    # Here we use MSE to compare each element in current_Q_values to target_Q_values
+    loss = F.mse_loss(current_Q_values, target_Q_values.expand_as(current_Q_values))
+
     return loss
 
 def agent_learn(experiences, gamma, q_network, target_q_network, optimizer, device):
