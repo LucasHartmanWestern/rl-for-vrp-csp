@@ -8,24 +8,25 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
 
         self.layers = nn.ModuleList()
-        self.batch_norms = nn.ModuleList()  # Add a list for batch normalization layers
+        self.batch_norms = nn.ModuleList()
         for i, layer_size in enumerate(layers):
             if i == 0:
                 linear_layer = nn.Linear(state_dim, layer_size)
             else:
                 linear_layer = nn.Linear(layers[i - 1], layer_size)
             
-            # self.init_weights(linear_layer)  # Initialize weights and biases
             self.layers.append(linear_layer)
-            self.batch_norms.append(nn.BatchNorm1d(layer_size))  # Add batch normalization layer
+            self.batch_norms.append(nn.BatchNorm1d(layer_size))
 
-        self.output = nn.Linear(layers[-1], action_dim)  # Output layer
+        self.output = nn.Linear(layers[-1], action_dim)
         
     def forward(self, state):
         x = state
-        for i in range(len(self.layers) - 1):
-            x = torch.relu(self.layers[i](x))  # Apply ReLU activation to each layer except output
-        return self.output(x) # Output layer
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+            x = self.batch_norms[i](x)  # Apply batch normalization
+            x = torch.relu(x)  # Apply ReLU activation
+        return self.output(x)
 
 def initialize(state_dim, action_dim, layers, device_agents):
 
