@@ -21,10 +21,6 @@ class QNetwork(nn.Module):
         self.output = nn.Linear(layers[-1], action_dim)
         
     def forward(self, state):
-        # Ensure the input is 2D by adding a batch dimension if necessary
-        if state.dim() == 1:
-            state = state.unsqueeze(0)  # Add a batch dimension
-
         x = state
         for i in range(len(self.layers)):
             x = self.layers[i](x)
