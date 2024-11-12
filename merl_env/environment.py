@@ -225,7 +225,7 @@ class EnvironmentClass:
         self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
-        self.reward_version = config.get('reward_version', 1)
+        self.reward_version = config['reward_version'] if 'reward_version' in config else 1
 
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim

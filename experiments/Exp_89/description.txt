@@ -1,5 +1,7 @@
-### Experiment 7: ###
+### Experiment 89: ###
 --------------------------------
+Learning rate: 1.0e-05 (CONTROL)
+
 Seed: 1234
 Model: DQN
 Season: Spring
