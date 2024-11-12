@@ -8,7 +8,6 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
 
         self.layers = nn.ModuleList()
-        self.batch_norms = nn.ModuleList()
         for i, layer_size in enumerate(layers):
             if i == 0:
                 linear_layer = nn.Linear(state_dim, layer_size)
@@ -16,7 +15,6 @@ class QNetwork(nn.Module):
                 linear_layer = nn.Linear(layers[i - 1], layer_size)
             
             self.layers.append(linear_layer)
-            self.batch_norms.append(nn.BatchNorm1d(layer_size))
 
         self.output = nn.Linear(layers[-1], action_dim)
         
@@ -24,7 +22,6 @@ class QNetwork(nn.Module):
         x = state
         for i in range(len(self.layers)):
             x = self.layers[i](x)
-            x = self.batch_norms[i](x)  # Apply batch normalization
             x = torch.relu(x)  # Apply ReLU activation
         return self.output(x)
 

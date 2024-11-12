@@ -565,7 +565,9 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
             barrier.wait()  # Wait for all threads to finish before proceeding
 
     except Exception as e:
+        import traceback
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
+        traceback.print_exc()
         sys.exit(1) # Exit the program with a non-zero status
         
 def format_data(data):
