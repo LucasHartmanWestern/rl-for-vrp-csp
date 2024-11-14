@@ -27,7 +27,7 @@ def create_vec_eval_episodes_fn(
 ):
     def eval_episodes_fn(model):
         target_return = [eval_rtg * reward_scale] * 1
-        returns, lengths, _ = vec_evaluate_episode_rtg(
+        returns, lengths, _ , _ = vec_evaluate_episode_rtg(
             vec_env,
             chargers,
             routes,
@@ -100,6 +100,9 @@ def vec_evaluate_episode_rtg(
     sim_done = False
     timestep_counter = 0
     episode_rewards = []
+    episode_energy = []
+    episode_distance = []
+    episode_traffic = []
 
     while not sim_done:
         vec_env.init_routing()
@@ -134,7 +137,8 @@ def vec_evaluate_episode_rtg(
 
         # Gather results
         arrived_at_final = vec_env.arrived_at_final
-        _, _, sim_battery_levels, _, time_step_rewards = vec_env.get_results()
+        #self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results, self.simulation_reward
+        _, time_step_traffic, time_step_energy, time_step_distance, time_step_rewards = vec_env.get_results()
 
         # Update rewards and terminals
         for traj in trajectories:
@@ -145,10 +149,15 @@ def vec_evaluate_episode_rtg(
             traj['cur_len'] += 1
 
         episode_rewards.append(time_step_rewards)
+        episode_energy.append(time_step_energy)
+        episode_distance.append(time_step_distance)
+        episode_traffic.append(time_step_traffic)
+
         timestep_counter += 1
 
     # Calculate the average return per car
     episode_return = np.mean(np.sum(np.vstack(episode_rewards), axis=0))
+    metrics = [episode_traffic, episode_energy, episode_distance, episode_rewards]
 
     # Truncate trajectories to actual length before returning
     trajectories = [{
@@ -159,6 +168,6 @@ def vec_evaluate_episode_rtg(
         'car_num': traj['car_num']
     } for traj in trajectories]
 
-    return episode_return, timestep_counter, trajectories
+    return episode_return, timestep_counter, trajectories, metrics
 
 

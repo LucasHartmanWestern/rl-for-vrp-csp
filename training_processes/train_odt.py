@@ -46,7 +46,7 @@ class Experiment:
         self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
 
         self.aug_trajs = []
-
+        self.metrics = []
         self.device = device
         self.target_entropy = -self.act_dim
         self.logger = Logger(variant, agg_num, zone_index)
@@ -168,7 +168,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Exp_902_formatted.pkl"
+        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Test.pkl"
         #dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
@@ -230,7 +230,7 @@ class Experiment:
             # generate init state
             target_return = [target_explore * self.reward_scale] * 1
 
-            returns, lengths, trajs = vec_evaluate_episode_rtg(
+            returns, lengths, trajs, metrics = vec_evaluate_episode_rtg(
                 online_envs,
                 self.chargers,
                 self.routes,
@@ -247,6 +247,7 @@ class Experiment:
                 device=self.device,
             )
 
+        self.metrics.append(metrics)
         self.replay_buffer.add_new_trajs(trajs)
         self.aug_trajs += trajs
         self.total_transitions_sampled += np.sum(lengths)
@@ -358,9 +359,8 @@ class Experiment:
         return self.attn_layers
 
     def online_tuning(self, online_envs, eval_envs, loss_fn):
-
         print("\n\n\n*** Online Finetuning ***")
-
+    
         trainer = SequenceTrainer(
             model=self.model,
             optimizer=self.optimizer,
@@ -387,8 +387,9 @@ class Experiment:
         writer = (
             SummaryWriter(self.logger.log_path) if self.variant["log_to_tb"] else None
         )
+    
+        buffer_to_return = None  # Initialize as None
         while self.online_iter < self.variant["max_online_iters"]:
-
             outputs = {}
             augment_outputs = self._augment_trajectories(
                 online_envs,
@@ -396,7 +397,7 @@ class Experiment:
                 n=self.variant["num_online_rollouts"],
             )
             outputs.update(augment_outputs)
-
+    
             dataloader = create_dataloader(
                 trajectories=self.replay_buffer.trajectories,
                 num_iters=self.variant["num_updates_per_online_iter"],
@@ -409,45 +410,43 @@ class Experiment:
                 reward_scale=self.reward_scale,
                 action_range=self.action_range,
             )
-
-            # finetuning
+    
             is_last_iter = self.online_iter == self.variant["max_online_iters"] - 1
-            if (self.online_iter + 1) % self.variant[
-                "eval_interval"
-            ] == 0 or is_last_iter:
+            if (self.online_iter + 1) % self.variant["eval_interval"] == 0 or is_last_iter:
                 evaluation = True
             else:
                 evaluation = False
-
+    
             train_outputs = trainer.train_iteration(
                 loss_fn=loss_fn,
                 dataloader=dataloader,
             )
             outputs.update(train_outputs)
-
+    
             if evaluation:
                 eval_outputs, eval_reward = self.evaluate(eval_fns)
                 outputs.update(eval_outputs)
-
+    
             outputs["time/total"] = time.time() - self.start_time
-
-            # log the metrics
             self.logger.log_metrics(
                 outputs,
                 iter_num=self.pretrain_iter + self.online_iter,
                 total_transitions_sampled=self.total_transitions_sampled,
                 writer=writer,
             )
-
-            if self.online_iter == (self.variant["max_online_iters"] - 1):
+    
+            if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
+                buffer_to_return = self.replay_buffer.trajectories  # Assign buffer only at the last iteration
                 
             self._save_model(
                 path_prefix=self.logger.log_path,
                 is_pretrain_model=False
- 
             )
             self.online_iter += 1 
+    
+        return buffer_to_return  # Return the buffer only at the last iteration
+
 
     def __call__(self):
 
@@ -498,9 +497,8 @@ class Experiment:
         if self.variant["max_online_iters"]:
             print("\n\nMaking Online Env.....")
             online_envs = self.environment
-            self.online_tuning(online_envs, eval_envs, loss_fn)
-            #online_envs.close()
-
+            self.final_buffer = self.online_tuning(online_envs, eval_envs, loss_fn)
+            
         #eval_envs.close()
 
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
@@ -508,7 +506,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
 ):
     
         utils.set_seed_everywhere(main_seed)
-        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index)
+        experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index)
     
         print("=" * 50)
         experiment()
@@ -518,9 +516,9 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
         weights_list = attn_layers
         avg_rewards = []
         avg_output_values = []
-        metrics = []
+        metrics = experiment.metrics
         trajectories = []
-        buffer = []
+        buffer = experiment.final_buffer
         
         return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
 
