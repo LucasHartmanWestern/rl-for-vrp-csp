@@ -5,11 +5,13 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
-#SBATCH --gpus-per-node=0
-#SBATCH --time=00:00:00
-#SBATCH --mem=8G
+#SBATCH --time=26:40:00
+#SBATCH --mem=16G
+
 
 echo "Starting training for experiment 203"
+
+set -e  # Exit immediately if a command exits with a non-zero status
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate

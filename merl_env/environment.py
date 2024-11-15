@@ -225,6 +225,7 @@ class EnvironmentClass:
         self.state_dim = (self.num_chargers * 3 * 2) + 5
         self.charging_status = np.zeros(self.num_cars)
         self.historical_charges_needed = []
+        self.reward_version = config['reward_version'] if 'reward_version' in config else 1
 
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
@@ -249,13 +250,14 @@ class EnvironmentClass:
         # Based on https://www.mdpi.com/2032-6653/12/3/115
         # Efficiency drops significantly below 0°C, gradually above it
         if temperature < 0:
-            temp_efficiency = 0.5 # 50% efficiency at freezing
+            temp_efficiency = 1 # Worse efficiency at freezing
         elif 0 <= temperature <= 25:
-            temp_efficiency =  1 - (25 - temperature) * 0.02 # 2% efficiency drop per degree below 25°C
+            temp_efficiency =  0.5 + ((25 - temperature) * 0.02) # 2% efficiency drop per degree below 25°C
         else:
-            temp_efficiency = 1 # Full efficiency at or above 25°C
+            temp_efficiency = 0.5 # Full efficiency at or above 25°C
 
         # Modify usage_per_hour based on the efficiency factor and convert back to int
+        # Higher efficiency means less power usage
         usage_per_hour = (usage_per_hour * temp_efficiency).astype(int)
 
         # Random starting charge between 0.5-x%, where x scales between 1-25% as sessions continue
@@ -367,7 +369,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self):
+    def simulate_routes(self, timestep: int):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -503,8 +505,8 @@ class EnvironmentClass:
         energy_used = energy_used / 100
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
-        
-        self.simulation_reward = -(distance_factor + peak_traffic + energy_used)
+        reward_scale = (timestep + 1) if self.reward_version == 2 else 1
+        self.simulation_reward = -((distance_factor + peak_traffic + energy_used) / (reward_scale))
 
         # Save results in class
         self.tokens = tokens
@@ -589,7 +591,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, timestep_counter: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -632,7 +634,13 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-                           np.array([self.temperature])))
+                           np.array([self.temperature]), np.array([timestep_counter])))
+        
+        # Normalize the state values
+        state = (state - np.mean(state)) / np.std(state)
+
+        # Round the state values to 3 decimal places
+        state = np.round(state, 3)
 
         # Storing agent info
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],

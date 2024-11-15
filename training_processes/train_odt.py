@@ -11,13 +11,13 @@ import argparse
 import pickle
 import random
 import time
-#import d4rl
 import torch
 import numpy as np
+import re
+
 from training_processes.misc import utils
 from training_processes.misc.replay_buffer import ReplayBuffer
 from training_processes.misc.lamb import Lamb
-#from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from pathlib import Path
 from training_processes.misc.data import create_dataloader
 from decision_transformer.models.decision_transformer import DecisionTransformer
@@ -29,7 +29,7 @@ from training_processes.misc.logger import Logger
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed):
+    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index):
 
         self.state_dim = state_dim
         self.act_dim = action_dim
@@ -37,6 +37,7 @@ class Experiment:
         self.chargers = chargers
         self.routes = routes
         self.seed = seed
+        self.agg_num = agg_num
         self.action_range = self._get_env_spec(variant)
         self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(
             'merl'
@@ -48,26 +49,28 @@ class Experiment:
 
         self.device = device
         self.target_entropy = -self.act_dim
+        self.logger = Logger(variant, agg_num, zone_index)
+    
         self.model = DecisionTransformer(
-            state_dim=self.state_dim,
-            act_dim=self.act_dim,
-            action_range=self.action_range,
-            max_length=variant["K"],
-            eval_context_length=variant["eval_context_length"],
-            max_ep_len=MAX_EPISODE_LEN,
-            hidden_size=variant["embed_dim"],
-            n_layer=variant["n_layer"],
-            n_head=variant["n_head"],
-            n_inner=4 * variant["embed_dim"],
-            activation_function=variant["activation_function"],
-            n_positions=1024,
-            resid_pdrop=variant["dropout"],
-            attn_pdrop=variant["dropout"],
-            stochastic_policy=True,
-            ordering=variant["ordering"],
-            init_temperature=variant["init_temperature"],
-            target_entropy=self.target_entropy,
-        ).to(device=self.device)
+        state_dim=self.state_dim,
+        act_dim=self.act_dim,
+        action_range=self.action_range,
+        max_length=variant["K"],
+        eval_context_length=variant["eval_context_length"],
+        max_ep_len=MAX_EPISODE_LEN,
+        hidden_size=variant["embed_dim"],
+        n_layer=variant["n_layer"],
+        n_head=variant["n_head"],
+        n_inner=4 * variant["embed_dim"],
+        activation_function=variant["activation_function"],
+        n_positions=1024,
+        resid_pdrop=variant["dropout"],
+        attn_pdrop=variant["dropout"],
+        stochastic_policy=True,
+        ordering=variant["ordering"],
+        init_temperature=variant["init_temperature"],
+        target_entropy=self.target_entropy,
+    ).to(device=self.device)
 
         self.optimizer = Lamb(
             self.model.parameters(),
@@ -85,6 +88,25 @@ class Experiment:
             betas=[0.9, 0.999],
         )
 
+        if agg_num > 0:
+            start_time = time.time() 
+            
+            path = self.logger.log_path
+            current_agg_num = int(re.search(r'Agg:(\d+)', path ).group(1))
+            new_agg_num = current_agg_num - 1
+            updated_save_model_path = re.sub(r'Agg:\d+', f'Agg:{new_agg_num}', path)
+            self._load_model(updated_save_model_path)
+
+            #Load aggregated weights
+            save_global_path = f'saved_networks/Exp_{experiment_number}/'
+            attn_layers = load_global_weights(save_global_path)
+            self.set_attn_layers(self.model, attn_layers.to(device))
+            end_time = time.time()
+            elapsed = end_time - start_time
+            print(f'Loading aggregated models took {elapsed}')
+            
+
+
         # track the training progress and
         # training/evaluation/online performance in all the iterations
         self.pretrain_iter = 0
@@ -92,7 +114,7 @@ class Experiment:
         self.total_transitions_sampled = 0
         self.variant = variant
         self.reward_scale = 1
-        self.logger = Logger(variant)
+        
 
     def _get_env_spec(self, variant):
         action_range = [
@@ -124,6 +146,7 @@ class Experiment:
             with open(f"{path_prefix}/pretrain_model.pt", "wb") as f:
                 torch.save(to_save, f)
             print(f"Model saved at {path_prefix}/pretrain_model.pt")
+        self.model_path = f"{path_prefix}/model.pt"
 
     def _load_model(self, path_prefix):
         if Path(f"{path_prefix}/model.pt").exists():
@@ -145,7 +168,8 @@ class Experiment:
 
     def _load_dataset(self, env_name):
     
-        dataset_path = f"../Datasets/[{self.seed}]-Exp_902_formatted.pkl"
+        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Exp_902_formatted.pkl"
+        #dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -212,6 +236,7 @@ class Experiment:
                 self.routes,
                 self.state_dim,
                 self.act_dim,
+                self.environment.num_cars,
                 self.model,
                 max_ep_len=max_ep_len,
                 reward_scale=self.reward_scale,
@@ -245,6 +270,7 @@ class Experiment:
                 device=self.device,
                 chargers=self.chargers,
                 routes=self.routes,
+                num_cars=self.environment.num_cars,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -309,6 +335,27 @@ class Experiment:
 
         eval_reward = outputs["evaluation/return_mean_gm"]
         return outputs, eval_reward
+        
+    def save_attn_layers(self, model, device):
+        # Get the number of attention layers and their dimensions
+        attn_number = len(model.transformer.h)
+        attn_layer_size = model.transformer.h[0].attn.c_attn.weight.shape
+        
+        # Extract attention layers into a tensor
+        attn_layers = torch.empty((attn_number, attn_layer_size[0], attn_layer_size[1]), dtype=torch.float32, device=self.device)
+        for i in range(attn_number):
+            attn_layers[i, :, :] = model.transformer.h[i].attn.c_attn.weight
+        self.attn_layers = attn_layers
+
+    def set_attn_layers(self, model, attn_layers):
+        attn_number = len(model.transformer.h)
+        for i in range(attn_number):
+            model.transformer.h[i].attn.c_attn.weight = torch.nn.Parameter(attn_layers[i])
+    
+        return model
+            
+    def get_model_weights(self):
+        return self.attn_layers
 
     def online_tuning(self, online_envs, eval_envs, loss_fn):
 
@@ -332,6 +379,7 @@ class Experiment:
                 device=self.device,
                 chargers=self.chargers,
                 routes=self.routes,
+                num_cars=self.environment.num_cars,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -391,12 +439,15 @@ class Experiment:
                 writer=writer,
             )
 
+            if self.online_iter == (self.variant["max_online_iters"] - 1):
+                self.save_attn_layers(self.model, self.device)
+                
             self._save_model(
                 path_prefix=self.logger.log_path,
-                is_pretrain_model=False,
+                is_pretrain_model=False
+ 
             )
-
-            self.online_iter += 1
+            self.online_iter += 1 
 
     def __call__(self):
 
@@ -441,7 +492,7 @@ class Experiment:
             eval_envs = self.environment
 
         self.start_time = time.time()
-        if self.variant["max_pretrain_iters"]:
+        if self.agg_num < 1 and self.variant["max_pretrain_iters"]:
             self.pretrain(eval_envs, loss_fn)
 
         if self.variant["max_online_iters"]:
@@ -453,19 +504,57 @@ class Experiment:
         #eval_envs.close()
 
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True
+          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
 ):
     
         utils.set_seed_everywhere(main_seed)
-        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, main_seed)
+        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index)
     
         print("=" * 50)
         experiment()
-
-        weights_list = []
+        
+        # Load the model from the specified path
+        attn_layers = experiment.get_model_weights().detach().cpu()
+        weights_list = attn_layers
         avg_rewards = []
         avg_output_values = []
         metrics = []
         trajectories = []
+        buffer = []
         
-        return weights_list, avg_rewards, avg_output_values, metrics, trajectories
+        return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
+
+def load_global_weights(save_global_path):
+    """
+    Function to load global weights from the specified path and convert to a dictionary if necessary.
+
+    Parameters:
+    - save_global_path (str): Path to the saved global weights.
+
+    Returns:
+    - global_weights (dict): Loaded global weights, converted to a dictionary if originally a list.
+    """
+    weights_path = f'{save_global_path}/global_weights.pth'
+    if Path(weights_path).exists():
+        global_weights = torch.load(weights_path)
+
+        # Check if global_weights is a list and convert to dictionary if needed
+        if isinstance(global_weights, list):
+            # Example conversion logic (adjust as per your needs)
+            global_weights_dict = {}
+            for i, weights_dict in enumerate(global_weights):
+                if isinstance(weights_dict, dict):
+                    for key, value in weights_dict.items():
+                        # Create a unique key name if necessary
+                        global_weights_dict[f"zone_{i}_{key}"] = value
+                else:
+                    raise ValueError("Expected a list of dictionaries, but found a different structure.")
+            global_weights = global_weights_dict
+
+            #print(f'Global_weights shape: {len(global_weights)}')
+        return global_weights
+    else:
+        raise FileNotFoundError(f"No global weights found at {weights_path}")
+
+
+

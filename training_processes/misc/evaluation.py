@@ -21,6 +21,7 @@ def create_vec_eval_episodes_fn(
     device,
     chargers,
     routes,
+    num_cars,
     use_mean=False,
     reward_scale=0.001,
 ):
@@ -32,6 +33,7 @@ def create_vec_eval_episodes_fn(
             routes,
             state_dim,
             act_dim,
+            num_cars,
             model,
             max_ep_len=MAX_EPISODE_LEN,
             reward_scale=reward_scale,
@@ -60,6 +62,7 @@ def vec_evaluate_episode_rtg(
     routes,
     state_dim,
     act_dim,
+    num_cars,
     model,
     target_return: list,
     max_ep_len=10,
@@ -92,7 +95,7 @@ def vec_evaluate_episode_rtg(
         'terminals': torch.zeros(max_traj_len, device=device, dtype=torch.bool),
         'car_num': car,
         'cur_len': 0  # Track the current length of each trajectory
-    } for car in range(100)]
+    } for car in range(num_cars)]
 
     sim_done = False
     timestep_counter = 0
@@ -101,7 +104,7 @@ def vec_evaluate_episode_rtg(
     while not sim_done:
         vec_env.init_routing()
 
-        for car in range(100):
+        for car in range(num_cars):
             state = vec_env.reset_agent(car, False)
             car_traj = trajectories[car]
 
@@ -127,7 +130,7 @@ def vec_evaluate_episode_rtg(
             vec_env.generate_paths(action.cpu().numpy(), None, car)
 
         # Finalize simulation step
-        sim_done = vec_env.simulate_routes()
+        sim_done = vec_env.simulate_routes(timestep_counter)
 
         # Gather results
         arrived_at_final = vec_env.arrived_at_final

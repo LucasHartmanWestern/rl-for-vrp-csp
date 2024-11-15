@@ -304,7 +304,7 @@ Experiment 39:
 Experiments 40 and onwards are combinations of the following parameters.
 
 There is one experiment for each combination of the following parameters:
-- Model: [DQN, DDPG, POLYGRAD, DQN + ODT, DDPG + ODT, POLYGRAD + ODT, ALL + ODT, DQN + MADT, DDPG + MADT, POLYGRAD + MADT, ALL + MADT, CMA] (12 models)
+- Model: [DQN, PPO, DQN + ODT, PPO + ODT, ALL + ODT, CMA] (6 models)
 - Seed: [1234, 5555, 2020, 5678, 9101] (5 seeds)
 - Season: [summer, winter] (2 seasons)
 

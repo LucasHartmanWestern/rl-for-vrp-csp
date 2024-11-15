@@ -1,0 +1,11 @@
+### Experiment 116: ###
+--------------------------------
+UPDATE TARGET NETWORK FREQUENCY EVERY 500 EPISODES!
+
+Seed: 1234
+Model: DQN
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50

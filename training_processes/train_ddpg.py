@@ -13,11 +13,11 @@ from evaluation import evaluate
 from merl_env._pathfinding import haversine
 
 # Define the experience tuple
-experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+Experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
 def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True
+          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
 ):
 
     """
@@ -42,7 +42,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
         display_training_times (bool, optional): Flag to display training times for different operations.
         agent_by_zone (bool): True if using one neural network for each zone, and false if using a neural network for each car
         train_model (bool): True if training the model, False if evaluating
-
+        old_buffers (list, optional): Old buffers to reuse if available
 
     Returns:
         tuple: A tuple containing:
@@ -78,7 +78,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
                                          dtype=[('id', int), ('lat', float), ('lon', float)]))
 
-    state_dimension = (environment.num_chargers * 3 * 2) + 5
+    state_dimension = (environment.num_chargers * 3 * 2) + 6
 
     model_indices = environment.info['model_indices']
     
@@ -143,6 +143,9 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
 
     buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
 
+    if old_buffers is not None and len(old_buffers) > 0:
+        buffers = old_buffers
+
     trajectories = []
 
     start_time = time.time()
@@ -198,7 +201,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
                 ########### Starting environment rutting
-                state = environment.reset_agent(car_idx)
+                state = environment.reset_agent(car_idx, timestep_counter)
                 states.append(state)  # Track states
 
                 if save_offline_data:
@@ -255,7 +258,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
             ########### GET SIMULATION RESULTS ###########
 
             # Run simulation
-            sim_done = environment.simulate_routes()
+            sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
@@ -311,7 +314,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
 
         done = True
         for d in range(len(distributions_unmodified)):
-            buffers[d % num_cars].append(experience(states[d], distributions_unmodified[d], rewards[d],\
+            buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
                                                 states[(d + 1) % max(1, (len(distributions_unmodified) - 1))],\
                                                                      done))  # Store experience
 
@@ -348,7 +351,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
         if train_model:
             epsilon = max(0.1, epsilon) # Minimal learning threshold
 
-        if i % 25 == 0 and i >= buffer_limit:  # Every 25 episodes
+        if i % 25 == 0 and i >= batch_size:  # Every 25 episodes
             if agent_by_zone:
                 soft_update(target_critics[0], critics[0])
                 soft_update(target_actors[0], actors[0])
@@ -420,7 +423,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [actor.cpu().state_dict() for actor in actors], avg_rewards, avg_output_values, metrics, trajectories
+    return [actor.cpu().state_dict() for actor in actors], avg_rewards, avg_output_values, metrics, trajectories, buffers
 
 
 def print_time(label, time):

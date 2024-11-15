@@ -4,12 +4,14 @@
 #SBATCH --error=experiments/Exp_206/error.log
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=5
+#SBATCH --time=83:20:00
+#SBATCH --mem=24G
 #SBATCH --gpus-per-node=1
-#SBATCH --time=05:39:59
-#SBATCH --mem=64G
 
 echo "Starting training for experiment 206"
+
+set -e  # Exit immediately if a command exits with a non-zero status
 
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate

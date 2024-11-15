@@ -15,16 +15,19 @@ from codecarbon import EmissionsTracker
 import uuid
 import shutil
 import pandas as pd
+import sys
+
+from collections import defaultdict
+
 warnings.filterwarnings("ignore")
 
-#from decision_transformer.run_odt import run_odt, format_data
 
 # from merl_env.env_class_v1_ import environment_class
 from merl_env.environment import EnvironmentClass
 
 mp.set_sharing_strategy('file_system')
 
-mp.set_start_method('spawn', force=True)  # This needs to be done before you create any processes
+mp.set_start_method('spawn', force=True)
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
@@ -45,6 +48,20 @@ def train_rl_vrp_csp(args):
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
+    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    print(f"Available GPUs: {torch.cuda.device_count()}")
+    print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
+    print(f"PyTorch version: {torch.__version__}")
+
+    # Get the list of available GPUs from the environment variable
+    cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
+    if cuda_visible_devices is not None:
+        # Split the string into a list of GPU indices
+        available_gpus = cuda_visible_devices.split(',')
+    else:
+        # If the environment variable is not set, use all available GPUs
+        available_gpus = [str(i) for i in range(torch.cuda.device_count())]
+
     #initializing GPUs for training
     n_gpus = len(args.list_gpus)
     if n_gpus == 0:
@@ -60,6 +77,12 @@ def train_rl_vrp_csp(args):
     
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
+
+    # Verify that the GPUs requested by the user are available
+    for gpu in gpus:
+        gpu_index = gpu.replace('cuda:', '')
+        if gpu_index not in available_gpus and gpu != 'cpu':
+            raise RuntimeError(f"Requested GPU {gpu_index} is not available.")
 
     data_dir = args.data_dir
 
@@ -116,12 +139,17 @@ def train_rl_vrp_csp(args):
         if os.path.exists(f'{metrics_base_path}/train') and run_mode == "Training":
             shutil.rmtree(f'{metrics_base_path}/train')
 
-        # Assign GPUs to zones in a round-robin fashion
+        # Now assign GPUs to zones
         n_zones = len(env_c['coords'])
         gpus_size = len(gpus)
+        exp_devices = [gpus[i % gpus_size] for i in range(n_zones)]
+        if n_gpus == 0:
+            devices = ['cpu' for _ in range(n_zones)]
+        else:
+            for i, gpu in enumerate(exp_devices):
+                print(f'Zone {i} with GPU {gpu} - {torch.cuda.get_device_name(gpu)}')
+
         devices = [gpus[i % gpus_size] for i in range(n_zones)]
-        for i, gpu in enumerate(devices):
-            print(f'Zone {i} with {gpu}')
 
         # get seed for current experiment
         seed = env_c['seed']
@@ -214,6 +242,7 @@ def train_rl_vrp_csp(args):
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
+            old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             global_weights = None
 
             for aggregate_step in range(federated_c['aggregation_count']):
@@ -233,6 +262,7 @@ def train_rl_vrp_csp(args):
                     process_output_values = manager.list()
                     process_metrics = manager.list()
                     process_trajectories = manager.list()
+                    process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
@@ -249,7 +279,7 @@ def train_rl_vrp_csp(args):
                                             ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                             local_weights_list, process_rewards, process_metrics, process_output_values,\
                                             barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                            agent_by_zone, variant, eval_c['save_offline_data'], True))
+                                            agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers))
                         processes.append(process)
                         process.start()
 
@@ -297,6 +327,7 @@ def train_rl_vrp_csp(args):
                     output_values.extend(process_output_values)
                     metrics.extend(process_metrics)
                     trajectories.extend(process_trajectories)
+                    old_buffers = list(process_buffers)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
                         print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n", file=file)
@@ -342,6 +373,7 @@ def train_rl_vrp_csp(args):
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
+            old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             
             print(f"Loading saved models - Seed {seed}")
             global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
@@ -352,6 +384,7 @@ def train_rl_vrp_csp(args):
             process_output_values = manager.list()
             process_metrics = manager.list()
             process_trajectories = manager.list()
+            process_buffers = manager.list([None for _ in range(len(chargers))])
 
             # Barrier for synchronization
             barrier = mp.Barrier(len(chargers))
@@ -363,7 +396,7 @@ def train_rl_vrp_csp(args):
                                     ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                    agent_by_zone, variant, eval_c['save_offline_data'], False))
+                                    agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers))
                 processes.append(process)
                 process.start()
 
@@ -388,6 +421,7 @@ def train_rl_vrp_csp(args):
             output_values.extend(process_output_values)
             metrics.extend(process_metrics)
             trajectories.extend(process_trajectories)
+            old_buffers = list(process_buffers)
 
             if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
                 attr_label = 'learned'
@@ -433,7 +467,7 @@ def train_rl_vrp_csp(args):
         # Save offline data to pkl file
         if eval_c['save_offline_data']:
             current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"{metrics_base_path}/offline_data/data-{current_time}.pkl"
+            dataset_path = f"{metrics_base_path}/data-{current_time}.pkl"
             print({dataset_path})
 
             traj_format = format_data(trajectories)
@@ -442,8 +476,9 @@ def train_rl_vrp_csp(args):
                 print('Offline Dataset Saved')
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list, rewards, metrics, output_values, barrier, devices,
-                verbose, display_training_times, agent_by_zone, variant, save_offline_data, train_model):
+                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,
+                rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
+                save_offline_data, train_model, old_buffers, process_buffers):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -501,11 +536,11 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per =\
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per, new_buffers =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
-                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, devices, \
+                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
                   agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
-                  save_offline_data, train_model)
+                  save_offline_data, train_model, old_buffers)
 
         # Save results of training
         st = time.time()
@@ -513,6 +548,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         output_values.append(avg_output_values)
         metrics.append(training_metrics)
         trajectories.append(trajectories_per)
+        process_buffers[ind] = new_buffers
         et = time.time() - st
 
         if verbose:
@@ -529,9 +565,37 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
             barrier.wait()  # Wait for all threads to finish before proceeding
 
     except Exception as e:
+        import traceback
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
-        raise
-
+        traceback.print_exc()
+        sys.exit(1) # Exit the program with a non-zero status
+        
+def format_data(data):
+    # Initialize a defaultdict to aggregate data by unique identifiers
+    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_idx': None})
+    
+    # Iterate over each data entry to aggregate the data
+    for sublist in data:
+        for entry in sublist:
+            # Unique identifier for each car's trajectory
+            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
+            
+            # Aggregate data for this car's trajectory
+            trajectories[identifier]['observations'].extend(entry['observations'])
+            trajectories[identifier]['actions'].extend(entry['actions'])
+            trajectories[identifier]['rewards'].extend(entry['rewards'])
+            trajectories[identifier]['terminals'].extend(entry['terminals'])
+            trajectories[identifier]['terminals_car'].extend(entry['terminals_car'])  # Aggregate terminals_car
+            trajectories[identifier]['zone'] = entry['zone']
+            trajectories[identifier]['aggregation'] = entry['aggregation']
+            trajectories[identifier]['episode'] = entry['episode']
+            trajectories[identifier]['car_idx'] = entry['car_idx']
+    
+    # Convert the defaultdict to a list of dictionaries
+    formatted_trajectories = list(trajectories.values())
+    
+    return formatted_trajectories
+    
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=('MERL Project'))
