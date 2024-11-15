@@ -1,0 +1,12 @@
+
+### Experiment 132: ###
+--------------------------------
+Target episode epsilon fraction: 0.01
+
+Seed: 1234
+Model: DQN
+Season: winter
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50

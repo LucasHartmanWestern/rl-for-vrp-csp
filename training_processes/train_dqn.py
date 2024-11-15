@@ -72,8 +72,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     eps_per_save = int(nn_c['eps_per_save'])
     
-    # Decay epsilon such that by the midway point it is 0.1
-    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 5))
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+
+    # Decay epsilon such that by the target_episode_epsilon_frac * num_episodes it is 0.1
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
     avg_rewards = []
 
