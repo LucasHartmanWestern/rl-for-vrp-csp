@@ -1,5 +1,7 @@
-### Experiment 6: ###
+### Experiment 82: ###
 --------------------------------
+Average rewards when training: True
+
 Seed: 2020
 Model: DQN
 Season: Spring
