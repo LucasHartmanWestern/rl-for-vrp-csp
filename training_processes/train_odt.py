@@ -14,6 +14,8 @@ import time
 import torch
 import numpy as np
 import re
+import os
+import json
 
 from training_processes.misc import utils
 from training_processes.misc.replay_buffer import ReplayBuffer
@@ -29,7 +31,7 @@ from training_processes.misc.logger import Logger
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index):
+    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers):
 
         self.state_dim = state_dim
         self.act_dim = action_dim
@@ -37,19 +39,36 @@ class Experiment:
         self.chargers = chargers
         self.routes = routes
         self.seed = seed
+        self.zone_index = zone_index
         self.agg_num = agg_num
+        self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
-        self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(
-            'merl'
-        )
-        # initialize by offline trajs
-        self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
+        
+        save_path = os.path.join('Exp_', variant["save_dir"], variant["exp_name"])
+        os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
+        
+        if agg_num < 1:
+            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
+            # Initialize by offline trajectories
+            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
+        
+            # Save state_mean and state_std
+            with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
+                pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
+        else:
+            self.replay_buffer = buffers
+            # Load state_mean and state_std
+            with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
+                state_stats = pickle.load(f)
+            self.state_mean = state_stats['state_mean']
+            self.state_std = state_stats['state_std']
+
 
         self.aug_trajs = []
         self.metrics = []
         self.device = device
         self.target_entropy = -self.act_dim
-        self.logger = Logger(variant, agg_num, zone_index)
+        
     
         self.model = DecisionTransformer(
         state_dim=self.state_dim,
@@ -167,9 +186,12 @@ class Experiment:
             print(f"Model loaded at {path_prefix}/model.pt")
 
     def _load_dataset(self, env_name):
-    
-        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Test.pkl"
-        #dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
+        
+        dataset_path = f"../Datasets/[{self.seed}]-DQN.pkl"
+        if not os.path.exists(dataset_path):
+            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
+            dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
+            
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -220,8 +242,9 @@ class Experiment:
         self,
         online_envs,
         target_explore,
+        online_iter,
         n,
-        randomized=False,
+        randomized=False
     ):
 
         max_ep_len = MAX_EPISODE_LEN
@@ -237,6 +260,9 @@ class Experiment:
                 self.state_dim,
                 self.act_dim,
                 self.environment.num_cars,
+                self.zone_index,
+                online_iter,
+                self.agg_num,
                 self.model,
                 max_ep_len=max_ep_len,
                 reward_scale=self.reward_scale,
@@ -272,6 +298,9 @@ class Experiment:
                 chargers=self.chargers,
                 routes=self.routes,
                 num_cars=self.environment.num_cars,
+                zone_index=self.zone_index,
+                episode_num=self.pretrain_iter,
+                aggregation_num=self.agg_num,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -380,6 +409,9 @@ class Experiment:
                 chargers=self.chargers,
                 routes=self.routes,
                 num_cars=self.environment.num_cars,
+                zone_index=self.zone_index,
+                episode_num=self.online_iter,
+                aggregation_num=self.agg_num,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -394,7 +426,9 @@ class Experiment:
             augment_outputs = self._augment_trajectories(
                 online_envs,
                 self.variant["online_rtg"],
+                self.online_iter,
                 n=self.variant["num_online_rollouts"],
+                
             )
             outputs.update(augment_outputs)
     
@@ -437,7 +471,7 @@ class Experiment:
     
             if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
-                buffer_to_return = self.replay_buffer.trajectories  # Assign buffer only at the last iteration
+                buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
                 
             self._save_model(
                 path_prefix=self.logger.log_path,
@@ -505,22 +539,39 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
           dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
 ):
     
-        utils.set_seed_everywhere(main_seed)
-        experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index)
+    utils.set_seed_everywhere(main_seed)
+    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers)
+
+    print("=" * 50)
+    experiment()
     
-        print("=" * 50)
-        experiment()
-        
-        # Load the model from the specified path
-        attn_layers = experiment.get_model_weights().detach().cpu()
-        weights_list = attn_layers
-        avg_rewards = []
-        avg_output_values = []
-        metrics = experiment.metrics
-        trajectories = []
-        buffer = experiment.final_buffer
-        
-        return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
+    # Load the model from the specified path
+    attn_layers = experiment.get_model_weights().detach().cpu()
+    weights_list = attn_layers
+    avg_rewards = []
+    avg_output_values = []
+    metrics = experiment.metrics
+    trajectories = []
+    buffer = experiment.final_buffer
+
+    # Define the desired directory path
+    directory = f"{metrics_base_path}/metrics_{experiment_number}/"
+    
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
+    
+    # Specify the file path
+    metrics_file_path = f"{directory}Zone:{zone_index}_Agg:{aggregation_num}.pkl"
+    try:
+        with open(metrics_file_path, 'wb') as f:
+            pickle.dump(metrics, f)
+        print(f"Metrics successfully saved to {metrics_file_path}")
+    except Exception as e:
+        print(f"Error saving metrics to pickle file: {str(e)}")
+    
+    return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
+
 
 def load_global_weights(save_global_path):
     """
