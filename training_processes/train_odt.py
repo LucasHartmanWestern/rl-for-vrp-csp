@@ -57,6 +57,7 @@ class Experiment:
                 pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
         else:
             self.replay_buffer = buffers
+            buffers = None
             # Load state_mean and state_std
             with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
                 state_stats = pickle.load(f)
