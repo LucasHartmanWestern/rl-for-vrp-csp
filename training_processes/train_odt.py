@@ -189,8 +189,8 @@ class Experiment:
         
         dataset_path = f"../Datasets/[{self.seed}]-DQN.pkl"
         if not os.path.exists(dataset_path):
-            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
-            dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
+            dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
+            #dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
             
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
