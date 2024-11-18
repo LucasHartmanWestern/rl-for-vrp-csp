@@ -17,7 +17,7 @@ environment_settings:
     - -81.26016049362336
   - - 42.98111190139387
     - -81.30953935839466
-  # - - 42.9819404397449
+  # # - - 42.9819404397449
   #   - -81.2508736429095
   increase_rate: 12500
   max_charge:
@@ -49,7 +49,7 @@ eval_config:
   fixed_attributes: []
   generate_plots: false
   save_aggregate_rewards: false
-  save_data: false
+  save_data: True
   save_offline_data: false
   save_path_metrics: metrics/Exp
   verbose: true
@@ -74,7 +74,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 2000
+  num_episodes: 5000
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -86,16 +86,16 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 2020-10
+  exp_name: 2020-3000eps
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
-  max_online_iters: 200
+  max_online_iters: 300
   max_pretrain_iters: 1
   n_head: 4
   n_layer: 4
   num_eval_episodes: 1
-  num_online_rollouts: 1
+  num_online_rollouts: 1 
   num_updates_per_online_iter: 25
   num_updates_per_pretrain_iter: 500
   online_rtg: -60

@@ -201,7 +201,7 @@ class Experiment:
         
         for path in trajectories:
             # Convert lists to NumPy arrays to ensure compatibility
-            path["observations"] = np.array(path["observations"])
+            path["observations"] = np.array(path["observations"], dtype=np.float32)#save memory
             path["rewards"] = np.array(path["rewards"])  # Convert rewards to NumPy array
             path["actions"] = np.array(path["actions"])  # If actions exist and are needed
     
@@ -212,8 +212,7 @@ class Experiment:
         traj_lens, returns = np.array(traj_lens), np.array(returns)
     
         # used for input normalization
-        states = np.concatenate(states, axis=0)
-        states = np.array(states, dtype=np.float32)
+        states = np.concatenate(states, axis=0)        
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
     

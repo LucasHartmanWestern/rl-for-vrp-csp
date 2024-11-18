@@ -4,10 +4,10 @@
 #SBATCH --error=experiments/Exp_301/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
+#SBATCH --cpus-per-task=4
 #SBATCH --gpus-per-node=4
-#SBATCH --time=10:00:00
-#SBATCH --mem=160G
+#SBATCH --time=17:00:00
+#SBATCH --mem=180G
 
 echo "Starting training for experiment 301"
 
@@ -17,5 +17,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3-e 301 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py -g 0 1 2 3 -e 301 -d "/home/epigou/scratch/metrics/Exp" 
     
