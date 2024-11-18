@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_91_train
 #SBATCH --output=experiments/Exp_91/output.log
 #SBATCH --error=experiments/Exp_91/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=9:00:00
+#SBATCH --time=08:20:00
 #SBATCH --mem=24G
-#SBATCH --gpus-per-node=1
+
 
 echo "Starting training for experiment 91"
 
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 -e 91 -d "/home/hartman/scratch/metrics/Exp" 
+python app_v2.py   -e 91 -d "/home/hartman/scratch/metrics/Exp" 
     
