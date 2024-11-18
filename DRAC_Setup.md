@@ -175,3 +175,26 @@ Note that when using the above command, the files on DRAC that were copied will 
 Use the below command if you want to delete empty directories after the transfer:
 ```
 ssh <your_username>@beluga.computecanada.ca 'find projects/def-mcapretz/<your_username>/rl-for-vrp-csp/saved_networks/ -type d -empty -delete'
+```
+
+### 6. Retrieve job stats:
+Load the SLURM module:
+```
+module load slurm
+```
+
+Load into the relevant directory:
+```
+cd ~
+cd scratch/metrics/Exp_<experiment_number>/train
+```
+
+Retrieve the job stats:
+```
+sstat -j <job_id> --format=All --delimiter='|' > job_<job_id>_sstat.txt
+```
+
+Clean the file:
+```
+python clean_stats.py -rd <directory_containing_the_file>
+```
