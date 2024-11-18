@@ -213,6 +213,7 @@ class Experiment:
     
         # used for input normalization
         states = np.concatenate(states, axis=0)
+        states = np.array(states, dtype=np.float32)
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
     
