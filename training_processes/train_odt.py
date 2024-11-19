@@ -559,14 +559,14 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     trajectories = []
     buffer = experiment.final_buffer
 
-    # Define the desired directory path
-    directory = f"{metrics_base_path}/metrics_{experiment_number}/"
+    # # Define the desired directory path
+    # directory = f"{metrics_base_path}/metrics_{experiment_number}/"
     
-    # Create the directory if it doesn't exist
-    if not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
+    # # Create the directory if it doesn't exist
+    # if not os.path.exists(directory):
+    #     os.makedirs(directory, exist_ok=True)
     
-    evaluate(ev_info, metrics, seed, date, verbose, 'save', variant["max_online_iters"], directory, False)
+    # evaluate(ev_info, metrics, seed, date, verbose, 'save', variant["max_online_iters"], directory, False)
     
     return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
 
