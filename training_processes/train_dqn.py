@@ -178,6 +178,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         distributions_unmodified = []
         states = []
         rewards = []
+        dones = []
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
 
@@ -292,6 +293,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             time_step_time = time.time() - start_time_step
 
+            # Track if the episode is done in this timestep
+            dones.append(sim_done)
+
             # Used to evaluate simulation
             metric = {
                 "zone": zone_index,
@@ -315,10 +319,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         ########### STORE EXPERIENCES ###########
 
-        done = True
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
-                            states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+                            states[(d + num_cars) if d + num_cars < len(states) else d],
+                            dones[d // num_cars]))  # Store experience
 
         st = time.time()
 
@@ -330,7 +334,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
                 trained = True
 
-                mini_batch = dqn_rng.choice(np.array([experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
+                mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
                 # Update networks

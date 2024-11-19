@@ -162,6 +162,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
         log_probs = []
         values = []
         masks = []
+        dones = []
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
 
@@ -285,6 +286,8 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             time_step_time = time.time() - start_time_step
 
+            dones.append(sim_done)
+
             # Used to evaluate simulation
             metric = {
                 "zone": zone_index,
@@ -308,15 +311,14 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         ########### STORE EXPERIENCES ###########
 
-        done = True
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(Experience(
                 to_numpy_if_tensor(states[d]),
                 to_numpy_if_tensor(distributions_unmodified[d]),
                 to_numpy_if_tensor(log_probs[d]),
                 to_numpy_if_tensor(rewards[d]),
-                to_numpy_if_tensor(states[(d + 1) % max(1, (len(distributions_unmodified) - 1))]),
-                done
+                to_numpy_if_tensor(states[(d + num_cars) if d + num_cars < len(states) else d]),
+                dones[d // num_cars]
             ))
 
         st = time.time()
