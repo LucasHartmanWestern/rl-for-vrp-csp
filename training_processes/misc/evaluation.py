@@ -180,6 +180,8 @@ def vec_evaluate_episode_rtg(
         timestep_counter += 1
 
     #SIM COMPLETE----------------------
+
+    
     # Calculate the average return per car
     episode_return = np.mean(np.sum(np.vstack(episode_rewards), axis=0))
     # Truncate trajectories to actual length before returning

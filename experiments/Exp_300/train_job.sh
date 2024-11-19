@@ -4,7 +4,7 @@
 #SBATCH --error=experiments/Exp_300/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=5
 #SBATCH --gpus-per-node=4
 #SBATCH --time=17:00:00
 #SBATCH --mem=180G

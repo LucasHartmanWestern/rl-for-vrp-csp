@@ -13,11 +13,11 @@ environment_settings:
     - -81.28349087468504
   - - 43.004969336049854
     - -81.18631870502043
-  # - - 42.95923445066671
-  #   - -81.26016049362336
-  # - - 42.98111190139387
-  #   - -81.30953935839466
-  # # - - 42.9819404397449
+  - - 42.95923445066671
+    - -81.26016049362336
+  - - 42.98111190139387
+    - -81.30953935839466
+  # - - 42.9819404397449
   #   - -81.2508736429095
   increase_rate: 12500
   max_charge:
@@ -86,7 +86,7 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 1234-3000eps
+  exp_name: buffer-1234
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
@@ -104,3 +104,4 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
+  persist_buffers: True

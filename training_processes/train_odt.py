@@ -17,6 +17,7 @@ import re
 import os
 import json
 
+from evaluation import evaluate
 from training_processes.misc import utils
 from training_processes.misc.replay_buffer import ReplayBuffer
 from training_processes.misc.lamb import Lamb
@@ -33,6 +34,7 @@ MAX_EPISODE_LEN = 1000
 class Experiment:
     def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers):
 
+        self.persist_buffers = variant["persist_buffers"]
         self.state_dim = state_dim
         self.act_dim = action_dim
         self.environment = environment
@@ -44,10 +46,10 @@ class Experiment:
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
         
-        save_path = os.path.join('Exp_', variant["save_dir"], variant["exp_name"])
+        save_path = os.path.join(variant["save_dir"], variant["exp_name"])
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
         
-        if agg_num < 1:
+        if agg_num < 1 or not self.persist_buffers:
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
             # Initialize by offline trajectories
             self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
@@ -273,12 +275,11 @@ class Experiment:
                 state_std=self.state_std,
                 device=self.device,
             )
-
+    
         self.metrics.append(metrics)
         self.replay_buffer.add_new_trajs(trajs)
         self.aug_trajs += trajs
         self.total_transitions_sampled += np.sum(lengths)
-
         return {
             "aug_traj/return": np.mean(returns),
             "aug_traj/length": np.mean(lengths),
@@ -472,7 +473,10 @@ class Experiment:
     
             if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
-                buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                if self.persist_buffers:
+                    buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                else:
+                    buffer_to_return = None
                 
             self._save_model(
                 path_prefix=self.logger.log_path,
@@ -562,14 +566,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     if not os.path.exists(directory):
         os.makedirs(directory, exist_ok=True)
     
-    # Specify the file path
-    metrics_file_path = f"{directory}Zone:{zone_index}_Agg:{aggregation_num}.pkl"
-    try:
-        with open(metrics_file_path, 'wb') as f:
-            pickle.dump(metrics, f)
-        print(f"Metrics successfully saved to {metrics_file_path}")
-    except Exception as e:
-        print(f"Error saving metrics to pickle file: {str(e)}")
+    evaluate(ev_info, metrics, seed, date, verbose, 'save', variant["max_online_iters"], directory, False)
     
     return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
 
