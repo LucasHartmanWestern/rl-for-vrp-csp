@@ -536,7 +536,7 @@ class EnvironmentClass:
                 - simulats (float): Reward for the simulation.
         """
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
-                self.simulation_reward
+                self.simulation_reward, self.arrived_at_final
 
     def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, agent_index: int):
         """

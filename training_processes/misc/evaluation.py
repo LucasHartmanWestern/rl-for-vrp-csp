@@ -134,7 +134,7 @@ def vec_evaluate_episode_rtg(
 
         # Gather results
         arrived_at_final = vec_env.arrived_at_final
-        _, _, sim_battery_levels, _, time_step_rewards = vec_env.get_results()
+        _, _, sim_battery_levels, _, time_step_rewards, _ = vec_env.get_results()
 
         # Update rewards and terminals
         for traj in trajectories:

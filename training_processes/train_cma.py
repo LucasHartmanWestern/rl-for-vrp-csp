@@ -160,7 +160,7 @@ def train_cma(ev_info,
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes(timestep_counter)
-                _, _, _, _, rewards_pop = environment.get_results()  # Retrieve rewards
+                _, _, _, _, rewards_pop, _ = environment.get_results()  # Retrieve rewards
                 # reward_timestep += rewards_pop
 
                 if agent_by_zone:
@@ -198,7 +198,7 @@ def train_cma(ev_info,
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
     
             sim_done = environment.simulate_routes(timestep_counter)  # Simulate the environment with the best solutions
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()  # Get the resulting rewards
+            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
 
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
@@ -265,7 +265,7 @@ def train_cma(ev_info,
     # Population evolution ends
 
     # Retrieve and print results for the best population after evolution
-    sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards = environment.get_results()
+    sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
     print(f'Rewards for population evolution: {rewards.mean():.3f} after {cma_info.max_generation} generations')
 
     # Save the trained models to disk

@@ -264,8 +264,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = environment.get_results()
             
+            dones.extend(arrived_at_final.tolist())
+
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
@@ -293,9 +295,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             time_step_time = time.time() - start_time_step
 
-            # Track if the episode is done in this timestep
-            dones.append(sim_done)
-
             # Used to evaluate simulation
             metric = {
                 "zone": zone_index,
@@ -319,10 +318,12 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         ########### STORE EXPERIENCES ###########
 
+        car_dones = [item for sublist in dones for item in sublist]
+
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
                             states[(d + num_cars) if d + num_cars < len(states) else d],
-                            dones[d // num_cars]))  # Store experience
+                            True if car_dones[d] == 1 else False))  # Store experience
 
         st = time.time()
 
