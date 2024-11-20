@@ -71,18 +71,20 @@ def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
 
 def ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantages):
     batch_size = states.size(0)
-    for _ in range(batch_size // mini_batch_size):
-        rand_ids = np.random.randint(0, batch_size, mini_batch_size)
+    indices = np.random.permutation(batch_size)
+    for start_idx in range(0, batch_size, mini_batch_size):
+        end_idx = start_idx + mini_batch_size
+        rand_ids = indices[start_idx:end_idx]
         yield (
-            states[rand_ids],        # Shape: [mini_batch_size, state_dim]
-            actions[rand_ids],       # Shape: [mini_batch_size, action_dim]
-            log_probs[rand_ids],     # Shape: [mini_batch_size]
-            returns[rand_ids],       # Shape: [mini_batch_size]
-            advantages[rand_ids]     # Shape: [mini_batch_size]
+            states[rand_ids],
+            actions[rand_ids],
+            log_probs[rand_ids],
+            returns[rand_ids],
+            advantages[rand_ids]
         )
 
 
-def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, old_log_probs, returns, advantages, clip_param=0.2):
+def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, old_log_probs, returns, advantages, epsilon, clip_param=0.2):
     for _ in range(ppo_epochs):
         for state, action, old_log_prob, return_, advantage in ppo_iter(
             mini_batch_size, states, actions, old_log_probs, returns, advantages):
@@ -106,7 +108,7 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
             actor_loss = -torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
 
-            loss = 0.5 * critic_loss + actor_loss - 0.01 * entropy
+            loss = 0.5 * critic_loss + actor_loss - epsilon * entropy
 
             optimizer.zero_grad()
             loss.backward()

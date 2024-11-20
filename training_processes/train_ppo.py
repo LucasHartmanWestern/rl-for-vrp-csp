@@ -57,6 +57,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eval_c = load_config_file(config_fname)['eval_config']
+    federated_c = load_config_file(config_fname)['federated_learning_settings']
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
@@ -65,11 +66,20 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
+    aggregation_count = federated_c['aggregation_count']
 
-    log_std_decay_rate = nn_c['log_std_decay_rate']
-    
+
+    epsilon = nn_c['epsilon'] if train_model else 0
+
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
+
     avg_rewards = []
     exploration_params = []  # List to store exploration parameters
+
+    # Carry over epsilon from last aggregation
+    epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -401,7 +411,8 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                         actions,
                         log_probs,
                         returns,
-                        advantages
+                        advantages,
+                        epsilon
                     )
                 else:
                     ppo_update(
@@ -413,7 +424,8 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                         actions,
                         log_probs,
                         returns,
-                        advantages
+                        advantages,
+                        epsilon
                     )
                     
         et = time.time() - st
@@ -425,6 +437,10 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         base_path = f'saved_networks/Experiment {experiment_number}'
+
+        epsilon *= epsilon_decay  # Decay epsilon
+        if train_model:
+            epsilon = max(0.001, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= batch_size:  # Every 25 episodes
             if agent_by_zone:
@@ -478,7 +494,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
             f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
             f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-            f"Avg. IR: {round(avg_ir, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
+            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(to_print, file=file)
 
