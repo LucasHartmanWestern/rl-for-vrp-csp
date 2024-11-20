@@ -90,7 +90,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
-        actor_critic = ActorCritic(state_dimension, action_dim, layers).to(device) 
+        actor_critic = ActorCritic(state_dimension, action_dim, layers, std=1.0).to(device) 
 
         if global_weights is not None:
             if eval_c['evaluate_on_diff_zone'] or args.eval:
@@ -484,9 +484,9 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             print(to_print)
 
-        # Update log_std to reduce exploration
-        for actor_critic in actor_critics:
-            actor_critic.update_log_std(log_std_decay_rate)
+        # # Update log_std to reduce exploration
+        # for actor_critic in actor_critics:
+        #     actor_critic.update_log_std(log_std_decay_rate)
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 

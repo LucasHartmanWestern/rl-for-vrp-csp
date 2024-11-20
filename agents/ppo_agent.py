@@ -10,7 +10,7 @@ def init_weights(m):
         nn.init.constant_(m.bias, 0.1)
 
 class ActorCritic(nn.Module):
-    def __init__(self, num_inputs, num_outputs, layers, std=0.0):
+    def __init__(self, num_inputs, num_outputs, layers, std=1.0):
         super(ActorCritic, self).__init__()
         
         # Critic network
@@ -32,7 +32,7 @@ class ActorCritic(nn.Module):
                 linear_layer = nn.Linear(layers[i - 1], layer_size)
             self.actor_layers.append(linear_layer)
         self.actor_output = nn.Linear(layers[-1], num_outputs)
-        self.log_std = nn.Parameter(torch.ones(num_outputs) * std)
+        self.log_std = nn.Parameter(torch.ones(num_outputs) * std) 
         
         self.apply(init_weights)
         
@@ -53,8 +53,8 @@ class ActorCritic(nn.Module):
 
         return dist, value
 
-    def update_log_std(self, decay_rate):
-        self.log_std = nn.Parameter(self.log_std * decay_rate)
+    # def update_log_std(self, decay_rate):
+    #     self.log_std.data *= decay_rate  # Modify data in-place
 
 def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
     # Detach values to prevent gradient tracking
@@ -106,7 +106,7 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
             actor_loss = -torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
 
-            loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
+            loss = 0.5 * critic_loss + actor_loss - 0.01 * entropy
 
             optimizer.zero_grad()
             loss.backward()
