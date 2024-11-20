@@ -5,7 +5,7 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=58:20:00
+#SBATCH --time=9:20:00
 #SBATCH --mem=24G
 
 
