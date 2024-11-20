@@ -54,7 +54,7 @@ eval_config:
   save_path_metrics: metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 2
+  aggregation_count: 3
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
@@ -86,7 +86,7 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: test
+  exp_name: test_metrics
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true

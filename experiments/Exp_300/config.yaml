@@ -54,7 +54,7 @@ eval_config:
   save_path_metrics: metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 10
+  aggregation_count: 2
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
@@ -74,7 +74,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 5000
+  num_episodes: 200
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -86,12 +86,12 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: buffer-1234
+  exp_name: metrics-test
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
   max_online_iters: 300
-  max_pretrain_iters: 1
+  max_pretrain_iters: 100
   n_head: 4
   n_layer: 4
   num_eval_episodes: 1

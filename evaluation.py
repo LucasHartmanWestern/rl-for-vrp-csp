@@ -5,7 +5,7 @@ import time
 from data_loader import save_to_csv, read_csv_data
 import mplcursors
 
-def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False):
+def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False, is_odt=False):
     if purpose == 'save':
 
         agent_data = []
@@ -60,21 +60,37 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
         else:
             # Flatten the data
-            for episode in metrics:
-                
-                # Loop through sim steps and stations
-                for step_ind in range(len(episode['traffic'])):
-                    for station_ind in range(len(episode['traffic'][0])):
-                        station_data.append({
-                            "episode": episode['episode'],
-                            "timestep": episode['timestep'],
-                            "done": episode['done'],
-                            "zone": episode['zone'] + 1,
-                            "aggregation": episode['aggregation'],
-                            "simulation_step": step_ind,
-                            "station_index": station_ind,
-                            "traffic": episode['traffic'][step_ind][station_ind]
-                        })
+            if is_odt:
+                for zone_agg in metrics:
+                    for episode in zone_agg:
+                    # Loop through sim steps and stations
+                        for step_ind in range(len(episode['traffic'])):
+                            for station_ind in range(len(episode['traffic'][0])):
+                                station_data.append({
+                                    "episode": episode['episode'],
+                                    "timestep": episode['timestep'],
+                                    "done": episode['done'],
+                                    "zone": episode['zone'] + 1,
+                                    "aggregation": episode['aggregation'],
+                                    "simulation_step": step_ind,
+                                    "station_index": station_ind,
+                                    "traffic": episode['traffic'][step_ind][station_ind]
+                                })
+            else:
+                for episode in metrics:
+                    for step_ind in range(len(episode['traffic'])):
+                        for station_ind in range(len(episode['traffic'][0])):
+                            station_data.append({
+                                "episode": episode['episode'],
+                                "timestep": episode['timestep'],
+                                "done": episode['done'],
+                                "zone": episode['zone'] + 1,
+                                "aggregation": episode['aggregation'],
+                                "simulation_step": step_ind,
+                                "station_index": station_ind,
+                                "traffic": episode['traffic'][step_ind][station_ind]
+                            })
+                    
 
                 # Loop through the agents in each zone
                 for agent_ind, car_model in enumerate(car_models[episode['zone']]):

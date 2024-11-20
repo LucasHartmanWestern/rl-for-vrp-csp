@@ -192,8 +192,8 @@ class Experiment:
         
         dataset_path = f"../Datasets/[{self.seed}]-DQN.pkl"
         if not os.path.exists(dataset_path):
-            dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
-            #dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
+            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
+            dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
             
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
@@ -541,34 +541,30 @@ class Experiment:
         #eval_envs.close()
 
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
-):
-    
+              dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
+
     utils.set_seed_everywhere(main_seed)
     experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers)
 
     print("=" * 50)
     experiment()
     
-    # Load the model from the specified path
-    attn_layers = experiment.get_model_weights().detach().cpu()
-    weights_list = attn_layers
-    avg_rewards = []
-    avg_output_values = []
     metrics = experiment.metrics
-    trajectories = []
-    buffer = experiment.final_buffer
+    directory = f"{metrics_base_path}/metrics_{experiment_number}_{zone_index}/"
+    os.makedirs(directory, exist_ok=True)
 
-    # # Define the desired directory path
-    # directory = f"{metrics_base_path}/metrics_{experiment_number}/"
-    
-    # # Create the directory if it doesn't exist
-    # if not os.path.exists(directory):
-    #     os.makedirs(directory, exist_ok=True)
-    
-    # evaluate(ev_info, metrics, seed, date, verbose, 'save', variant["max_online_iters"], directory, False)
-    
-    return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
+    chunk_size = 100  # Define a reasonable chunk size
+    for i, start in enumerate(range(0, len(metrics), chunk_size)):
+        chunk = metrics[start:start + chunk_size]
+        
+        # Append is True for all chunks except the first one when aggregation_num > 0
+        append = aggregation_num > 0 or i > 0
+        
+        # Call evaluate with the current chunk
+        evaluate(ev_info, chunk, seed, date, verbose, 'save', variant["max_online_iters"], directory, append, True)
+
+    return experiment.get_model_weights().detach().cpu(), [], [], metrics, [], experiment.final_buffer
+
 
 
 def load_global_weights(save_global_path):
