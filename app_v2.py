@@ -110,6 +110,8 @@ def train_rl_vrp_csp(args):
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
 
+    exp_times = []
+
     # Run each experiment on experiments list
     for experiment_number in experiment_list:
 
@@ -460,6 +462,8 @@ def train_rl_vrp_csp(args):
         to_print = f"Total time elapsed for this run"+\
             f"- et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
 
+        exp_times.append({'experiment_number': experiment_number, 'time': f"{str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"})
+
         print(to_print)
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
@@ -474,6 +478,10 @@ def train_rl_vrp_csp(args):
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
+
+    print(f"Experiment times: {exp_times}")
+    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+        print(f"Experiment times: {exp_times}", file=file)
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,
