@@ -1,0 +1,12 @@
+### Experiment 1004: ###
+--------------------------------
+
+DICOUNT FACTOR AT 0.1 AND PPO BEING USED
+
+Seed: 1234
+Model: DQN
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 10000
+Number of aggregations: 1
