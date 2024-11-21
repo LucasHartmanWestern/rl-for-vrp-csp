@@ -1,5 +1,8 @@
-### Experiment 1: ###
+### Experiment 0: ###
 --------------------------------
+
+ONLY 5 AGGREGATIONS ALSO 0.9 DISCOUNT FACTOR
+
 Seed: 1234
 Model: DQN
 Season: Spring
