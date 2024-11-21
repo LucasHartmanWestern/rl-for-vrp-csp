@@ -249,12 +249,7 @@ class EnvironmentClass:
 
         # Based on https://www.mdpi.com/2032-6653/12/3/115
         # Efficiency drops significantly below 0°C, gradually above it
-        if temperature < 0:
-            temp_efficiency = 1 # Worse efficiency at freezing
-        elif 0 <= temperature <= 25:
-            temp_efficiency =  0.5 + ((25 - temperature) * 0.02) # 2% efficiency drop per degree below 25°C
-        else:
-            temp_efficiency = 0.5 # Full efficiency at or above 25°C
+        temp_efficiency = 1.5 - (0.75 + (np.tanh((temperature - 12.5)/6.25) * 0.25))
 
         # Modify usage_per_hour based on the efficiency factor and convert back to int
         # Higher efficiency means less power usage
