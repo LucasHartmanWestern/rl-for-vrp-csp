@@ -107,9 +107,9 @@ def agent_learn(experiences, gamma, q_network, target_q_network, optimizer, devi
     Returns:
         None
     """
-
     # Convert NumPy arrays to PyTorch tensors
     states, distributions, rewards, next_states, dones = experiences
+
     states = torch.tensor(states, dtype=torch.float32, device=device)
     distributions = torch.tensor(distributions, dtype=torch.int64, device=device)
     rewards = torch.tensor(rewards, dtype=torch.float32, device=device).unsqueeze(1)

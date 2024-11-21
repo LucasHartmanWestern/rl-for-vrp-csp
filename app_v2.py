@@ -512,63 +512,63 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         None
     """
 
-    try:
-        # Create a deep copy of the environment for this thread
-        chargers_copy = copy.deepcopy(chargers)
+    # try:
+    # Create a deep copy of the environment for this thread
+    chargers_copy = copy.deepcopy(chargers)
 
-        print(f'algorithm dm {algorithm_dm}')
+    print(f'algorithm dm {algorithm_dm}')
 
-        if algorithm_dm == 'DQN':
-            from training_processes.train_dqn import train_dqn as train
+    if algorithm_dm == 'DQN':
+        from training_processes.train_dqn import train_dqn as train
 
-        elif algorithm_dm == 'PPO':
-            from training_processes.train_ppo import train_ppo as train
+    elif algorithm_dm == 'PPO':
+        from training_processes.train_ppo import train_ppo as train
 
-        elif algorithm_dm == 'DDPG':
-            from training_processes.train_ddpg import train_ddpg as train
+    elif algorithm_dm == 'DDPG':
+        from training_processes.train_ddpg import train_ddpg as train
 
-        elif algorithm_dm == 'CMA':
-            from training_processes.train_cma import train_cma as train
+    elif algorithm_dm == 'CMA':
+        from training_processes.train_cma import train_cma as train
 
-        elif algorithm_dm == 'ODT':
-            from training_processes.train_odt import train_odt as train
-        
-        else:
-            raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
+    elif algorithm_dm == 'ODT':
+        from training_processes.train_odt import train_odt as train
+    
+    else:
+        raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per, new_buffers =\
-            train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
-                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
-                  agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
-                  save_offline_data, train_model, old_buffers)
+    local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per, new_buffers =\
+        train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
+              date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
+              agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
+              save_offline_data, train_model, old_buffers)
 
-        # Save results of training
-        st = time.time()
-        rewards.append(avg_rewards)
-        output_values.append(avg_output_values)
-        metrics.append(training_metrics)
-        trajectories.append(trajectories_per)
-        process_buffers[ind] = new_buffers
-        et = time.time() - st
+    # Save results of training
+    st = time.time()
+    rewards.append(avg_rewards)
+    output_values.append(avg_output_values)
+    metrics.append(training_metrics)
+    trajectories.append(trajectories_per)
+    process_buffers[ind] = new_buffers
+    et = time.time() - st
 
-        if verbose:
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f'Spent {et:.3f} seconds saving results', file=file)  # Print saving time with 3 decimal places
-            print(f'Spent {et:.3f} seconds saving results')  # Print saving time with 3 decimal places
+    if verbose:
+        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+            print(f'Spent {et:.3f} seconds saving results', file=file)  # Print saving time with 3 decimal places
+        print(f'Spent {et:.3f} seconds saving results')  # Print saving time with 3 decimal places
 
-        if train_model:
-            local_weights_list[ind] = local_weights_per_agent
+    if train_model:
+        local_weights_list[ind] = local_weights_per_agent
 
-        print(f"Thread {ind} waiting")
+    print(f"Thread {ind} waiting")
 
-        if train_model:
-            barrier.wait()  # Wait for all threads to finish before proceeding
+    if train_model:
+        barrier.wait()  # Wait for all threads to finish before proceeding
 
-    except Exception as e:
-        import traceback
-        print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
-        traceback.print_exc()
-        sys.exit(1) # Exit the program with a non-zero status
+    # except Exception as e:
+    #     import traceback
+    #     print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
+    #     traceback.print_exc()
+    #     sys.exit(1) # Exit the program with a non-zero status
         
 def format_data(data):
     # Initialize a defaultdict to aggregate data by unique identifiers
