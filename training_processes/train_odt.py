@@ -553,7 +553,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     directory = f"{metrics_base_path}/metrics_{experiment_number}_{zone_index}/"
     os.makedirs(directory, exist_ok=True)
 
-    chunk_size = 100  # Define a reasonable chunk size
+    chunk_size = 50 # Define a reasonable chunk size
     for i, start in enumerate(range(0, len(metrics), chunk_size)):
         chunk = metrics[start:start + chunk_size]
         
