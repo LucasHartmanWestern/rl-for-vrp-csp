@@ -1,5 +1,6 @@
 import torch
 import torch.optim as optim
+import torch.multiprocessing as mp
 import numpy as np
 import collections
 from collections import namedtuple, deque
@@ -333,10 +334,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         if MP_CHANGE:
             process_list = []
             
-    
-            for agent_ind in range(num_cars):
-                Here to change
-                if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
+            if len(buffers[0]) >= batch_size: # Buffer is full enough
+                for agent_ind in range(num_cars):
     
                     trained = True
     
@@ -349,14 +348,14 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     else:
                         process = mp.Process(target=train_multi_agent,
                                              args=(buffers[agent_ind], discount_factor, q_networks[agent_ind],\
-                                                                  target_q_networks[agent_ind], optimizers[agent_ind], device))
+                                                                  target_q_networks[agent_ind], optimizers[agent_ind], device, dqn_rng, batch_size))
                         
                         process_list.append(process)
                         process.start()
     
-            if not agent_by_zone:
-                for process in process_list:
-                    process.join()
+                if not agent_by_zone:
+                    for process in process_list:
+                        process.join()
                     
 
         else:
@@ -461,12 +460,11 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories, buffers
 
-def train_multi_agent(agent_exp, discount_factor, q_network, target_q_network, optimizers, device):
-    mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
+def train_multi_agent(agent_exp, discount_factor, q_network, target_q_network, optimizer, device, dqn_rng, batch_size):
+    mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in agent_exp], dtype=object), batch_size, replace=False)
     experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
-    agent_learn(experiences, discount_factor, q_networks[agent_ind], \
-                                target_q_networks[agent_ind], optimizers[agent_ind], device)
+    agent_learn(experiences, discount_factor, q_network, target_q_network, optimizer, device)
 
 def print_time(label, time):
     print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
