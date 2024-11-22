@@ -1,0 +1,11 @@
+
+### Experiment 4008: ###
+--------------------------------
+Seed: 2020
+Model: DQN
+Season: winter
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 6000
+Number of aggregations: 1
+Average rewards when training: True
