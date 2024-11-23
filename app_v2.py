@@ -240,7 +240,7 @@ def train_rl_vrp_csp(args):
             print(f"Training using {algorithm_dm} - Seed {seed}")
 
 
-            metrics = []  # Used to track all metrics
+            #metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
@@ -327,7 +327,7 @@ def train_rl_vrp_csp(args):
                         print("No rewards found for this aggregation step.")
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
-                    metrics.extend(process_metrics)
+                    #metrics.extend(process_metrics)
                     trajectories.extend(process_trajectories)
                     old_buffers = list(process_buffers)
 
