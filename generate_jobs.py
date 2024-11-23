@@ -62,7 +62,7 @@ def create_job(args):
                     # num_cpus = num_gpus + 1
                     # For now, use 1 cpu per zone
                     num_cpus = len(config['environment_settings']['coords'])
-                    mem_size = "48G"
+                    mem_size = "64G"
                     total_episodes = num_episodes * num_aggregations
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
             else:
