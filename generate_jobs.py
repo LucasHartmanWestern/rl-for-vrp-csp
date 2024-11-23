@@ -11,7 +11,7 @@ def create_job(args):
             import os
             experiment_list = [int(d.split('_')[1]) for d in os.listdir('experiments') if d.startswith('Exp_')]
         else:
-            experiment_list = [int(e) for e in args.e]
+            experiment_list = range(int(args.e[0]), int(args.e[-1]))
     
     print("Experiments to create job config for:", experiment_list)
     # Read config file for each experiment
@@ -22,9 +22,6 @@ def create_job(args):
     
             # Use 1 gpu per zone
             # num_gpus = len(config['environment_settings']['coords'])
-            
-            # For now, use 1 gpu per zone
-            num_gpus = 1
 
             # Get the number of episodes and aggregations
             num_episodes = config['nn_hyperparameters']['num_episodes']
@@ -34,30 +31,34 @@ def create_job(args):
         
             # Get the algorithm
             algorithm = config['algorithm_settings']['algorithm']
+
+            if algorithm == 'CMA' or algorithm == 'DQN':
+                num_gpus = 0
+                allocation = "def-mcapretz"
+            elif algorithm == 'PPO':
+                num_gpus = 1
+                allocation = "rrg-kgroling"
         
             # Calculate the time based on the total number of episodes
             # Note: these are rough estimates based on how long takes to train 10k episodes
             algorithm_time_mapping = {
-                'DQN': (25 / 10000) / 3, # 15 hours / 10k episodes / 3 zones
-                'PPO': (50 / 10000) / 3, # 40 hours / 10k episodes / 3 zones
-                'CMA': (16 / 10000) , # 16 hours / 10k generations 4 zones
+                'DQN': (45 / 6000) / 5, # 45 hours / 6k episodes / 5 zones
+                'PPO': (80 / 6000) / 5, # 80 hours / 6k episodes / 5 zones
+                'CMA': (13 / 6000) / 5 # 16 hours / 10k generations 4 zones
                 # 'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
             }
         
             if algorithm in algorithm_time_mapping:
                 if algorithm == 'CMA':
-                    total_episodes = num_generations*num_aggregations
+                    total_episodes = num_episodes * num_aggregations
                     mem_size = "16G"
-                    num_gpus = 0 #on CMA two zones per gpu but 4 cpus per gpu
-                    num_cpus = 6
-                    allocation = "def-mcapretz"
-                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes
+                    num_cpus = len(config['environment_settings']['coords']) + 1
+                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
                 else:
                     # num_cpus = num_gpus + 1
                     # For now, use 1 cpu per zone
                     num_cpus = len(config['environment_settings']['coords'])
                     mem_size = "24G"
-                    allocation = 'rrg-kgroling'
                     total_episodes = num_episodes * num_aggregations
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
             else:
@@ -88,7 +89,7 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py {"" if num_gpus==0 else "-g"} {" ".join(str(g) for g in range(num_gpus))} -e {experiment} -d "{data_dir}" {"-eval True" if args.eval else ""}
+python app_v2.py {"" if num_gpus==0 else "-g "}{" ".join(str(g) for g in range(num_gpus)) if num_gpus > 0 else ""} -e {experiment} -d "{data_dir}" {"-eval True" if args.eval else ""}
     """
             
             # Save job script to file

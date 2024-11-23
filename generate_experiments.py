@@ -2,7 +2,7 @@ import os
 import yaml
 
 # Get most recent experiment number
-latest_experiment = 40
+latest_experiment = 4000
 
 # Generate experiments as combinations of the following parameters.
 #
@@ -16,13 +16,16 @@ latest_experiment = 40
 algorithm_settings = {
     "algorithm": {
         "permutate": True,
-        "options": ["DQN", "PPO", "ODT + DQN", "ODT + PPO", "ODT + ALL", "CMA"]
+        "options": ["DQN", "PPO", "CMA"]
     },
     "agent_by_zone": False
 }
 
 federated_learning_settings = {
-    "aggregation_count": 50,
+    "aggregation_count": {
+        "permutate": True,
+        "options": [30, 6, 1]
+    },
     "city_multiplier": 0.15,
     "zone_multiplier": 0.35,
     "model_multiplier": 0.50,
@@ -34,7 +37,7 @@ environment_settings = {
         "options": [1234, 5555, 2020]
     },
     "num_of_cars": 100, # Num of cars in simulation
-    "num_of_chargers": 3, # 3x this amount of chargers will be used (for origin, destination, and midpoint)
+    "num_of_chargers": 1, # 3x this amount of chargers will be used (for origin, destination, and midpoint)
     "action_dim": 3, # Multiplied by the number of chargers to represent how many output neurons there are for each NN
     "season": {
         "permutate": True,
@@ -45,7 +48,7 @@ environment_settings = {
         [43.004969336049854, -81.18631870502043], # East London
         [42.95923445066671, -81.26016049362336], # South London
         [42.98111190139387, -81.30953935839466], # West London
-        # [42.9819404397449, -81.2508736429095] # Central London
+        [42.9819404397449, -81.2508736429095] # Central London
     ],
     "radius": 20, # Max radius of the circle containing the entire trip
     "starting_charge": 6000, # 6kw base starting charge
@@ -65,7 +68,7 @@ eval_config = {
     "evaluate_on_diff_seed": False, # Set to true to evaluate a model on a different seed than it was trained on
     "evaluate_on_diff_zone": False, # Set to true to evaluate a model on a different zone than it was trained on
     "save_data": True, # Set to true if you want to save simulation results in a csv file
-    "save_offline_data": False, # Set true to save trajectories for offline training
+    "save_offline_data": True, # Set true to save trajectories for offline training
     "generate_plots": False, # Set to true if you want to generate plots of the simulation environments
     "save_aggregate_rewards": False, # Set to true if you want to save the rewards across aggregations
     "continue_training": False, # Set to true if you want the option to continue training after a full training loop completes
@@ -73,7 +76,10 @@ eval_config = {
 }
 
 nn_hyperparameters = {
-    "num_episodes": 200, # Amount of training episodes per session
+    "num_episodes": {
+        "permutate": True,
+        "options": [200, 1000, 6000]
+    }, # Amount of training episodes per session
     "learning_rate": 0.00001, # Rate of change for model parameters
     "epsilon": 1, # Introduce noise during training
     "discount_factor": 0.999, # Present value of future rewards
@@ -85,7 +91,10 @@ nn_hyperparameters = {
     "eps_per_save": 200, # How many episodes can go by before saving
     "log_std_decay_rate": 0.01, # Rate of decay for the log std of the action distribution
     "num_epochs": 10, # Amount of epochs to train the neural network
-
+    "average_rewards_when_training": {
+        "permutate": True,
+        "options": [True, False]
+    },
     # Multipliers to control aggregation
     "city_multiplier": 0.15, # Importance of city-wide average
     "zone_multiplier": 0.35, # Importance of zone-wide average
@@ -140,8 +149,11 @@ odt_hyperparameters = {
 algorithm_options = algorithm_settings["algorithm"]["options"]
 seed_options = environment_settings["seed"]["options"]
 season_options = environment_settings["season"]["options"]
+aggregation_count_options = federated_learning_settings["aggregation_count"]["options"]
+num_episodes_options = nn_hyperparameters["num_episodes"]["options"]
+reward_type_options = nn_hyperparameters["average_rewards_when_training"]["options"]
 
-total_combinations = len(algorithm_options) * len(seed_options) * len(season_options)
+total_combinations = len(algorithm_options) * len(seed_options) * len(season_options) * len(aggregation_count_options) * len(reward_type_options)
 
 for i in range(latest_experiment, latest_experiment + total_combinations):
     # Create YAML file with the proper config for the experiment
@@ -170,14 +182,19 @@ for i in range(latest_experiment, latest_experiment + total_combinations):
 
     # Update config to get every combination of algorithm, seed, and season
     combination_index = ind % total_combinations
-
-    algorithm_index = combination_index % len(algorithm_options)
-    seed_index = (combination_index // len(algorithm_options)) % len(seed_options)
-    season_index = (combination_index // (len(algorithm_options) * len(seed_options))) % len(season_options)
+    seed_index = combination_index % len(seed_options)
+    aggregation_count_index = (combination_index // (len(seed_options))) % len(aggregation_count_options)
+    num_episodes_index = aggregation_count_index
+    reward_type_index = (combination_index // (len(seed_options)* len(aggregation_count_options))) % len(reward_type_options)
+    season_index = (combination_index // (len(seed_options) * len(aggregation_count_options) * len(reward_type_options))) % len(season_options)
+    algorithm_index = (combination_index // (len(seed_options) * len(aggregation_count_options) * len(reward_type_options) * len(season_options))) % len(algorithm_options)
 
     config["algorithm_settings"]["algorithm"] = algorithm_options[algorithm_index]
     config["environment_settings"]["seed"] = seed_options[seed_index]
     config["environment_settings"]["season"] = season_options[season_index]
+    config["nn_hyperparameters"]["average_rewards_when_training"] = reward_type_options[reward_type_index]
+    config["federated_learning_settings"]["aggregation_count"] = aggregation_count_options[aggregation_count_index]
+    config["nn_hyperparameters"]["num_episodes"] = num_episodes_options[num_episodes_index]
 
     # Write the configuration to a YAML file
     with open(os.path.join(base_dir, 'config.yaml'), 'w') as file:
@@ -194,6 +211,7 @@ Number of cars: {environment_settings['num_of_cars']}
 Number of chargers: {environment_settings['num_of_chargers']}
 Number of episodes: {nn_hyperparameters['num_episodes']}
 Number of aggregations: {federated_learning_settings['aggregation_count']}
+Average rewards when training: {nn_hyperparameters['average_rewards_when_training']}
 """
     
     # Write the description file
