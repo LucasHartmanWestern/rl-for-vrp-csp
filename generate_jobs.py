@@ -38,14 +38,18 @@ def create_job(args):
             elif algorithm == 'PPO':
                 num_gpus = 1
                 allocation = "rrg-kgroling"
+            elif algorithm == 'ODT + DQN' or algorithm == 'ODT + PPO':
+                num_gpus = 5
+                allocation = "rrg-kgroling"
         
             # Calculate the time based on the total number of episodes
             # Note: these are rough estimates based on how long takes to train 10k episodes
             algorithm_time_mapping = {
                 'DQN': (45 / 6000) / 5, # 45 hours / 6k episodes / 5 zones
                 'PPO': (80 / 6000) / 5, # 80 hours / 6k episodes / 5 zones
-                'CMA': (13 / 6000) / 5 # 16 hours / 10k generations 4 zones
-                # 'ODT': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
+                'CMA': (13 / 6000) / 5, # 16 hours / 10k generations 4 zones
+                'ODT + DQN': (50 / 5000) / 3, # 32 hours / 5k episodes / 3 zones (1 iters per ep)
+                'ODT + PPO': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
             }
         
             if algorithm in algorithm_time_mapping:
