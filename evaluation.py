@@ -52,9 +52,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                             "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
                             "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
                             "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
-                            "origin": episode['paths'][0][agent_ind].tolist(),
-                            "destination": episode['paths'][-1][agent_ind].tolist(),
-                            "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
                             "timestep_real_world_time": episode['timestep_real_world_time']
                         })
 
@@ -93,9 +90,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
                         "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
                         "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
-                        "origin": episode['paths'][0][agent_ind].tolist(),
-                        "destination": episode['paths'][-1][agent_ind].tolist(),
-                        "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
                         "timestep_real_world_time": episode['timestep_real_world_time']
                     })
 

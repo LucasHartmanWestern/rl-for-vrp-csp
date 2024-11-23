@@ -268,7 +268,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()
+            _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()
 
             dones.extend(arrived_at_final.tolist())
 
@@ -305,7 +305,6 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                 "episode": i,
                 "timestep": timestep_counter,
                 "aggregation": aggregation_num,
-                "paths": sim_path_results,
                 "traffic": sim_traffic,
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
