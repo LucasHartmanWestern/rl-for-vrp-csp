@@ -4,7 +4,7 @@ import torch.multiprocessing as mp
 import numpy as np
 import collections
 from collections import namedtuple, deque
-import os
+import os, subprocess, sys
 import time
 import copy
 
@@ -214,6 +214,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 start_time_step = time.time()
     
                 # Build path for each EV
+                
                 for car_idx in range(num_cars): # For each car
         
                     if save_offline_data:
@@ -221,6 +222,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     
                     ########### Starting environment rutting
                     state = environment.reset_agent(car_idx, timestep_counter)
+                    print(f'line 225 state len {len(state)}')
                     states.append(state)  # Track states
     
                     if save_offline_data:
@@ -390,8 +392,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     #         process.join()
                             dqn_input = buffers[agent_ind]
                             req = comm.isend(dqn_input, dest=agent_ind, tag=11)
-                            req = 
-                            req.wait()
+                            # req = 
+                            # req.wait()
     
             else:
                 for agent_ind in range(num_cars):

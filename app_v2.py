@@ -519,7 +519,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         print(f'algorithm dm {algorithm_dm}')
     
         if algorithm_dm == 'DQN':
-            from training_processes.train_dqn import train_dqn as train
+            from training_processes.train_dqn_accel import train_dqn as train
     
         elif algorithm_dm == 'PPO':
             from training_processes.train_ppo import train_ppo as train
