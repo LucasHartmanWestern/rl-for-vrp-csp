@@ -7,6 +7,7 @@ LICENSE.md file in the root directory of this source tree.
 
 import numpy as np
 import torch
+import time
 
 MAX_EPISODE_LEN = 1000
 
@@ -22,18 +23,24 @@ def create_vec_eval_episodes_fn(
     chargers,
     routes,
     num_cars,
+    zone_index,
+    episode_num,
+    aggregation_num,
     use_mean=False,
     reward_scale=0.001,
 ):
     def eval_episodes_fn(model):
         target_return = [eval_rtg * reward_scale] * 1
-        returns, lengths, _ = vec_evaluate_episode_rtg(
+        returns, lengths, _ , metrics = vec_evaluate_episode_rtg(
             vec_env,
             chargers,
             routes,
             state_dim,
             act_dim,
             num_cars,
+            zone_index,
+            episode_num,
+            aggregation_num,
             model,
             max_ep_len=MAX_EPISODE_LEN,
             reward_scale=reward_scale,
@@ -63,6 +70,9 @@ def vec_evaluate_episode_rtg(
     state_dim,
     act_dim,
     num_cars,
+    zone_index,
+    episode_num,
+    aggregation_num,
     model,
     target_return: list,
     max_ep_len=10,
@@ -99,10 +109,13 @@ def vec_evaluate_episode_rtg(
 
     sim_done = False
     timestep_counter = 0
+    best_avg = float('-inf')
     episode_rewards = []
+    metrics = []
 
     while not sim_done:
         vec_env.init_routing()
+        start_time_step = time.time()
 
         for car in range(num_cars):
             state = vec_env.reset_agent(car, False)
@@ -134,7 +147,9 @@ def vec_evaluate_episode_rtg(
 
         # Gather results
         arrived_at_final = vec_env.arrived_at_final
-        _, _, sim_battery_levels, _, time_step_rewards, _ = vec_env.get_results()
+
+        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = vec_env.get_results()
+
 
         # Update rewards and terminals
         for traj in trajectories:
@@ -144,12 +159,32 @@ def vec_evaluate_episode_rtg(
 
             traj['cur_len'] += 1
 
+            time_step_time = time.time() - start_time_step
+            
+            metric = {
+                "zone": zone_index,#pass
+                "episode": episode_num, #pass
+                "timestep": timestep_counter,
+                "aggregation": aggregation_num, #pass
+                "paths": sim_path_results,
+                "traffic": sim_traffic,
+                "batteries": sim_battery_levels,
+                "distances": sim_distances,
+                "rewards": time_step_rewards,
+                "best_reward": best_avg,
+                "timestep_real_world_time": time_step_time,
+                "done": sim_done
+            }
+            metrics.append(metric)
+        
         episode_rewards.append(time_step_rewards)
         timestep_counter += 1
 
+    #SIM COMPLETE----------------------
+
+    
     # Calculate the average return per car
     episode_return = np.mean(np.sum(np.vstack(episode_rewards), axis=0))
-
     # Truncate trajectories to actual length before returning
     trajectories = [{
         'observations': traj['observations'][:traj['cur_len']].cpu(),
@@ -159,6 +194,6 @@ def vec_evaluate_episode_rtg(
         'car_num': traj['car_num']
     } for traj in trajectories]
 
-    return episode_return, timestep_counter, trajectories
+    return episode_return, timestep_counter, trajectories, metrics
 
 

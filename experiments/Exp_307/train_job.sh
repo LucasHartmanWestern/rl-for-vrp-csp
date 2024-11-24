@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_307_train
 #SBATCH --output=experiments/Exp_307/output.log
 #SBATCH --error=experiments/Exp_307/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gpus-per-node=1
-#SBATCH --time=31:59:59
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=5
+#SBATCH --gpus-per-node=4
+#SBATCH --time=14:00:00
+#SBATCH --mem=180G
 
 echo "Starting training for experiment 307"
 

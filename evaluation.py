@@ -5,7 +5,7 @@ import time
 from data_loader import save_to_csv, read_csv_data
 import mplcursors
 
-def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False):
+def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False, is_odt=False):
     if purpose == 'save':
 
         agent_data = []
@@ -58,7 +58,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
         else:
             # Flatten the data
             for episode in metrics:
-
                 # Loop through sim steps and stations
                 for step_ind in range(len(episode['traffic'])):
                     for station_ind in range(len(episode['traffic'][0])):
@@ -521,3 +520,9 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
 if __name__ == "__main__":
     reward_data = read_csv_data(f'./metrics/Experiment 1/train/metrics_reward.csv')
     evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', 1234, True, 25, 'DQN')
+
+
+
+
+
+
