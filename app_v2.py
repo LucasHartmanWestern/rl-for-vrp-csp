@@ -129,7 +129,7 @@ def train_rl_vrp_csp(args):
         elif algorithm_dm == 'CMA':
             num_episodes = c['cma_parameters']['max_generations']
         if algorithm_dm == 'ODT':
-            variant = c['odt_hyperparameters']
+            variant = c
         else:
             variant = None
 

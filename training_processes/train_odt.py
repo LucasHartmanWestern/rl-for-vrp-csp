@@ -565,8 +565,14 @@ class Experiment:
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
               dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
 
+    num_episodes = variant['nn_hyperparameters']['num_episodes']
+    num_aggs = variant['federated_learning_settings']['aggregation_count']
+    variant = variant['odt_hyperparameters']
+    variant["max_online_iters"] = num_episodes // num_aggs
+    print(f'episode calc check: {variant["max_online_iters"]}')
+
     utils.set_seed_everywhere(main_seed)
-    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose)
+    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes)
 
     print("=" * 50)
     experiment()
