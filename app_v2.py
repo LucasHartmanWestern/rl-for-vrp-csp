@@ -97,7 +97,8 @@ def train_rl_vrp_csp(args):
         experiment_list = init_config['experiment_list']
     
     #Getting into Training or Evaluating mode to run experiments
-    run_mode = init_config['model_run_mode']
+    run_mode = init_config['model_run_mode'] 
+
     # Check if run_mode is either "Training" or "Testing"
     if run_mode not in ["Training", "Testing"]:
         raise ValueError(f"Invalid run_mode: '{run_mode}'. Expected 'Training' or 'Testing'.")
@@ -109,6 +110,8 @@ def train_rl_vrp_csp(args):
     logs_dir = 'logs'
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
+
+    exp_times = []
 
     # Run each experiment on experiments list
     for experiment_number in experiment_list:
@@ -238,7 +241,7 @@ def train_rl_vrp_csp(args):
             print(f"Training using {algorithm_dm} - Seed {seed}")
 
 
-            metrics = []  # Used to track all metrics
+            #metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
             trajectories = []
@@ -325,7 +328,7 @@ def train_rl_vrp_csp(args):
                         print("No rewards found for this aggregation step.")
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
-                    metrics.extend(process_metrics)
+                    #metrics.extend(process_metrics)
                     trajectories.extend(process_trajectories)
                     old_buffers = list(process_buffers)
 
@@ -460,6 +463,8 @@ def train_rl_vrp_csp(args):
         to_print = f"Total time elapsed for this run"+\
             f"- et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
 
+        exp_times.append({'experiment_number': experiment_number, 'time': f"{str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"})
+
         print(to_print)
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
@@ -474,6 +479,10 @@ def train_rl_vrp_csp(args):
             with open(dataset_path, 'wb') as f:
                 pickle.dump(traj_format, f)
                 print('Offline Dataset Saved')
+
+    print(f"Experiment times: {exp_times}")
+    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+        print(f"Experiment times: {exp_times}", file=file)
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,

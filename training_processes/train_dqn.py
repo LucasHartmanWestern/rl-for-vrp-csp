@@ -72,8 +72,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     eps_per_save = int(nn_c['eps_per_save'])
     
-    # Decay epsilon such that by the midway point it is 0.1
-    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) / 5))
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+
+    # Decay epsilon such that by the target_episode_epsilon_frac * num_episodes it is 0.1
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
     avg_rewards = []
 
@@ -176,6 +178,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         distributions_unmodified = []
         states = []
         rewards = []
+        dones = []
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
 
@@ -261,8 +264,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+            _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = environment.get_results()
             
+            dones.extend(arrived_at_final.tolist())
+
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
@@ -296,7 +301,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 "episode": i,
                 "timestep": timestep_counter,
                 "aggregation": aggregation_num,
-                "paths": sim_path_results,
                 "traffic": sim_traffic,
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
@@ -313,10 +317,12 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         ########### STORE EXPERIENCES ###########
 
-        done = True
+        car_dones = [item for sublist in dones for item in sublist]
+
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
-                            states[(d + 1) % max(1, (len(distributions_unmodified) - 1))], done))  # Store experience
+                            states[(d + num_cars) if d + num_cars < len(states) else d],
+                            True if car_dones[d] == 1 else False))  # Store experience
 
         st = time.time()
 
@@ -328,7 +334,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
                 trained = True
 
-                mini_batch = dqn_rng.choice(np.array([experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
+                mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
                 experiences = map(np.stack, zip(*mini_batch))  # Format experiences
 
                 # Update networks
@@ -363,8 +369,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     os.makedirs(base_path)
 
                 # Save the networks at the end of training
-                save_model(q_networks[0], f'{base_path}/q_network_{zone_index}.pth')
-                save_model(target_q_networks[0], f'{base_path}/target_q_network_{zone_index}.pth')
+                # save_model(q_networks[0], f'{base_path}/q_network_{zone_index}.pth')
+                # save_model(target_q_networks[0], f'{base_path}/target_q_network_{zone_index}.pth')
             else:
                 for agent_ind in range(num_cars):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
@@ -374,8 +380,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                         os.makedirs(base_path)
 
                     # Save the networks at the end of training
-                    save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
-                    save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
+                    # save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
+                    # save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
 
         if ((i + 1) % eps_per_save == 0 and i > 0 and train_model) or (i == num_episodes - 2): # Save metrics data
             # Create metrics path if it does not exist

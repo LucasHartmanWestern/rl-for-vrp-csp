@@ -1,0 +1,11 @@
+### Experiment 34: ###
+--------------------------------
+By zone for CMA
+
+Seed: 5555
+Model: CMA
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50

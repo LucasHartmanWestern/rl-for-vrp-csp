@@ -1,0 +1,12 @@
+### Experiment 1030: ###
+--------------------------------
+
+100 CARS (1x3) CHARGERS (5 zones) (COMMUNAL REWARD)
+
+Seed: 5555
+Model: DQN
+Season: Spring
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 20

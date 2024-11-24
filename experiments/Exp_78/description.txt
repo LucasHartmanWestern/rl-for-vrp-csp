@@ -1,5 +1,7 @@
-### Experiment 2: ###
+### Experiment 78: ###
 --------------------------------
+Average rewards when training: True
+
 Seed: 5555
 Model: DQN
 Season: Spring

@@ -57,6 +57,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eval_c = load_config_file(config_fname)['eval_config']
+    federated_c = load_config_file(config_fname)['federated_learning_settings']
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
@@ -65,11 +66,20 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
+    aggregation_count = federated_c['aggregation_count']
 
-    log_std_decay_rate = nn_c['log_std_decay_rate']
-    
+
+    epsilon = nn_c['epsilon'] if train_model else 0
+
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+
+    epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
+
     avg_rewards = []
     exploration_params = []  # List to store exploration parameters
+
+    # Carry over epsilon from last aggregation
+    epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
 
     # Set seeds for reproducibility
     if seed is not None:
@@ -90,7 +100,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
-        actor_critic = ActorCritic(state_dimension, action_dim, layers).to(device) 
+        actor_critic = ActorCritic(state_dimension, action_dim, layers, std=1.0).to(device) 
 
         if global_weights is not None:
             if eval_c['evaluate_on_diff_zone'] or args.eval:
@@ -162,6 +172,7 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
         log_probs = []
         values = []
         masks = []
+        dones = []
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
 
@@ -257,7 +268,10 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             sim_done = environment.simulate_routes(timestep_counter)
 
             # Get results from environment
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = environment.get_results()
+            _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()
+
+            dones.extend(arrived_at_final.tolist())
+
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
@@ -291,7 +305,6 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                 "episode": i,
                 "timestep": timestep_counter,
                 "aggregation": aggregation_num,
-                "paths": sim_path_results,
                 "traffic": sim_traffic,
                 "batteries": sim_battery_levels,
                 "distances": sim_distances,
@@ -308,15 +321,16 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         ########### STORE EXPERIENCES ###########
 
-        done = True
+        car_dones = [item for sublist in dones for item in sublist]
+
         for d in range(len(distributions_unmodified)):
             buffers[d % num_cars].append(Experience(
                 to_numpy_if_tensor(states[d]),
                 to_numpy_if_tensor(distributions_unmodified[d]),
                 to_numpy_if_tensor(log_probs[d]),
                 to_numpy_if_tensor(rewards[d]),
-                to_numpy_if_tensor(states[(d + 1) % max(1, (len(distributions_unmodified) - 1))]),
-                done
+                to_numpy_if_tensor(states[(d + num_cars) if d + num_cars < len(states) else d]),
+                True if car_dones[d] == 1 else False
             ))
 
         st = time.time()
@@ -396,7 +410,8 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                         actions,
                         log_probs,
                         returns,
-                        advantages
+                        advantages,
+                        epsilon
                     )
                 else:
                     ppo_update(
@@ -408,7 +423,8 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
                         actions,
                         log_probs,
                         returns,
-                        advantages
+                        advantages,
+                        epsilon
                     )
                     
         et = time.time() - st
@@ -420,6 +436,10 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
 
         base_path = f'saved_networks/Experiment {experiment_number}'
+
+        epsilon *= epsilon_decay  # Decay epsilon
+        if train_model:
+            epsilon = max(0.001, epsilon) # Minimal learning threshold
 
         if i % 25 == 0 and i >= batch_size:  # Every 25 episodes
             if agent_by_zone:
@@ -473,15 +493,15 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
             f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
             f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-            f"Avg. IR: {round(avg_ir, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
+            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(to_print, file=file)
 
             print(to_print)
 
-        # Update log_std to reduce exploration
-        for actor_critic in actor_critics:
-            actor_critic.update_log_std(log_std_decay_rate)
+        # # Update log_std to reduce exploration
+        # for actor_critic in actor_critics:
+        #     actor_critic.update_log_std(log_std_decay_rate)
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 

@@ -1,0 +1,11 @@
+
+### Experiment 4168: ###
+--------------------------------
+Seed: 1234
+Model: ODT + PPO
+Season: winter
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 2000
+Number of aggregations: 1
+Average rewards when training: False

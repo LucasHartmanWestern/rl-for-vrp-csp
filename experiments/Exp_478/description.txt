@@ -1,0 +1,14 @@
+
+### Experiment 478: ###
+--------------------------------
+
+ONLY ZONE 1 AND 5 and ONLY 2K EPISODES SEED 5555
+
+Seed: 5555
+Model: DQN
+Season: winter
+Number of cars: 100
+Number of chargers: 3
+Number of episodes: 200
+Number of aggregations: 50
+Average rewards when training: True

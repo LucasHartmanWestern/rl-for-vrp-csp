@@ -1,5 +1,6 @@
-### Experiment 3: ###
+### Experiment 79: ###
 --------------------------------
+Average rewards when training: True
 Seed: 2020
 Model: DQN
 Season: Spring

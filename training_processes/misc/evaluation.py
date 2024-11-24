@@ -150,6 +150,7 @@ def vec_evaluate_episode_rtg(
 
         sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = vec_env.get_results()
 
+
         # Update rewards and terminals
         for traj in trajectories:
             if traj['cur_len'] < max_traj_len:
