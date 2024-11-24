@@ -52,45 +52,25 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                             "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
                             "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
                             "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
-                            "origin": episode['paths'][0][agent_ind].tolist(),
-                            "destination": episode['paths'][-1][agent_ind].tolist(),
-                            "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
                             "timestep_real_world_time": episode['timestep_real_world_time']
                         })
 
         else:
             # Flatten the data
-            if is_odt:
-                for zone_agg in metrics:
-                    for episode in zone_agg:
-                    # Loop through sim steps and stations
-                        for step_ind in range(len(episode['traffic'])):
-                            for station_ind in range(len(episode['traffic'][0])):
-                                station_data.append({
-                                    "episode": episode['episode'],
-                                    "timestep": episode['timestep'],
-                                    "done": episode['done'],
-                                    "zone": episode['zone'] + 1,
-                                    "aggregation": episode['aggregation'],
-                                    "simulation_step": step_ind,
-                                    "station_index": station_ind,
-                                    "traffic": episode['traffic'][step_ind][station_ind]
-                                })
-            else:
-                for episode in metrics:
-                    for step_ind in range(len(episode['traffic'])):
-                        for station_ind in range(len(episode['traffic'][0])):
-                            station_data.append({
-                                "episode": episode['episode'],
-                                "timestep": episode['timestep'],
-                                "done": episode['done'],
-                                "zone": episode['zone'] + 1,
-                                "aggregation": episode['aggregation'],
-                                "simulation_step": step_ind,
-                                "station_index": station_ind,
-                                "traffic": episode['traffic'][step_ind][station_ind]
-                            })
-                    
+            for episode in metrics:
+                # Loop through sim steps and stations
+                for step_ind in range(len(episode['traffic'])):
+                    for station_ind in range(len(episode['traffic'][0])):
+                        station_data.append({
+                            "episode": episode['episode'],
+                            "timestep": episode['timestep'],
+                            "done": episode['done'],
+                            "zone": episode['zone'] + 1,
+                            "aggregation": episode['aggregation'],
+                            "simulation_step": step_ind,
+                            "station_index": station_ind,
+                            "traffic": episode['traffic'][step_ind][station_ind]
+                        })
 
                 # Loop through the agents in each zone
                 for agent_ind, car_model in enumerate(car_models[episode['zone']]):
@@ -109,9 +89,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         "average_battery": np.average(np.array(episode['batteries']).T[agent_ind]),
                         "ending_battery": np.array(episode['batteries']).T[agent_ind].tolist()[-1],
                         "starting_battery": np.array(episode['batteries']).T[agent_ind].tolist()[0],
-                        "origin": episode['paths'][0][agent_ind].tolist(),
-                        "destination": episode['paths'][-1][agent_ind].tolist(),
-                        "path": [step.tolist() for step in episode['paths'][:, agent_ind]],
                         "timestep_real_world_time": episode['timestep_real_world_time']
                     })
 
@@ -543,3 +520,9 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
 if __name__ == "__main__":
     reward_data = read_csv_data(f'./metrics/Experiment 1/train/metrics_reward.csv')
     evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', 1234, True, 25, 'DQN')
+
+
+
+
+
+

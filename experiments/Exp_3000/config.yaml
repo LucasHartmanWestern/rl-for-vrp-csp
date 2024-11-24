@@ -30,7 +30,7 @@ environment_settings:
   - Tesla Model Y
   - BYD Song
   - Tesla Model 3
-  num_of_cars: 5
+  num_of_cars: 100
   num_of_chargers: 3
   radius: 20
   season: winter
@@ -74,7 +74,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 30
+  num_episodes: 300
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -90,7 +90,7 @@ odt_hyperparameters:
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
-  max_online_iters: 2
+  max_online_iters: 100
   max_pretrain_iters: 1
   n_head: 4
   n_layer: 4
@@ -105,3 +105,4 @@ odt_hyperparameters:
   warmup_steps: 10000
   weight_decay: 0.0005
   persist_buffers: True
+  offline_alg: "DQN"
