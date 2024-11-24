@@ -17,8 +17,8 @@ environment_settings:
     - -81.26016049362336
   - - 42.98111190139387
     - -81.30953935839466
-  - - 42.9819404397449
-    - -81.2508736429095
+  # - - 42.9819404397449
+  #   - -81.2508736429095
   increase_rate: 12500
   max_charge:
   - 170000
@@ -34,7 +34,7 @@ environment_settings:
   num_of_chargers: 3
   radius: 20
   season: winter
-  seed: 5555
+  seed: 1234
   starting_charge: 6000
   step_size: 0.01
   usage_per_hour:
@@ -49,7 +49,7 @@ eval_config:
   fixed_attributes: []
   generate_plots: false
   save_aggregate_rewards: false
-  save_data: false
+  save_data: True
   save_offline_data: false
   save_path_metrics: metrics/Exp
   verbose: true
@@ -86,11 +86,11 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 5555-25_iters
+  exp_name: no-aggregations-1234
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
-  max_online_iters: 5000
+  max_online_iters: 2000
   max_pretrain_iters: 1
   n_head: 4
   n_layer: 4
@@ -104,3 +104,4 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
+  persist_buffers: True

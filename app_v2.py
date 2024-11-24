@@ -97,7 +97,8 @@ def train_rl_vrp_csp(args):
         experiment_list = init_config['experiment_list']
     
     #Getting into Training or Evaluating mode to run experiments
-    run_mode = init_config['model_run_mode']
+    run_mode = init_config['model_run_mode'] 
+
     # Check if run_mode is either "Training" or "Testing"
     if run_mode not in ["Training", "Testing"]:
         raise ValueError(f"Invalid run_mode: '{run_mode}'. Expected 'Training' or 'Testing'.")
