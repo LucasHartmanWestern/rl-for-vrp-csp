@@ -199,9 +199,8 @@ class Experiment:
     def _load_dataset(self, env_name):
         
         dataset_path = f"../Datasets/data-20241124_165614.pkl"
+        #dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
         if not os.path.exists(dataset_path):
-            #dataset_path = f"/storage_1/merl/[{self.seed}]-DQN-large.pkl"
-            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
             dataset_path = f"/storage_1/merl/[1234]-Test.pkl"
             #dataset_path = next(iter(glob.glob(os.path.expanduser(f"~/scratch/metrics/Exp_{self.variant['experiment_number']}/data*.pkl"))), None) or FileNotFoundError("No .pkl files starting with 'data' found")
             
@@ -569,10 +568,10 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     num_aggs = variant['federated_learning_settings']['aggregation_count']
     variant = variant['odt_hyperparameters']
     variant["max_online_iters"] = num_episodes // num_aggs
-    print(f'episode calc check: {variant["max_online_iters"]}')
-
     utils.set_seed_everywhere(main_seed)
-    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
+    
+    print(f'state: {environment.state_dim}')
+    experiment = Experiment(variant, environment, chargers, routes, environment.state_dim, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
     experiment()
