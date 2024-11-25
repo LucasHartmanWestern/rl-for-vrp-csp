@@ -32,8 +32,9 @@ from training_processes.misc.logger import Logger
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers, metrics_path, ev_info, date, verbose):
+    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers, metrics_path, ev_info, date, verbose, num_episodes, arwt):
 
+        self.arwt = arwt
         self.persist_buffers = variant["persist_buffers"]
         self.metrics_base_path = metrics_path
         self.variant = variant
@@ -198,8 +199,10 @@ class Experiment:
         
         dataset_path = f"../Datasets/[{self.seed}]-{self.variant['offline_alg']}.pkl"
         if not os.path.exists(dataset_path):
-            dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
-            #dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
+            #dataset_path = f"/storage_1/merl/[{self.seed}]-DQN-large.pkl"
+            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
+            dataset_path = f"/storage_1/merl/[1234]-Test.pkl"
+            dataset_path = next(iter(glob.glob(os.path.expanduser(f"~/scratch/metrics/Exp_{self.variant['experiment_number']}/data*.pkl"))), None) or FileNotFoundError("No .pkl files starting with 'data' found")
             
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
@@ -260,7 +263,8 @@ class Experiment:
         with torch.no_grad():
             # generate init state
             target_return = [target_explore * self.reward_scale] * 1
-    
+
+            
             returns, lengths, trajs, metrics = vec_evaluate_episode_rtg(
                 online_envs,
                 self.chargers,
@@ -272,6 +276,7 @@ class Experiment:
                 online_iter,
                 self.agg_num,
                 self.model,
+                self.arwt,
                 max_ep_len=max_ep_len,
                 reward_scale=self.reward_scale,
                 target_return=target_return,
@@ -279,23 +284,7 @@ class Experiment:
                 state_mean=self.state_mean,
                 state_std=self.state_std,
                 device=self.device,
-            )
-        
-        # Call evaluate() only every 5 iterations
-        if online_iter % 5 == 0:
-            directory = f"{self.metrics_base_path}/train/metrics"
-            os.makedirs(directory, exist_ok=True)
-    
-            chunk_size = 50  # Define a reasonable chunk size
-            for i, start in enumerate(range(0, len(metrics), chunk_size)):
-                chunk = metrics[start:start + chunk_size]
-                
-                # Append is True for all chunks except the first one when aggregation_num > 0
-                # append = aggregation_num > 0 or i > 0
-    
-                # Call evaluate with the current chunk
-                evaluate(self.ev_info, chunk, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
-    
+            )    
         # Add trajectories to replay buffer
         self.replay_buffer.add_new_trajs(trajs)
         self.aug_trajs += trajs
@@ -304,7 +293,7 @@ class Experiment:
         return {
             "aug_traj/return": np.mean(returns),
             "aug_traj/length": np.mean(lengths),
-        }
+        }, metrics
 
 
     def pretrain(self, eval_envs, loss_fn):
@@ -325,6 +314,7 @@ class Experiment:
                 zone_index=self.zone_index,
                 episode_num=self.pretrain_iter,
                 aggregation_num=self.agg_num,
+                average_rewards_when_training=self.arwt,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -436,6 +426,7 @@ class Experiment:
                 zone_index=self.zone_index,
                 episode_num=self.online_iter,
                 aggregation_num=self.agg_num,
+                average_rewards_when_training=self.arwt,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -445,16 +436,23 @@ class Experiment:
         )
     
         buffer_to_return = None  # Initialize as None
+        full_metrics = []
         while self.online_iter < self.variant["max_online_iters"]:
-            outputs = {}
-            augment_outputs = self._augment_trajectories(
+            outputs = {}   
+            augment_outputs, metrics = self._augment_trajectories(
                 online_envs,
                 self.variant["online_rtg"],
                 self.online_iter,
                 n=self.variant["num_online_rollouts"],
                 
             )
+            full_metrics.extend(metrics)
             outputs.update(augment_outputs)
+            # Call evaluate() only every 5 iterations
+            if self.online_iter % 5 == 0:
+                directory = f"{self.metrics_base_path}/train/metrics"
+                os.makedirs(directory, exist_ok=True)
+                evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
     
             dataloader = create_dataloader(
                 trajectories=self.replay_buffer.trajectories,
@@ -565,8 +563,15 @@ class Experiment:
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
               dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
 
+    num_episodes = variant['nn_hyperparameters']['num_episodes']
+    arwt = variant['nn_hyperparameters']['average_rewards_when_training']
+    num_aggs = variant['federated_learning_settings']['aggregation_count']
+    variant = variant['odt_hyperparameters']
+    variant["max_online_iters"] = num_episodes // num_aggs
+    print(f'episode calc check: {variant["max_online_iters"]}')
+
     utils.set_seed_everywhere(main_seed)
-    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose)
+    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
     experiment()
