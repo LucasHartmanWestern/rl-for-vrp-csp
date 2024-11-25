@@ -14,7 +14,10 @@ import time
 import torch
 import numpy as np
 import re
+import os
+import json
 
+from evaluation import evaluate
 from training_processes.misc import utils
 from training_processes.misc.replay_buffer import ReplayBuffer
 from training_processes.misc.lamb import Lamb
@@ -29,27 +32,52 @@ from training_processes.misc.logger import Logger
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index):
+    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers, metrics_path, ev_info, date, verbose):
 
+        self.persist_buffers = variant["persist_buffers"]
+        self.metrics_base_path = metrics_path
+        self.variant = variant
+        self.experiment_number = experiment_number
+        self.ev_info = ev_info
+        self.date = date
+        self.verbose = verbose
         self.state_dim = state_dim
         self.act_dim = action_dim
         self.environment = environment
         self.chargers = chargers
         self.routes = routes
         self.seed = seed
+        self.zone_index = zone_index
         self.agg_num = agg_num
+        self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
-        self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(
-            'merl'
-        )
-        # initialize by offline trajs
-        self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
+        
+        save_path = os.path.join(variant["save_dir"], variant["exp_name"])
+        os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
+        
+        if agg_num < 1 or not self.persist_buffers:
+            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
+            # Initialize by offline trajectories
+            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
+        
+            # Save state_mean and state_std
+            with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
+                pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
+        else:
+            self.replay_buffer = buffers
+            buffers = None
+            # Load state_mean and state_std
+            with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
+                state_stats = pickle.load(f)
+            self.state_mean = state_stats['state_mean']
+            self.state_std = state_stats['state_std']
+
 
         self.aug_trajs = []
-
+        self.metrics = []
         self.device = device
         self.target_entropy = -self.act_dim
-        self.logger = Logger(variant, agg_num, zone_index)
+        
     
         self.model = DecisionTransformer(
         state_dim=self.state_dim,
@@ -112,7 +140,7 @@ class Experiment:
         self.pretrain_iter = 0
         self.online_iter = 0
         self.total_transitions_sampled = 0
-        self.variant = variant
+        
         self.reward_scale = 1
         
 
@@ -167,9 +195,12 @@ class Experiment:
             print(f"Model loaded at {path_prefix}/model.pt")
 
     def _load_dataset(self, env_name):
-    
-        dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-Exp_902_formatted.pkl"
-        #dataset_path = f"../Datasets/[5555]-3-3-2-20-20241002_141833.pkl"
+        
+        dataset_path = f"../Datasets/[{self.seed}]-{self.variant['offline_alg']}.pkl"
+        if not os.path.exists(dataset_path):
+            dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
+            #dataset_path = f"/mnt/storage_1/merl/[1234]-Test.pkl"
+            
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
@@ -178,7 +209,7 @@ class Experiment:
         
         for path in trajectories:
             # Convert lists to NumPy arrays to ensure compatibility
-            path["observations"] = np.array(path["observations"])
+            path["observations"] = np.array(path["observations"], dtype=np.float32)#save memory
             path["rewards"] = np.array(path["rewards"])  # Convert rewards to NumPy array
             path["actions"] = np.array(path["actions"])  # If actions exist and are needed
     
@@ -189,7 +220,7 @@ class Experiment:
         traj_lens, returns = np.array(traj_lens), np.array(returns)
     
         # used for input normalization
-        states = np.concatenate(states, axis=0)
+        states = np.concatenate(states, axis=0)        
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
     
@@ -220,23 +251,26 @@ class Experiment:
         self,
         online_envs,
         target_explore,
+        online_iter,
         n,
-        randomized=False,
+        randomized=False
     ):
-
         max_ep_len = MAX_EPISODE_LEN
-
+    
         with torch.no_grad():
             # generate init state
             target_return = [target_explore * self.reward_scale] * 1
-
-            returns, lengths, trajs = vec_evaluate_episode_rtg(
+    
+            returns, lengths, trajs, metrics = vec_evaluate_episode_rtg(
                 online_envs,
                 self.chargers,
                 self.routes,
                 self.state_dim,
                 self.act_dim,
                 self.environment.num_cars,
+                self.zone_index,
+                online_iter,
+                self.agg_num,
                 self.model,
                 max_ep_len=max_ep_len,
                 reward_scale=self.reward_scale,
@@ -246,15 +280,32 @@ class Experiment:
                 state_std=self.state_std,
                 device=self.device,
             )
-
+        
+        # Call evaluate() only every 5 iterations
+        if online_iter % 5 == 0:
+            directory = f"{self.metrics_base_path}/train/metrics"
+            os.makedirs(directory, exist_ok=True)
+    
+            chunk_size = 50  # Define a reasonable chunk size
+            for i, start in enumerate(range(0, len(metrics), chunk_size)):
+                chunk = metrics[start:start + chunk_size]
+                
+                # Append is True for all chunks except the first one when aggregation_num > 0
+                # append = aggregation_num > 0 or i > 0
+    
+                # Call evaluate with the current chunk
+                evaluate(self.ev_info, chunk, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
+    
+        # Add trajectories to replay buffer
         self.replay_buffer.add_new_trajs(trajs)
         self.aug_trajs += trajs
         self.total_transitions_sampled += np.sum(lengths)
-
+    
         return {
             "aug_traj/return": np.mean(returns),
             "aug_traj/length": np.mean(lengths),
         }
+
 
     def pretrain(self, eval_envs, loss_fn):
         print("\n\n\n*** Pretrain ***")
@@ -271,6 +322,9 @@ class Experiment:
                 chargers=self.chargers,
                 routes=self.routes,
                 num_cars=self.environment.num_cars,
+                zone_index=self.zone_index,
+                episode_num=self.pretrain_iter,
+                aggregation_num=self.agg_num,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -358,9 +412,8 @@ class Experiment:
         return self.attn_layers
 
     def online_tuning(self, online_envs, eval_envs, loss_fn):
-
         print("\n\n\n*** Online Finetuning ***")
-
+    
         trainer = SequenceTrainer(
             model=self.model,
             optimizer=self.optimizer,
@@ -380,6 +433,9 @@ class Experiment:
                 chargers=self.chargers,
                 routes=self.routes,
                 num_cars=self.environment.num_cars,
+                zone_index=self.zone_index,
+                episode_num=self.online_iter,
+                aggregation_num=self.agg_num,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -387,16 +443,19 @@ class Experiment:
         writer = (
             SummaryWriter(self.logger.log_path) if self.variant["log_to_tb"] else None
         )
+    
+        buffer_to_return = None  # Initialize as None
         while self.online_iter < self.variant["max_online_iters"]:
-
             outputs = {}
             augment_outputs = self._augment_trajectories(
                 online_envs,
                 self.variant["online_rtg"],
+                self.online_iter,
                 n=self.variant["num_online_rollouts"],
+                
             )
             outputs.update(augment_outputs)
-
+    
             dataloader = create_dataloader(
                 trajectories=self.replay_buffer.trajectories,
                 num_iters=self.variant["num_updates_per_online_iter"],
@@ -409,45 +468,46 @@ class Experiment:
                 reward_scale=self.reward_scale,
                 action_range=self.action_range,
             )
-
-            # finetuning
+    
             is_last_iter = self.online_iter == self.variant["max_online_iters"] - 1
-            if (self.online_iter + 1) % self.variant[
-                "eval_interval"
-            ] == 0 or is_last_iter:
+            if (self.online_iter + 1) % self.variant["eval_interval"] == 0 or is_last_iter:
                 evaluation = True
             else:
                 evaluation = False
-
+    
             train_outputs = trainer.train_iteration(
                 loss_fn=loss_fn,
                 dataloader=dataloader,
             )
             outputs.update(train_outputs)
-
+    
             if evaluation:
                 eval_outputs, eval_reward = self.evaluate(eval_fns)
                 outputs.update(eval_outputs)
-
+    
             outputs["time/total"] = time.time() - self.start_time
-
-            # log the metrics
             self.logger.log_metrics(
                 outputs,
                 iter_num=self.pretrain_iter + self.online_iter,
                 total_transitions_sampled=self.total_transitions_sampled,
                 writer=writer,
             )
-
-            if self.online_iter == (self.variant["max_online_iters"] - 1):
+    
+            if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
+                if self.persist_buffers:
+                    buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                else:
+                    buffer_to_return = None
                 
             self._save_model(
                 path_prefix=self.logger.log_path,
                 is_pretrain_model=False
- 
             )
             self.online_iter += 1 
+    
+        return buffer_to_return  # Return the buffer only at the last iteration
+
 
     def __call__(self):
 
@@ -498,31 +558,25 @@ class Experiment:
         if self.variant["max_online_iters"]:
             print("\n\nMaking Online Env.....")
             online_envs = self.environment
-            self.online_tuning(online_envs, eval_envs, loss_fn)
-            #online_envs.close()
-
+            self.final_buffer = self.online_tuning(online_envs, eval_envs, loss_fn)
+            
         #eval_envs.close()
 
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
-):
+              dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
+
+    utils.set_seed_everywhere(main_seed)
+    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose)
+
+    print("=" * 50)
+    experiment()
     
-        utils.set_seed_everywhere(main_seed)
-        experiment = Experiment(variant, environment, chargers, routes, 23, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index)
-    
-        print("=" * 50)
-        experiment()
-        
-        # Load the model from the specified path
-        attn_layers = experiment.get_model_weights().detach().cpu()
-        weights_list = attn_layers
-        avg_rewards = []
-        avg_output_values = []
-        metrics = []
-        trajectories = []
-        buffer = []
-        
-        return weights_list, avg_rewards, avg_output_values, metrics, trajectories, buffer
+    metrics = experiment.metrics
+
+
+    return experiment.get_model_weights().detach().cpu(), [], [], metrics, [], experiment.final_buffer
+
+
 
 def load_global_weights(save_global_path):
     """
