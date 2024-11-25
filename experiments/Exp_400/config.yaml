@@ -59,6 +59,7 @@ federated_learning_settings:
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
+  average_rewards_when_training: False
   batch_size: 1000
   buffer_limit: 2000
   city_multiplier: 0.15

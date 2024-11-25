@@ -16,6 +16,7 @@ import numpy as np
 import re
 import os
 import json
+import glob
 
 from evaluation import evaluate
 from training_processes.misc import utils
@@ -202,7 +203,7 @@ class Experiment:
             #dataset_path = f"/storage_1/merl/[{self.seed}]-DQN-large.pkl"
             #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
             dataset_path = f"/storage_1/merl/[1234]-Test.pkl"
-            dataset_path = next(iter(glob.glob(os.path.expanduser(f"~/scratch/metrics/Exp_{self.variant['experiment_number']}/data*.pkl"))), None) or FileNotFoundError("No .pkl files starting with 'data' found")
+            #dataset_path = next(iter(glob.glob(os.path.expanduser(f"~/scratch/metrics/Exp_{self.variant['experiment_number']}/data*.pkl"))), None) or FileNotFoundError("No .pkl files starting with 'data' found")
             
         print('Loading Dataset...')
         with open(dataset_path, "rb") as f:

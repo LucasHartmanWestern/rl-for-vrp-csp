@@ -11,8 +11,8 @@ environment_settings:
   coords:
   - - 43.02120034946083
     - -81.28349087468504
-  - - 43.004969336049854
-    - -81.18631870502043
+  # - - 43.004969336049854
+  #   - -81.18631870502043
   # - - 42.95923445066671
   #   - -81.26016049362336
   # - - 42.98111190139387
@@ -59,6 +59,7 @@ federated_learning_settings:
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
+  average_rewards_when_training: False
   batch_size: 1000
   buffer_limit: 2000
   city_multiplier: 0.15
@@ -87,6 +88,7 @@ odt_hyperparameters:
   eval_interval: 1
   eval_rtg: -60
   exp_name: test_metrics
+  experiment_number: 3000
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
