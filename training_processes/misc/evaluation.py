@@ -26,6 +26,7 @@ def create_vec_eval_episodes_fn(
     zone_index,
     episode_num,
     aggregation_num,
+    average_rewards_when_training,
     use_mean=False,
     reward_scale=0.001,
 ):
@@ -42,6 +43,7 @@ def create_vec_eval_episodes_fn(
             episode_num,
             aggregation_num,
             model,
+            average_rewards_when_training,
             max_ep_len=MAX_EPISODE_LEN,
             reward_scale=reward_scale,
             target_return=target_return,
@@ -74,6 +76,7 @@ def vec_evaluate_episode_rtg(
     episode_num,
     aggregation_num,
     model,
+    average_rewards_when_training,
     target_return: list,
     max_ep_len=10,
     reward_scale=0.001,
@@ -93,7 +96,7 @@ def vec_evaluate_episode_rtg(
     model.eval()
     model.to(device=device)
 
-    # Set the number of environments
+    # Set the number of vec_envs
     num_envs = 1
     
     # Pre-allocate memory for trajectories for all cars with a fixed max length
@@ -111,8 +114,10 @@ def vec_evaluate_episode_rtg(
     timestep_counter = 0
     best_avg = float('-inf')
     episode_rewards = []
-    metrics = []
-
+    dones = []
+    rewards = []
+    metrics=[]
+    
     while not sim_done:
         vec_env.init_routing()
         start_time_step = time.time()
@@ -156,13 +161,10 @@ def vec_evaluate_episode_rtg(
             episode_rewards = np.vstack((episode_rewards,time_step_rewards))
         
         # Train the model only using the average of all timestep rewards
-        if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
+        if average_rewards_when_training: 
             avg_reward = time_step_rewards.sum(axis=0).mean()
             time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-            rewards.extend(time_step_rewards_avg)
-        # Train the model using the rewards from it's own experiences
-        else:
-            rewards.extend(time_step_rewards)
+            time_step_rewards = time_step_rewards_avg
 
         # Update rewards and terminals
         for traj in trajectories:
@@ -188,9 +190,8 @@ def vec_evaluate_episode_rtg(
             "done": sim_done
         }
         metrics.append(metric)
-
         timestep_counter += 1  # Next timestep
-        if timestep_counter >= environment.max_steps:
+        if timestep_counter >= vec_env.max_steps:
             raise Exception("MAX TIME-STEPS EXCEEDED!")
                 
 
