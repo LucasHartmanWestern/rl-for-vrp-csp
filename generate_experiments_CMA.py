@@ -25,7 +25,7 @@ algorithm_settings = {
 federated_learning_settings = {
     "aggregation_count": {
         "permutate": True,
-        "options": [30, 6, 1]
+        "options": [30, 6, 3]
     },
     "city_multiplier": 0.15,
     "zone_multiplier": 0.35,
@@ -108,7 +108,7 @@ cma_parameters = {
     "initial_sigma": 0.1,
     "max_generations": {
         "permutate": True,
-        "options": [200, 1000, 6000]
+        "options": [200, 1000, 2000]
     }, # Amount of training episodes per session
     "model_type": 'optimizer' 
 }
@@ -216,7 +216,7 @@ Model: {algorithm_options[algorithm_index]}
 Season: {season_options[season_index]}
 Number of cars: {environment_settings['num_of_cars']}
 Number of chargers: {environment_settings['num_of_chargers']}
-Number of episodes: {nn_hyperparameters['num_episodes']}
+Number of generations: {cma_parameters['max_generations']}
 Number of aggregations: {federated_learning_settings['aggregation_count']}
 Average rewards when training: {nn_hyperparameters['average_rewards_when_training']}
 """

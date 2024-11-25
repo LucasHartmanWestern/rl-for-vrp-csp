@@ -6,6 +6,6 @@ Model: CMA
 Season: winter
 Number of cars: 100
 Number of chargers: 1
-Number of episodes: 0
-Number of aggregations: 1
+Number of generations: 2000
+Number of aggregations: 3
 Average rewards when training: True

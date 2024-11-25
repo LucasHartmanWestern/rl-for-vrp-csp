@@ -6,6 +6,6 @@ Model: CMA
 Season: summer
 Number of cars: 100
 Number of chargers: 1
-Number of episodes: 0
+Number of generations: 1000
 Number of aggregations: 6
 Average rewards when training: True
