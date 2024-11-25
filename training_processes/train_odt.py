@@ -289,11 +289,7 @@ class Experiment:
             chunk_size = 50  # Define a reasonable chunk size
             for i, start in enumerate(range(0, len(metrics), chunk_size)):
                 chunk = metrics[start:start + chunk_size]
-                
-                # Append is True for all chunks except the first one when aggregation_num > 0
-                # append = aggregation_num > 0 or i > 0
-    
-                # Call evaluate with the current chunk
+
                 evaluate(self.ev_info, chunk, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
     
         # Add trajectories to replay buffer

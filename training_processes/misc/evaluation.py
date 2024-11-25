@@ -148,8 +148,21 @@ def vec_evaluate_episode_rtg(
         # Gather results
         arrived_at_final = vec_env.arrived_at_final
 
-        sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards = vec_env.get_results()
-
+        _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = vec_env.get_results()
+        dones.extend(arrived_at_final.tolist())
+        if timestep_counter == 0:
+            episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+        else:
+            episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+        
+        # Train the model only using the average of all timestep rewards
+        if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
+            avg_reward = time_step_rewards.sum(axis=0).mean()
+            time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
+            rewards.extend(time_step_rewards_avg)
+        # Train the model using the rewards from it's own experiences
+        else:
+            rewards.extend(time_step_rewards)
 
         # Update rewards and terminals
         for traj in trajectories:
@@ -159,26 +172,27 @@ def vec_evaluate_episode_rtg(
 
             traj['cur_len'] += 1
 
-            time_step_time = time.time() - start_time_step
+        time_step_time = time.time() - start_time_step
             
-            metric = {
-                "zone": zone_index,#pass
-                "episode": episode_num, #pass
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num, #pass
-                "paths": sim_path_results,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": time_step_rewards,
-                "best_reward": best_avg,
-                "timestep_real_world_time": time_step_time,
-                "done": sim_done
-            }
-            metrics.append(metric)
-        
-        episode_rewards.append(time_step_rewards)
-        timestep_counter += 1
+        metric = {
+            "zone": zone_index,#pass
+            "episode": episode_num, #pass
+            "timestep": timestep_counter,
+            "aggregation": aggregation_num, #pass
+            "traffic": sim_traffic,
+            "batteries": sim_battery_levels,
+            "distances": sim_distances,
+            "rewards": time_step_rewards,
+            "best_reward": best_avg,
+            "timestep_real_world_time": time_step_time,
+            "done": sim_done
+        }
+        metrics.append(metric)
+
+        timestep_counter += 1  # Next timestep
+        if timestep_counter >= environment.max_steps:
+            raise Exception("MAX TIME-STEPS EXCEEDED!")
+                
 
     #SIM COMPLETE----------------------
 
