@@ -30,11 +30,11 @@ environment_settings:
   - Tesla Model Y
   - BYD Song
   - Tesla Model 3
-  num_of_cars: 5
+  num_of_cars: 100
   num_of_chargers: 3
   radius: 20
   season: winter
-  seed: 5555
+  seed: 1234
   starting_charge: 6000
   step_size: 0.01
   usage_per_hour:
@@ -59,6 +59,7 @@ federated_learning_settings:
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
+  average_rewards_when_training: False
   batch_size: 1000
   buffer_limit: 2000
   city_multiplier: 0.15
@@ -74,7 +75,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 30
+  num_episodes: 1000
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -86,22 +87,23 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 1_3-5555
+  exp_name: test_metrics2
+  experiment_number: 4036
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
   max_online_iters: 200
   max_pretrain_iters: 1
-  n_head: 1
-  n_layer: 3
+  n_head: 4
+  n_layer: 4
   num_eval_episodes: 1
   num_online_rollouts: 1
   num_updates_per_online_iter: 25
   num_updates_per_pretrain_iter: 500
   online_rtg: -60
   ordering: 0
+  persist_buffers: true
   replay_size: 500
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-  persist_buffers: True
