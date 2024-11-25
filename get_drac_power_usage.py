@@ -4,10 +4,8 @@ import json
 from datetime import datetime, timedelta
 import urllib.request
 import os
-from dotenv import load_dotenv
 import argparse
 
-load_dotenv()
 
 cookie = f"sessionid=x5o5g7z4520scpefl1b7ix4twvyvrpnt"
 
@@ -41,9 +39,10 @@ def save_job_power_usage(job, experiment_num, username, base_path):
     
     if 'co2_emissions_kg' not in co2_data:
         raise Exception(f"No CO2 data found for job {job['id']}")
-    
+
+    print(f"Writing to {save_path}")
     with open(save_path, 'w') as f:
-        f.write('Time,Power (W), CO2 (kg)\n')
+        f.write('time,power,co2\n')
         for x, y in zip(power_data['data'][0]['x'], power_data['data'][0]['y']):
             f.write(f'{x},{y},{co2_data["co2_emissions_kg"]}\n')
 
@@ -79,7 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', type=str, nargs='*', default=[])
     parser.add_argument('-u', type=str, default='hartman')
-    parser.add_argument('-p', type=str, default='~/../../storage_1/metrics')
+    parser.add_argument('-p', type=str, default='../../../storage_1/metrics')
     args = parser.parse_args()
 
     get_jobs_per_experiments(args.e, args.u, args.p)

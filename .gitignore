@@ -187,3 +187,4 @@ train/
 /myenv
 /merl_2_venv
 update_config_files.py
+update_odt_config.py
