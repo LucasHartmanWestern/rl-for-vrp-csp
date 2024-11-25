@@ -16,6 +16,7 @@ import uuid
 import shutil
 import pandas as pd
 import sys
+import json
 
 from collections import defaultdict
 
@@ -541,7 +542,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'ODT':
             from training_processes.train_odt import train_odt as train
-        
+            save_data_by_zone(metrics_base_path)    
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
@@ -604,6 +605,58 @@ def format_data(data):
     formatted_trajectories = list(trajectories.values())
     
     return formatted_trajectories
+
+def save_data_by_zone(output_dir):
+    dataset_path = f"../Datasets/data-20241124_165614.pkl"
+    if not os.path.exists(dataset_path):
+        dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError("No valid .pkl file found for the dataset.")
+
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Load formatted data from the .pkl file
+    with open(dataset_path, "rb") as f:
+        formatted_data = pickle.load(f)
+
+    # Group data by zone
+    data_by_zone = defaultdict(list)
+    for trajectory in formatted_data:
+        zone = trajectory['zone']
+        data_by_zone[zone].append(trajectory)
+
+    # Helper function to recursively convert NumPy arrays to lists
+    def make_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: make_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [make_serializable(item) for item in obj]
+        else:
+            return obj
+
+    # Save each zone's data into a separate CSV file
+    for zone, trajectories in data_by_zone.items():
+        # Create a DataFrame where each row is a trajectory
+        data_to_save = []
+        for traj in trajectories:
+            serializable_traj = make_serializable(traj)  # Convert all arrays to lists
+            data_to_save.append({
+                "zone": traj["zone"],
+                "aggregation": traj["aggregation"],
+                "episode": traj["episode"],
+                "car_idx": traj["car_idx"],
+                "trajectory": json.dumps(serializable_traj),  # Save the trajectory as a JSON string
+            })
+        df = pd.DataFrame(data_to_save)
+        # Save to CSV
+        csv_path = os.path.join(output_dir, f'zone_{zone}.csv')
+        df.to_csv(csv_path, index=False)
+        print(f"Saved data for Zone {zone} to {csv_path}")
+
+
     
 if __name__ == '__main__':
 
