@@ -197,7 +197,7 @@ class Experiment:
 
     def _load_dataset(self, env_name):
         
-        dataset_path = f"../Datasets/[{self.seed}]-{self.variant['offline_alg']}.pkl"
+        dataset_path = f"../Datasets/data-20241124_165614.pkl"
         if not os.path.exists(dataset_path):
             #dataset_path = f"/storage_1/merl/[{self.seed}]-DQN-large.pkl"
             #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
