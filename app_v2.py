@@ -139,7 +139,7 @@ def train_rl_vrp_csp(args):
         #saving metric resutls from experiments
         metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
         if algorithm_dm == 'ODT':
-            save_data_by_zone(metrics_base_path)  
+            save_data_by_zone(metrics_base_path, variant['experiment_number'])  
             
         print(f"Saving metrics to base path: {metrics_base_path}")
 
@@ -608,8 +608,15 @@ def format_data(data):
     
     return formatted_trajectories
 
-def save_data_by_zone(output_dir):
-    dataset_path = f"../Datasets/data-20241124_165614.pkl"
+def save_data_by_zone(output_dir, offline_exp):
+    dataset_path = (
+        next(
+            iter(glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{offline_exp}/data*.pkl"))),
+            None
+        )
+        or FileNotFoundError("No .pkl files starting with 'data' found")
+    )
+
     if not os.path.exists(dataset_path):
         dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
         if not os.path.exists(dataset_path):
