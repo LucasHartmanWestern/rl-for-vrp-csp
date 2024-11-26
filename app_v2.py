@@ -130,14 +130,17 @@ def train_rl_vrp_csp(args):
         elif algorithm_dm == 'CMA':
             num_episodes = c['cma_parameters']['max_generations']
         if algorithm_dm == 'ODT':
-            variant = c
+            num_episodes = c['nn_hyperparameters']['num_episodes']
+            variant = c        
         else:
             variant = None
 
         action_dim = env_c['action_dim'] * env_c['num_of_chargers']
         #saving metric resutls from experiments
         metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
-
+        if algorithm_dm == 'ODT':
+            save_data_by_zone(metrics_base_path, variant['experiment_number'])  
+            
         print(f"Saving metrics to base path: {metrics_base_path}")
 
         if os.path.exists(f'{metrics_base_path}/train') and run_mode == "Training":
@@ -542,7 +545,6 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'ODT':
             from training_processes.train_odt import train_odt as train
-            save_data_by_zone(metrics_base_path)    
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
@@ -606,8 +608,15 @@ def format_data(data):
     
     return formatted_trajectories
 
-def save_data_by_zone(output_dir):
-    dataset_path = f"../Datasets/data-20241124_165614.pkl"
+def save_data_by_zone(output_dir, offline_exp):
+    dataset_path = (
+        next(
+            iter(glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{offline_exp}/data*.pkl"))),
+            None
+        )
+        or FileNotFoundError("No .pkl files starting with 'data' found")
+    )
+
     if not os.path.exists(dataset_path):
         dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
         if not os.path.exists(dataset_path):
@@ -620,11 +629,21 @@ def save_data_by_zone(output_dir):
     with open(dataset_path, "rb") as f:
         formatted_data = pickle.load(f)
 
+    # Find the maximum aggregation value
+    max_aggregation = max(traj['aggregation'] for traj in formatted_data) + 1
+    half_aggregation = max_aggregation // 2  # Save data for the first half of the aggregations
+    
+    print(f"Max Aggregations: {max_aggregation}, Saving First {half_aggregation} Aggregations")
+
     # Group data by zone
     data_by_zone = defaultdict(list)
     for trajectory in formatted_data:
-        zone = trajectory['zone']
-        data_by_zone[zone].append(trajectory)
+        current_agg_num = trajectory['aggregation']
+        
+        # Include only trajectories from the first half of the aggregations
+        if current_agg_num < half_aggregation:
+            zone = trajectory['zone']
+            data_by_zone[zone].append(trajectory)
 
     # Helper function to recursively convert NumPy arrays to lists
     def make_serializable(obj):
@@ -655,6 +674,9 @@ def save_data_by_zone(output_dir):
         csv_path = os.path.join(output_dir, f'zone_{zone}.csv')
         df.to_csv(csv_path, index=False)
         print(f"Saved data for Zone {zone} to {csv_path}")
+
+
+
 
 
     

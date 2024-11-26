@@ -257,8 +257,6 @@ class Experiment:
             ind -= 1
         sorted_inds = sorted_inds[-num_trajectories:]
         trajectories = [trajectories[ii] for ii in sorted_inds]
-
-        print(trajectories[4])
         return trajectories, state_mean, state_std
     def _augment_trajectories(
         self,
@@ -463,6 +461,8 @@ class Experiment:
                 directory = f"{self.metrics_base_path}/train/metrics"
                 os.makedirs(directory, exist_ok=True)
                 evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
+                full_metrics = []
+                
     
             dataloader = create_dataloader(
                 trajectories=self.replay_buffer.trajectories,
