@@ -577,7 +577,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     arwt = variant['nn_hyperparameters']['average_rewards_when_training']
     num_aggs = variant['federated_learning_settings']['aggregation_count']
     variant = variant['odt_hyperparameters']
-    variant["max_online_iters"] = num_episodes * num_aggs
+    variant["max_online_iters"] = num_episodes
     utils.set_seed_everywhere(main_seed)
     
     print(f'episode calc check: {variant["max_online_iters"] }')
