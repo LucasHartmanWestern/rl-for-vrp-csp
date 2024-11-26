@@ -62,7 +62,7 @@ def get_jobs_per_experiments(experiment_list, username, base_path):
     get = urllib.request.urlopen(urllib.request.Request(url, headers=headers))
     data = json.loads(get.read())
 
-    for experiment in experiment_list:
+    for experiment in range(experiment_list[0], experiment_list[1] + 1):
         # Find most recent id_job for this experiment that has power data
         for job in data['data']:
             if job['job_name'] == f"Exp_{experiment}_train":
@@ -76,7 +76,7 @@ def get_jobs_per_experiments(experiment_list, username, base_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', type=str, nargs='*', default=[])
+    parser.add_argument('-e', type=int, nargs='*', default=[])
     parser.add_argument('-u', type=str, default='hartman')
     parser.add_argument('-p', type=str, default='../../../storage_1/metrics')
     args = parser.parse_args()
