@@ -164,12 +164,14 @@ def vec_evaluate_episode_rtg(
         if average_rewards_when_training: 
             avg_reward = time_step_rewards.sum(axis=0).mean()
             time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-            time_step_rewards = time_step_rewards_avg
-
+        
         # Update rewards and terminals
         for traj in trajectories:
             if traj['cur_len'] < max_traj_len:
-                traj['rewards'][traj['cur_len']] = torch.tensor(time_step_rewards[traj['car_num']], device=device, dtype=torch.float32)
+                if average_rewards_when_training: 
+                    traj['rewards'][traj['cur_len']] = torch.tensor(time_step_rewards_avg[traj['car_num']], device=device, dtype=torch.float32)
+                else:
+                    traj['rewards'][traj['cur_len']] = torch.tensor(time_step_rewards[traj['car_num']], device=device, dtype=torch.float32)
                 traj['terminals'][traj['cur_len']] = sim_done
 
             traj['cur_len'] += 1
