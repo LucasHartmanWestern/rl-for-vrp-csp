@@ -94,8 +94,8 @@ odt_hyperparameters:
   log_to_tb: true
   max_online_iters: 200
   max_pretrain_iters: 1
-  n_head: 1
-  n_layer: 3
+  n_head: 4
+  n_layer: 4
   num_eval_episodes: 1
   num_online_rollouts: 1
   num_updates_per_online_iter: 25
