@@ -74,6 +74,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     
     target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
 
+    if eval_c['evaluate_on_diff_zone'] or args.eval:
+        target_episode_epsilon_frac = 0.1
+
     # Decay epsilon such that by the target_episode_epsilon_frac * num_episodes it is 0.1
     epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 

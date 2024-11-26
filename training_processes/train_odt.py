@@ -16,7 +16,10 @@ import numpy as np
 import re
 import os
 import json
+import glob
+import pandas as pd
 
+from collections import defaultdict
 from evaluation import evaluate
 from training_processes.misc import utils
 from training_processes.misc.replay_buffer import ReplayBuffer
@@ -195,47 +198,55 @@ class Experiment:
             torch.set_rng_state(checkpoint["pytorch"])
             print(f"Model loaded at {path_prefix}/model.pt")
 
+
     def _load_dataset(self, env_name):
+        print(f'Loading Dataset for Zone {self.zone_index}...')
         
-        dataset_path = f"../Datasets/data-20241124_165614.pkl"
+        # Path to the zone-specific CSV file
+        dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.csv')
         if not os.path.exists(dataset_path):
-            #dataset_path = f"/storage_1/merl/[{self.seed}]-DQN-large.pkl"
-            #dataset_path = f"/mnt/storage_1/merl/[{self.seed}]-DQN.pkl"
-            dataset_path = f"/storage_1/merl/[1234]-Test.pkl"
-            dataset_path = next(iter(glob.glob(os.path.expanduser(f"~/scratch/metrics/Exp_{self.variant['experiment_number']}/data*.pkl"))), None) or FileNotFoundError("No .pkl files starting with 'data' found")
-            
-        print('Loading Dataset...')
-        with open(dataset_path, "rb") as f:
-            trajectories = pickle.load(f)
-    
-        states, traj_lens, returns = [], [], []
+            raise FileNotFoundError(f"No CSV file found for Zone {self.zone_index}")
         
+        # Load the CSV file
+        df = pd.read_csv(dataset_path)
+    
+        # Deserialize trajectories
+        trajectories = [
+            json.loads(row["trajectory"]) for _, row in df.iterrows()
+        ]
+        # Convert lists back to NumPy arrays
+        for traj in trajectories:
+            traj["observations"] = np.array(traj["observations"], dtype=np.float32)
+            traj["rewards"] = np.array(traj["rewards"])
+            traj["actions"] = np.array(traj["actions"])
+    
+        # Normalize and process the data
+        states, traj_lens, returns = [], [], []
         for path in trajectories:
-            # Convert lists to NumPy arrays to ensure compatibility
-            path["observations"] = np.array(path["observations"], dtype=np.float32)#save memory
-            path["rewards"] = np.array(path["rewards"])  # Convert rewards to NumPy array
-            path["actions"] = np.array(path["actions"])  # If actions exist and are needed
+            path["observations"] = np.array(path["observations"], dtype=np.float32)
+            path["rewards"] = np.array(path["rewards"])
+            path["actions"] = np.array(path["actions"])
     
             states.append(path["observations"])
             traj_lens.append(len(path["observations"]))
             returns.append(sum(path['rewards']))
+
         
         traj_lens, returns = np.array(traj_lens), np.array(returns)
-    
-        # used for input normalization
-        states = np.concatenate(states, axis=0)        
+        
+        states = np.concatenate(states, axis=0)
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
     
         print("=" * 50)
-        print(f"Starting new experiment: {env_name}")
-        print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps found")
+        print(f"Dataset for Zone {self.zone_index} loaded successfully")
+        print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
         print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
         print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
         print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
         print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
         print("=" * 50)
-    
+
         sorted_inds = np.argsort(returns)  # lowest to highest
         num_trajectories = 1
         timesteps = traj_lens[sorted_inds[-1]]
@@ -246,10 +257,9 @@ class Experiment:
             ind -= 1
         sorted_inds = sorted_inds[-num_trajectories:]
         trajectories = [trajectories[ii] for ii in sorted_inds]
-    
+
+        print(trajectories[4])
         return trajectories, state_mean, state_std
-
-
     def _augment_trajectories(
         self,
         online_envs,
@@ -568,10 +578,10 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     num_aggs = variant['federated_learning_settings']['aggregation_count']
     variant = variant['odt_hyperparameters']
     variant["max_online_iters"] = num_episodes // num_aggs
-    print(f'episode calc check: {variant["max_online_iters"]}')
-
     utils.set_seed_everywhere(main_seed)
-    experiment = Experiment(variant, environment, chargers, routes, 24, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
+    
+    print(f'state: {environment.state_dim}')
+    experiment = Experiment(variant, environment, chargers, routes, environment.state_dim, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
     experiment()
