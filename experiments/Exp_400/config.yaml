@@ -75,7 +75,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 1000
+  num_episodes: 100
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -87,15 +87,15 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: test_metrics2
-  experiment_number: 4036
+  exp_name: dataset_test
+  experiment_number: 4000
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
   max_online_iters: 200
   max_pretrain_iters: 1
-  n_head: 1
-  n_layer: 3
+  n_head: 4
+  n_layer: 4
   num_eval_episodes: 1
   num_online_rollouts: 1
   num_updates_per_online_iter: 25

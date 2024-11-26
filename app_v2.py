@@ -17,6 +17,7 @@ import shutil
 import pandas as pd
 import sys
 import json
+import glob
 
 from collections import defaultdict
 
@@ -139,7 +140,8 @@ def train_rl_vrp_csp(args):
         #saving metric resutls from experiments
         metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
         if algorithm_dm == 'ODT':
-            save_data_by_zone(metrics_base_path, variant['experiment_number'])  
+            print(variant['odt_hyperparameters']['experiment_number'])
+            save_data_by_zone(metrics_base_path, variant['odt_hyperparameters']['experiment_number'])  
             
         print(f"Saving metrics to base path: {metrics_base_path}")
 
@@ -617,10 +619,7 @@ def save_data_by_zone(output_dir, offline_exp):
         or FileNotFoundError("No .pkl files starting with 'data' found")
     )
 
-    if not os.path.exists(dataset_path):
-        dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
-        if not os.path.exists(dataset_path):
-            raise FileNotFoundError("No valid .pkl file found for the dataset.")
+    #dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
 
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
