@@ -47,7 +47,7 @@ def create_job(args):
             algorithm_time_mapping = {
                 'DQN': (45 / 6000) / 5, # 45 hours / 6k episodes / 5 zones
                 'PPO': (80 / 6000) / 5, # 80 hours / 6k episodes / 5 zones
-                'CMA': (13 / 6000) / 5, # 16 hours / 10k generations 4 zones
+                'CMA': (8 / 6000) / 5, # 16 hours / 10k generations 4 zones
                 'ODT + DQN': (50 / 5000) / 3, # 32 hours / 5k episodes / 3 zones (1 iters per ep)
                 'ODT + PPO': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
             }
