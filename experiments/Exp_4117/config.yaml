@@ -87,8 +87,8 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 4006
-  experiment_number: 4006
+  exp_name: 4117
+  experiment_number: 4003
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
