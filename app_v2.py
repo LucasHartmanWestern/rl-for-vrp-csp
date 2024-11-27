@@ -612,14 +612,13 @@ def format_data(data):
 
 def save_data_by_zone(output_dir, offline_exp):
     dataset_path = (
-        next(
-            iter(glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{offline_exp}/data*.pkl"))),
-            None
+        min(
+            glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{offline_exp}/data*.pkl")),
+            key=os.path.getctime,
+            default=None
         )
         or FileNotFoundError("No .pkl files starting with 'data' found")
     )
-
-    #dataset_path = f"/storage_1/merl/data-20241124_165614.pkl"
 
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
