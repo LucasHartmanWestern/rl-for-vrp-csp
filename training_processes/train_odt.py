@@ -56,7 +56,7 @@ class Experiment:
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
         
-        save_path = os.path.join(variant["save_dir"], variant["exp_name"])
+        save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
         
         if agg_num < 1 or not self.persist_buffers:
