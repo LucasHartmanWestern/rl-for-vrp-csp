@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_4117_train
 #SBATCH --output=experiments/Exp_4117/output.log
 #SBATCH --error=experiments/Exp_4117/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=33:20:00
-#SBATCH --mem=24G
-#SBATCH --gpus-per-node=5
+#SBATCH --time=15:00:00
+#SBATCH --mem=40G
+#SBATCH --gpus-per-node=4
 
 echo "Starting training for experiment 4117"
 
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 4 -e 4117 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py -g 0 1 2 3 -e 4117 -d "/home/epigou/scratch/metrics/Exp" 
     

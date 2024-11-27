@@ -38,9 +38,9 @@ def create_job(args):
             elif algorithm == 'PPO':
                 num_gpus = 1
                 allocation = "rrg-kgroling"
-            elif algorithm == 'ODT + DQN' or algorithm == 'ODT + PPO':
-                num_gpus = 5
-                allocation = "rrg-kgroling"
+            elif algorithm == 'ODT':
+                num_gpus = 4
+                allocation = "def-mcapretz"
         
             # Calculate the time based on the total number of episodes
             # Note: these are rough estimates based on how long takes to train 10k episodes
@@ -48,8 +48,7 @@ def create_job(args):
                 'DQN': (45 / 6000) / 5, # 45 hours / 6k episodes / 5 zones
                 'PPO': (80 / 6000) / 5, # 80 hours / 6k episodes / 5 zones
                 'CMA': (8 / 6000) / 5, # 16 hours / 10k generations 4 zones
-                'ODT + DQN': (50 / 5000) / 3, # 32 hours / 5k episodes / 3 zones (1 iters per ep)
-                'ODT + PPO': (50 / 5000) / 3 # 32 hours / 5k episodes / 3 zones (1 iters per ep)
+                'ODT': (15 / 2000) , # 15 hours for 2k episodes, 5 zones
             }
         
             if algorithm in algorithm_time_mapping:
@@ -58,6 +57,11 @@ def create_job(args):
                     mem_size = "16G"
                     num_cpus = len(config['environment_settings']['coords']) + 1
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
+                elif algorithm == 'ODT':
+                    mem_size = "40G"
+                    num_cpus = len(config['environment_settings']['coords'])
+                    total_episodes = num_episodes * num_aggregations
+                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes
                 else:
                     # num_cpus = num_gpus + 1
                     # For now, use 1 cpu per zone
