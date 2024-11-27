@@ -58,7 +58,7 @@ def create_job(args):
                     num_cpus = len(config['environment_settings']['coords']) + 1
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
                 elif algorithm == 'ODT':
-                    mem_size = "110G"
+                    mem_size = "40G"
                     num_cpus = len(config['environment_settings']['coords'])
                     total_episodes = num_episodes * num_aggregations
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes
