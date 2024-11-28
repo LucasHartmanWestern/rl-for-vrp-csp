@@ -82,6 +82,7 @@ def train_cma(ev_info,
     # Getting Neural Network parameters
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
+    eval_c = load_config_file(config_fname)['eval_config']
     eps_per_save = int(nn_c['eps_per_save'])
     num_episodes = nn_c['num_episodes'] if train_model else 1
 
@@ -94,11 +95,17 @@ def train_cma(ev_info,
     for agent_idx in range(num_agents):
         initial_weights = None
         if global_weights is not None:
-            # Assign weights based on whether agents are assigned by zone or by car
-            if agent_by_zone:
-                initial_weights = global_weights[zone_index]
+            if eval_c['evaluate_on_diff_zone'] or args.eval:
+                if agent_by_zone:
+                    initial_weights = global_weights[(zone_index + 1) % len(global_weights)]
+                else:
+                    initial_weights = global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_idx]]
             else:
-                initial_weights = global_weights[zone_index][model_indices[agent_idx]]
+                # Assign weights based on whether agents are assigned by zone or by car
+                if agent_by_zone:
+                    initial_weights = global_weights[zone_index]
+                else:
+                    initial_weights = global_weights[zone_index][model_indices[agent_idx]]
 
         # Create a new CMA agent with the provided parameters and initial weights
         cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number)
