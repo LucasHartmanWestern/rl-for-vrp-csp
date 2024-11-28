@@ -5,7 +5,7 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
-#SBATCH --time=13:00:00
+#SBATCH --time=08:00:00
 #SBATCH --mem=16G
 
 
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4104 -d "/home/hartman/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 4104 -d "/home/sgomezro/scratch/metrics/Exp" -eval True
     
