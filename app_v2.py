@@ -620,6 +620,7 @@ def save_data_by_zone(output_dir, offline_exp):
         or FileNotFoundError("No .pkl files starting with 'data' found")
     )
 
+    print(dataset_path)
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
