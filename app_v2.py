@@ -141,7 +141,7 @@ def train_rl_vrp_csp(args):
         metrics_base_path = f"{data_dir}_{experiment_number}" if data_dir else f"{c['eval_config']['save_path_metrics']}_{experiment_number}"
         if algorithm_dm == 'ODT':
             print(variant['odt_hyperparameters']['experiment_number'])
-            save_data_by_zone(metrics_base_path, variant['odt_hyperparameters']['experiment_number'])  
+            #save_data_by_zone(metrics_base_path, variant['odt_hyperparameters']['experiment_number'])  
             
         print(f"Saving metrics to base path: {metrics_base_path}")
 

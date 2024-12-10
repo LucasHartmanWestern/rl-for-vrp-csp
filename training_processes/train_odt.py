@@ -202,42 +202,35 @@ class Experiment:
     def _load_dataset(self, env_name):
         print(f'Loading Dataset for Zone {self.zone_index}...')
         
-        # Path to the zone-specific CSV file
-        dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.csv')
+        # Path to the zone-specific PKL file
+        #dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.pkl')
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
+        print(dataset_path)
         if not os.path.exists(dataset_path):
-            raise FileNotFoundError(f"No CSV file found for Zone {self.zone_index}")
+            raise FileNotFoundError(f"No PKL file found for Zone {self.zone_index}")
         
-        # Load the CSV file
-        df = pd.read_csv(dataset_path)
-    
-        # Deserialize trajectories
-        trajectories = [
-            json.loads(row["trajectory"]) for _, row in df.iterrows()
-        ]
-        # Convert lists back to NumPy arrays
+        # Load the PKL file
+        with open(dataset_path, 'rb') as f:
+            trajectories = pickle.load(f)
+        
+        # Convert lists back to NumPy arrays and normalize data
+        states, traj_lens, returns = [], [], []
         for traj in trajectories:
             traj["observations"] = np.array(traj["observations"], dtype=np.float32)
-            traj["rewards"] = np.array(traj["rewards"])
-            traj["actions"] = np.array(traj["actions"])
+            traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
+            traj["actions"] = np.array(traj["actions"], dtype=np.float32)
     
-        # Normalize and process the data
-        states, traj_lens, returns = [], [], []
-        for path in trajectories:
-            path["observations"] = np.array(path["observations"], dtype=np.float32)
-            path["rewards"] = np.array(path["rewards"])
-            path["actions"] = np.array(path["actions"])
+            states.append(traj["observations"])
+            traj_lens.append(len(traj["observations"]))
+            returns.append(sum(traj['rewards']))
     
-            states.append(path["observations"])
-            traj_lens.append(len(path["observations"]))
-            returns.append(sum(path['rewards']))
-
-        
         traj_lens, returns = np.array(traj_lens), np.array(returns)
-        
         states = np.concatenate(states, axis=0)
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
     
+        # Print dataset statistics
         print("=" * 50)
         print(f"Dataset for Zone {self.zone_index} loaded successfully")
         print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
@@ -246,8 +239,9 @@ class Experiment:
         print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
         print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
         print("=" * 50)
-
-        sorted_inds = np.argsort(returns)  # lowest to highest
+    
+        # Sort and filter trajectories by return
+        sorted_inds = np.argsort(returns)  # Lowest to highest
         num_trajectories = 1
         timesteps = traj_lens[sorted_inds[-1]]
         ind = len(trajectories) - 2
@@ -257,7 +251,9 @@ class Experiment:
             ind -= 1
         sorted_inds = sorted_inds[-num_trajectories:]
         trajectories = [trajectories[ii] for ii in sorted_inds]
+        
         return trajectories, state_mean, state_std
+
     def _augment_trajectories(
         self,
         online_envs,

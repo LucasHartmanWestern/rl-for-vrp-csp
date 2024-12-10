@@ -2,10 +2,11 @@ import torch
 import torch.optim as optim
 import numpy as np
 import collections
-from collections import namedtuple, deque
+from collections import namedtuple, deque, defaultdict
 import os
 import time
 import copy
+import pickle
 
 from evaluation import evaluate
 
@@ -400,6 +401,38 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         # Track rewards over aggregation steps
         avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
+        if save_offline_data and (i + 1) % eps_per_save == 0:
+            # Path to the file where trajectories will be saved
+            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
+            print(dataset_path)
+            os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+
+            # Format the new trajectories before saving
+            traj_format = format_data(trajectories)
+
+            # Check if the file exists
+            if os.path.exists(dataset_path):
+                # Load existing data
+                with open(dataset_path, 'rb') as f:
+                    try:
+                        existing_data = pickle.load(f)
+                    except EOFError:
+                        existing_data = []
+            else:
+                existing_data = []
+
+            # Append new trajectories to existing data
+            existing_data.extend(traj_format)
+
+            # Save the combined data back to the file
+            with open(dataset_path, 'wb') as f:
+                pickle.dump(existing_data, f)
+                print(f"Appended {len(traj_format)} trajectories to {dataset_path}. Total trajectories: {len(existing_data)}")
+
+            # Optionally clear the trajectories list to avoid excessive memory usage
+            trajectories = []
+
+
         if avg_reward > best_avg:
             best_avg = avg_reward
             best_paths = paths_copy
@@ -434,4 +467,48 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
 def print_time(label, time):
     print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
-    
+
+
+def format_data(data):
+    # Flatten the data if it's a list of lists
+    if isinstance(data, list) and all(isinstance(sublist, list) for sublist in data):
+        flattened_data = [item for sublist in data for item in sublist]
+    elif isinstance(data, list):
+        flattened_data = data
+    else:
+        raise TypeError("Input data must be a list or a list of lists.")
+
+    # Initialize a defaultdict to aggregate data by unique identifiers
+    trajectories = defaultdict(lambda: {
+        'observations': [],
+        'actions': [],
+        'rewards': [],
+        'terminals': [],
+        'terminals_car': [],
+        'zone': None,
+        'aggregation': None,
+        'episode': None,
+        'car_idx': None
+    })
+
+    # Iterate over each data entry to aggregate the data
+    for entry in flattened_data:
+        if not isinstance(entry, dict):
+            raise TypeError(f"Entry is not a dictionary: {entry}")
+        # Unique identifier for each car's trajectory
+        identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
+
+        # Aggregate data for this car's trajectory
+        trajectories[identifier]['observations'].extend(entry.get('observations', []))
+        trajectories[identifier]['actions'].extend(entry.get('actions', []))
+        trajectories[identifier]['rewards'].extend(entry.get('rewards', []))
+        trajectories[identifier]['terminals'].extend(entry.get('terminals', []))
+        trajectories[identifier]['terminals_car'].extend(entry.get('terminals_car', []))
+        trajectories[identifier]['zone'] = entry.get('zone')
+        trajectories[identifier]['aggregation'] = entry.get('aggregation')
+        trajectories[identifier]['episode'] = entry.get('episode')
+        trajectories[identifier]['car_idx'] = entry.get('car_idx')
+
+    # Convert the defaultdict to a list of dictionaries
+    formatted_trajectories = list(trajectories.values())
+    return formatted_trajectories
