@@ -278,7 +278,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             
             # Train the model only using the average of all timestep rewards
             if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                avg_reward = time_step_rewards.sum(axis=0).mean()
+                avg_reward = time_step_rewards.sum(axis=0) / len(time_step_rewards)
                 time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
                 rewards.extend(time_step_rewards_avg)
             # Train the model using the rewards from it's own experiences
@@ -323,6 +323,10 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         car_dones = [item for sublist in dones for item in sublist]
 
         for d in range(len(distributions_unmodified)):
+            
+            if d == 0:
+                print(f"i: {i} - Reward: {rewards[d]}")
+
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
                             states[(d + num_cars) if d + num_cars < len(states) else d],
                             True if car_dones[d] == 1 else False))  # Store experience
