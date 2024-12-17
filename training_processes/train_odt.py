@@ -104,6 +104,11 @@ class Experiment:
         target_entropy=self.target_entropy,
     ).to(device=self.device)
 
+        if variant['evaluation']:
+            model_path = f'../exp/Exp_{self.experiment_number}/Agg:1-Zone:{self.zone_index}/model.pt'
+            self._load_model(model_path)
+            self.save_attn_layers(self.model, self.device)
+
         self.optimizer = Lamb(
             self.model.parameters(),
             lr=variant["learning_rate"],
@@ -620,6 +625,3 @@ def load_global_weights(save_global_path):
         return global_weights
     else:
         raise FileNotFoundError(f"No global weights found at {weights_path}")
-
-
-

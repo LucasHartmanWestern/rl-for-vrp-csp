@@ -475,17 +475,6 @@ def train_rl_vrp_csp(args):
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
 
-        # Save offline data to pkl file
-        if eval_c['save_offline_data']:
-            current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dataset_path = f"{metrics_base_path}/data-{current_time}.pkl"
-            print({dataset_path})
-
-            traj_format = format_data(trajectories)
-            with open(dataset_path, 'wb') as f:
-                pickle.dump(traj_format, f)
-                print('Offline Dataset Saved')
-
     print(f"Experiment times: {exp_times}")
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(f"Experiment times: {exp_times}", file=file)
@@ -609,75 +598,6 @@ def format_data(data):
     formatted_trajectories = list(trajectories.values())
     
     return formatted_trajectories
-
-def save_data_by_zone(output_dir, offline_exp):
-    dataset_path = (
-        min(
-            glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{offline_exp}/data*.pkl")),
-            key=os.path.getctime,
-            default=None
-        )
-        or FileNotFoundError("No .pkl files starting with 'data' found")
-    )
-
-    print(dataset_path)
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Load formatted data from the .pkl file
-    with open(dataset_path, "rb") as f:
-        formatted_data = pickle.load(f)
-
-    # Find the maximum aggregation value
-    max_aggregation = max(traj['aggregation'] for traj in formatted_data) + 1
-    half_aggregation = max_aggregation // 2  # Save data for the first half of the aggregations
-    
-    print(f"Max Aggregations: {max_aggregation}, Saving First {half_aggregation} Aggregations")
-
-    # Group data by zone
-    data_by_zone = defaultdict(list)
-    for trajectory in formatted_data:
-        current_agg_num = trajectory['aggregation']
-        
-        # Include only trajectories from the first half of the aggregations
-        if current_agg_num < half_aggregation:
-            zone = trajectory['zone']
-            data_by_zone[zone].append(trajectory)
-
-    # Helper function to recursively convert NumPy arrays to lists
-    def make_serializable(obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, dict):
-            return {key: make_serializable(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [make_serializable(item) for item in obj]
-        else:
-            return obj
-
-    # Save each zone's data into a separate CSV file
-    for zone, trajectories in data_by_zone.items():
-        # Create a DataFrame where each row is a trajectory
-        data_to_save = []
-        for traj in trajectories:
-            serializable_traj = make_serializable(traj)  # Convert all arrays to lists
-            data_to_save.append({
-                "zone": traj["zone"],
-                "aggregation": traj["aggregation"],
-                "episode": traj["episode"],
-                "car_idx": traj["car_idx"],
-                "trajectory": json.dumps(serializable_traj),  # Save the trajectory as a JSON string
-            })
-        df = pd.DataFrame(data_to_save)
-        # Save to CSV
-        csv_path = os.path.join(output_dir, f'zone_{zone}.csv')
-        df.to_csv(csv_path, index=False)
-        print(f"Saved data for Zone {zone} to {csv_path}")
-
-
-
-
-
     
 if __name__ == '__main__':
 
