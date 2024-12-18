@@ -58,8 +58,8 @@ class Experiment:
         
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
-        
-        if agg_num < 1 or not self.persist_buffers:
+
+        if not variant['evaluation'] or (agg_num < 1 or not self.persist_buffers):
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
             # Initialize by offline trajectories
             self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
@@ -106,6 +106,7 @@ class Experiment:
 
         if variant['evaluation']:
             exp_number = int(self.experiment_number) - 100  # Subtract 100 from the experiment number
+            #exp_number = self.experiment_number
             model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index}/model.pt'  # Generate the updated path
             self._load_model(model_path)
             self.save_attn_layers(self.model, self.device)
@@ -214,7 +215,7 @@ class Experiment:
         dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
         print(dataset_path)
         if not os.path.exists(dataset_path):
-            raise FileNotFoundError(f"No PKL file found for Zone {self.zone_index}")
+            dataset_path = os.path
         
         # Load the PKL file
         with open(dataset_path, 'rb') as f:
