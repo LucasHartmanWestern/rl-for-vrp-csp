@@ -217,7 +217,7 @@ class Experiment:
         if not os.path.exists(dataset_path):
             dataset_path = (
                 min(
-                    glob.glob(os.path.expanduser(f"/home/epigou/scratch/metrics/Exp_4124/data*.pkl")),
+                    glob.glob(os.path.expanduser(f"/home/epigou/scratch/metrics/Exp_3000/data_zone_0.pkl")),
                     key=os.path.getctime,
                     default=None
                 )
