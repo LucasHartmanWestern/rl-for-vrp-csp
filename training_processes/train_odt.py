@@ -105,7 +105,8 @@ class Experiment:
     ).to(device=self.device)
 
         if variant['evaluation']:
-            model_path = f'../exp/Exp_{self.experiment_number}/Agg:1-Zone:{self.zone_index}/model.pt'
+            exp_number = int(self.experiment_number) - 100  # Subtract 100 from the experiment number
+            model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index}/model.pt'  # Generate the updated path
             self._load_model(model_path)
             self.save_attn_layers(self.model, self.device)
 
