@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4122_train
-#SBATCH --output=experiments/Exp_4122/output.log
-#SBATCH --error=experiments/Exp_4122/error.log
+#SBATCH --job-name=Exp_4222_train
+#SBATCH --output=experiments/Exp_4222/output.log
+#SBATCH --error=experiments/Exp_4222/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=15:00:00
-#SBATCH --mem=40G
+#SBATCH --time=14:00:00
+#SBATCH --mem=35G
 #SBATCH --gpus-per-node=4
 
-echo "Starting training for experiment 4122"
+echo "Starting training for experiment 4222"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 -e 4122 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py -g 0 1 2 3 -e 4222 -d "/home/epigou/scratch/metrics/Exp" 
     
