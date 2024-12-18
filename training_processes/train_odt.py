@@ -59,7 +59,7 @@ class Experiment:
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
 
-        if not variant['evaluation'] or (agg_num < 1 or not self.persist_buffers):
+        if not variant['evaluation'] or agg_num < 1:
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
             # Initialize by offline trajectories
             self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
@@ -213,11 +213,17 @@ class Experiment:
         #dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.pkl')
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
-        print(dataset_path)
+
         if not os.path.exists(dataset_path):
-            dataset_path = os.path
-        
-        # Load the PKL file
+            dataset_path = (
+                min(
+                    glob.glob(os.path.expanduser(f"/home/epigou/scratch/metrics/Exp_4124/data*.pkl")),
+                    key=os.path.getctime,
+                    default=None
+                )
+                or FileNotFoundError("No .pkl files starting with 'data' found")
+            )
+        #Load the PKL file
         with open(dataset_path, 'rb') as f:
             trajectories = pickle.load(f)
         
