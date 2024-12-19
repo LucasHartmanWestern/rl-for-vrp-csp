@@ -107,7 +107,8 @@ class Experiment:
         if variant['evaluation']:
             exp_number = int(self.experiment_number) - 100  # Subtract 100 from the experiment number
             #exp_number = self.experiment_number
-            model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index}/model.pt'  # Generate the updated path
+            model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index + 1}/model.pt'  # Generate the updated pathprint
+            print(model_path)
             self._load_model(model_path)
             self.save_attn_layers(self.model, self.device)
 

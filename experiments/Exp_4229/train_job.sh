@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4129_train
-#SBATCH --output=experiments/Exp_4129/output.log
-#SBATCH --error=experiments/Exp_4129/error.log
+#SBATCH --job-name=Exp_4229_train
+#SBATCH --output=experiments/Exp_4229/output.log
+#SBATCH --error=experiments/Exp_4229/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 -e 4129 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py -g 0 1 2 3 -e 4229 -d "/home/epigou/scratch/metrics/Exp" 
     
