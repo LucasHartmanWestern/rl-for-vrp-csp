@@ -9,6 +9,9 @@
 #SBATCH --mem=32G
 #SBATCH --gpus-per-node=1
 
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
+
 echo "Starting training for experiment 5071"
 
 set -e  # Exit immediately if a command exits with a non-zero status

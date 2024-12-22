@@ -9,6 +9,9 @@
 #SBATCH --mem=24G
 
 
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
+
 echo "Starting evaluation for experiment 4021"
 
 set -e  # Exit immediately if a command exits with a non-zero status
