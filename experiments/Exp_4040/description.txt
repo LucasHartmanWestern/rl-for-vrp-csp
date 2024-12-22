@@ -7,5 +7,5 @@ Season: winter
 Number of cars: 100
 Number of chargers: 1
 Number of episodes: 1000
-Number of aggregations: 6
+Number of aggregations: 10
 Average rewards when training: True
