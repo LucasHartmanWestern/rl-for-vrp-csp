@@ -227,6 +227,10 @@ class EnvironmentClass:
         self.historical_charges_needed = []
         self.reward_version = config['reward_version'] if 'reward_version' in config else 1
 
+        self.distance_scale = config['distance_scale'] if 'distance_scale' in config else 100
+        self.traffic_scale = config['traffic_scale'] if 'traffic_scale' in config else 1
+        self.energy_scale = config['energy_scale'] if 'energy_scale' in config else 0.001
+
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
 
@@ -495,9 +499,9 @@ class EnvironmentClass:
 
         
         # Calculate reward as -(distance * 100 + peak traffic + energy used / 100)
-        distance_factor = distances_per_car[-1].numpy() * 100
-        peak_traffic = np.max(traffic_per_charger.numpy())
-        energy_used = energy_used / 100
+        distance_factor = distances_per_car[-1].numpy() * self.distance_scale
+        peak_traffic = np.max(traffic_per_charger.numpy()) * self.traffic_scale
+        energy_used = energy_used * self.energy_scale
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
         reward_scale = (timestep + 1) if self.reward_version == 2 else 1
