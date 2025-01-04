@@ -5,7 +5,7 @@ This source code is licensed under the CC BY-NC license found in the
 LICENSE.md file in the root directory of this source tree.
 """
 import sys
-sys.path.append('/home/epigou/rl-for-vrp-csp/training_processes/misc')
+
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import pickle
@@ -21,15 +21,15 @@ import pandas as pd
 
 from collections import defaultdict
 from evaluation import evaluate
-from training_processes.misc import utils
-from training_processes.misc.replay_buffer import ReplayBuffer
-from training_processes.misc.lamb import Lamb
+from misc import utils
+from misc.replay_buffer import ReplayBuffer
+from misc.lamb import Lamb
 from pathlib import Path
-from training_processes.misc.data import create_dataloader
+from misc.data import create_dataloader
 from decision_transformer.models.decision_transformer import DecisionTransformer
-from training_processes.misc.evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
-from training_processes.misc.trainer import SequenceTrainer
-from training_processes.misc.logger import Logger
+from misc.evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
+from misc.trainer import SequenceTrainer
+from misc.logger import Logger
 
 
 MAX_EPISODE_LEN = 1000

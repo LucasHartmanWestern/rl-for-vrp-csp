@@ -7,11 +7,13 @@ import os
 import time
 import copy
 import random
+import pickle
 
 from agents.ppo_agent import ActorCritic, compute_gae, ppo_update
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
 from evaluation import evaluate
+from misc.utils import format_data
 
 
 # Define the experience tuple
@@ -472,6 +474,37 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
         # Track rewards over aggregation steps
         avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
+        if save_offline_data and (i + 1) % eps_per_save == 0:
+                        # Path to the file where trajectories will be saved
+            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
+            print(dataset_path)
+            os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+
+            # Format the new trajectories before saving
+            traj_format = format_data(trajectories)
+
+            # Check if the file exists
+            if os.path.exists(dataset_path):
+                # Load existing data
+                with open(dataset_path, 'rb') as f:
+                    try:
+                        existing_data = pickle.load(f)
+                    except EOFError:
+                        existing_data = []
+            else:
+                existing_data = []
+
+            # Append new trajectories to existing data
+            existing_data.extend(traj_format)
+
+            # Save the combined data back to the file
+            with open(dataset_path, 'wb') as f:
+                pickle.dump(existing_data, f)
+                print(f"Appended {len(traj_format)} trajectories to {dataset_path}. Total trajectories: {len(existing_data)}")
+
+            
+            trajectories = []
+        
         if avg_reward > best_avg:
             best_avg = avg_reward
             best_paths = paths_copy

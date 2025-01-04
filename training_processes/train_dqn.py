@@ -13,6 +13,7 @@ from evaluation import evaluate
 from agents.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
+from misc.utils import format_data
 
 # Define the experience tuple
 Experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -433,7 +434,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 pickle.dump(existing_data, f)
                 print(f"Appended {len(traj_format)} trajectories to {dataset_path}. Total trajectories: {len(existing_data)}")
 
-            # Optionally clear the trajectories list to avoid excessive memory usage
+            
             trajectories = []
 
 
@@ -471,48 +472,3 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
 def print_time(label, time):
     print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
-
-
-def format_data(data):
-    # Flatten the data if it's a list of lists
-    if isinstance(data, list) and all(isinstance(sublist, list) for sublist in data):
-        flattened_data = [item for sublist in data for item in sublist]
-    elif isinstance(data, list):
-        flattened_data = data
-    else:
-        raise TypeError("Input data must be a list or a list of lists.")
-
-    # Initialize a defaultdict to aggregate data by unique identifiers
-    trajectories = defaultdict(lambda: {
-        'observations': [],
-        'actions': [],
-        'rewards': [],
-        'terminals': [],
-        'terminals_car': [],
-        'zone': None,
-        'aggregation': None,
-        'episode': None,
-        'car_idx': None
-    })
-
-    # Iterate over each data entry to aggregate the data
-    for entry in flattened_data:
-        if not isinstance(entry, dict):
-            raise TypeError(f"Entry is not a dictionary: {entry}")
-        # Unique identifier for each car's trajectory
-        identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
-
-        # Aggregate data for this car's trajectory
-        trajectories[identifier]['observations'].extend(entry.get('observations', []))
-        trajectories[identifier]['actions'].extend(entry.get('actions', []))
-        trajectories[identifier]['rewards'].extend(entry.get('rewards', []))
-        trajectories[identifier]['terminals'].extend(entry.get('terminals', []))
-        trajectories[identifier]['terminals_car'].extend(entry.get('terminals_car', []))
-        trajectories[identifier]['zone'] = entry.get('zone')
-        trajectories[identifier]['aggregation'] = entry.get('aggregation')
-        trajectories[identifier]['episode'] = entry.get('episode')
-        trajectories[identifier]['car_idx'] = entry.get('car_idx')
-
-    # Convert the defaultdict to a list of dictionaries
-    formatted_trajectories = list(trajectories.values())
-    return formatted_trajectories

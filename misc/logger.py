@@ -7,7 +7,7 @@ LICENSE.md file in the root directory of this source tree.
 
 from datetime import datetime
 import os
-from training_processes.misc import utils
+from misc import utils
 
 
 class Logger:
