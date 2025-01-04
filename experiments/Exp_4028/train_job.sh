@@ -5,9 +5,12 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=45:00:00
-#SBATCH --mem=32G
+#SBATCH --time=90:00:00
+#SBATCH --mem=64G
 
+
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
 
 echo "Starting training for experiment 4028"
 

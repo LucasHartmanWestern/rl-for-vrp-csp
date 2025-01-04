@@ -5,9 +5,12 @@
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=80:00:00
-#SBATCH --mem=24G
+#SBATCH --time=133:00:00
+#SBATCH --mem=64G
 #SBATCH --gpus-per-node=1
+
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
 
 echo "Starting evaluation for experiment 4063"
 

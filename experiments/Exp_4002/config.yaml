@@ -54,7 +54,7 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 30
+  aggregation_count: 50
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35

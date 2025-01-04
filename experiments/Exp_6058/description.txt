@@ -1,0 +1,11 @@
+
+### Experiment 6058: ###
+--------------------------------
+Seed: 16665
+Model: PPO
+Season: summer
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 1000
+Number of aggregations: 10
+Average rewards when training: True
