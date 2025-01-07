@@ -153,7 +153,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     trajectories = []
 
-    
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
@@ -411,31 +410,18 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
             print(dataset_path)
             os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
-
+        
             # Format the new trajectories before saving
             traj_format = format_data(trajectories)
-
-            # Check if the file exists
-            if os.path.exists(dataset_path):
-                # Load existing data
-                with open(dataset_path, 'rb') as f:
-                    try:
-                        existing_data = pickle.load(f)
-                    except EOFError:
-                        existing_data = []
-            else:
-                existing_data = []
-
-            # Append new trajectories to existing data
-            existing_data.extend(traj_format)
-
-            # Save the combined data back to the file
-            with open(dataset_path, 'wb') as f:
-                pickle.dump(existing_data, f)
-                print(f"Appended {len(traj_format)} trajectories to {dataset_path}. Total trajectories: {len(existing_data)}")
-
-            
+        
+            # Append new trajectories directly to the file
+            with open(dataset_path, 'ab') as f:  # Open in append binary mode
+                pickle.dump(traj_format, f)
+                print(f"Appended {len(traj_format)} trajectories to {dataset_path}")
+        
+            # Clear the trajectories after saving
             trajectories = []
+            traj_format = []
 
 
         if avg_reward > best_avg:
@@ -467,7 +453,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, trajectories, buffers
+    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, buffers
 
 
 def print_time(label, time):

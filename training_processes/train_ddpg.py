@@ -423,7 +423,7 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [actor.cpu().state_dict() for actor in actors], avg_rewards, avg_output_values, metrics, trajectories, buffers
+    return [actor.cpu().state_dict() for actor in actors], avg_rewards, avg_output_values, metrics, buffers
 
 
 def print_time(label, time):

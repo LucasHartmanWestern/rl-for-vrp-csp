@@ -599,9 +599,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     metrics = experiment.metrics
 
 
-    return experiment.get_model_weights().detach().cpu(), [], [], metrics, [], experiment.final_buffer
-
-
+    return experiment.get_model_weights().detach().cpu(), [], [], metrics, experiment.final_buffer
 
 def load_global_weights(save_global_path):
     """

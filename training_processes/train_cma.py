@@ -295,7 +295,7 @@ def train_cma(ev_info,
     trajectories = []
     weights_list = [agent.get_weights() for agent in cma_agents_list]
         
-    return weights_list, avg_rewards, avg_output_values, metrics, trajectories, None
+    return weights_list, avg_rewards, avg_output_values, metrics, None
 
 
 def print_log(label, date, et):
