@@ -108,6 +108,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         # Initialize networks
         num_agents = 1
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
+        q_network = torch.nn.DataParallel(q_network).to(device)
+        target_q_network = torch.nn.DataParallel(target_q_network).to(device)
 
         if global_weights is not None:
             if eval_c['evaluate_on_diff_zone'] or args.eval:
@@ -129,6 +131,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         for agent_ind in range(num_agents):
             # Initialize networks
             q_network, target_q_network = initialize(state_dimension, action_dim, layers, device)  
+            q_network = torch.nn.DataParallel(q_network).to(device)
+            target_q_network = torch.nn.DataParallel(target_q_network).to(device)
 
             if global_weights is not None:
                 if eval_c['evaluate_on_diff_zone'] or args.eval:
@@ -161,6 +165,12 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     metrics = []
 
     avg_output_values = []  # List to store the average values of output neurons for each episode
+
+    # Set model_training_batch_size from config or default to 1
+    model_training_batch_size = nn_c.get('model_training_batch_size', 1)
+
+    # Ensure device is set to GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     for i in range(num_episodes):  # For each episode
 
@@ -337,23 +347,22 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         trained = False
 
-        for agent_ind in range(num_cars):
+        # Train models in parallel batches
+        for batch_start in range(0, num_cars, model_training_batch_size):
+            batch_end = min(batch_start + model_training_batch_size, num_cars)
+            batch_indices = range(batch_start, batch_end)
 
-            if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
+            # Collect experiences for the batch
+            batch_experiences = [buffers[agent_ind] for agent_ind in batch_indices if len(buffers[agent_ind]) >= batch_size]
 
-                trained = True
-
-                mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
-                experiences = map(np.stack, zip(*mini_batch))  # Format experiences
+            # Train each model in the batch
+            for agent_ind, experiences in zip(batch_indices, batch_experiences):
+                mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in experiences], dtype=object), batch_size, replace=False)
+                experiences = map(np.stack, zip(*mini_batch))
 
                 # Update networks
-                if agent_by_zone:
-                    agent_learn(experiences, discount_factor, q_networks[0], target_q_networks[0],\
-                                optimizers[0], device)
-                else:
-                    agent_learn(experiences, discount_factor, q_networks[agent_ind], \
-                                target_q_networks[agent_ind], optimizers[agent_ind], device)
-        
+                agent_learn(experiences, discount_factor, q_networks[agent_ind], target_q_networks[agent_ind], optimizers[agent_ind], device)
+
         et = time.time() - st
 
         if verbose and trained:
