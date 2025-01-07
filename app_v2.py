@@ -250,7 +250,6 @@ def train_rl_vrp_csp(args):
             #metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-            trajectories = []
             old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             global_weights = None
 
@@ -270,7 +269,6 @@ def train_rl_vrp_csp(args):
                     process_rewards = manager.list()
                     process_output_values = manager.list()
                     process_metrics = manager.list()
-                    process_trajectories = manager.list()
                     process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
@@ -285,7 +283,7 @@ def train_rl_vrp_csp(args):
                     for ind, charger_list in enumerate(chargers):
                         process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                             all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                            ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
+                                            ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                             local_weights_list, process_rewards, process_metrics, process_output_values,\
                                             barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
                                             agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers))
@@ -335,7 +333,6 @@ def train_rl_vrp_csp(args):
                     rewards.extend(process_rewards)
                     output_values.extend(process_output_values)
                     #metrics.extend(process_metrics)
-                    trajectories.extend(process_trajectories)
                     old_buffers = list(process_buffers)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
@@ -381,7 +378,6 @@ def train_rl_vrp_csp(args):
             metrics = []  # Used to track all metrics
             rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
             output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-            trajectories = []
             old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             
             print(f"Loading saved models - Seed {seed}")
@@ -392,7 +388,6 @@ def train_rl_vrp_csp(args):
             process_rewards = manager.list()
             process_output_values = manager.list()
             process_metrics = manager.list()
-            process_trajectories = manager.list()
             process_buffers = manager.list([None for _ in range(len(chargers))])
 
             # Barrier for synchronization
@@ -402,7 +397,7 @@ def train_rl_vrp_csp(args):
             for ind, charger_list in enumerate(chargers):
                 process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
                                     all_routes[ind], date, action_dim, global_weights, 0,\
-                                    ind, algorithm_dm, chargers_seeds[ind], seed, process_trajectories, args, eval_c['fixed_attributes'],\
+                                    ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
                                     agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers))
@@ -429,7 +424,6 @@ def train_rl_vrp_csp(args):
             rewards.extend(process_rewards)
             output_values.extend(process_output_values)
             metrics.extend(process_metrics)
-            trajectories.extend(process_trajectories)
             old_buffers = list(process_buffers)
 
             if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
@@ -480,7 +474,7 @@ def train_rl_vrp_csp(args):
         print(f"Experiment times: {exp_times}", file=file)
 
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, trajectories, args, fixed_attributes, local_weights_list,
+                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, args, fixed_attributes, local_weights_list,
                 rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
                 save_offline_data, train_model, old_buffers, process_buffers):
 
@@ -539,7 +533,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, trajectories_per, new_buffers =\
+        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, new_buffers =\
             train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
                   date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
                   agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
@@ -550,7 +544,6 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         rewards.append(avg_rewards)
         output_values.append(avg_output_values)
         metrics.append(training_metrics)
-        trajectories.append(trajectories_per)
         process_buffers[ind] = new_buffers
         et = time.time() - st
 
@@ -572,32 +565,6 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
         print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
         traceback.print_exc()
         sys.exit(1) # Exit the program with a non-zero status
-        
-def format_data(data):
-    # Initialize a defaultdict to aggregate data by unique identifiers
-    trajectories = defaultdict(lambda: {'observations': [], 'actions': [], 'rewards': [], 'terminals': [], 'terminals_car': [], 'zone': None, 'aggregation': None, 'episode': None, 'car_idx': None})
-    
-    # Iterate over each data entry to aggregate the data
-    for sublist in data:
-        for entry in sublist:
-            # Unique identifier for each car's trajectory
-            identifier = (entry['zone'], entry['aggregation'], entry['episode'], entry['car_idx'])
-            
-            # Aggregate data for this car's trajectory
-            trajectories[identifier]['observations'].extend(entry['observations'])
-            trajectories[identifier]['actions'].extend(entry['actions'])
-            trajectories[identifier]['rewards'].extend(entry['rewards'])
-            trajectories[identifier]['terminals'].extend(entry['terminals'])
-            trajectories[identifier]['terminals_car'].extend(entry['terminals_car'])  # Aggregate terminals_car
-            trajectories[identifier]['zone'] = entry['zone']
-            trajectories[identifier]['aggregation'] = entry['aggregation']
-            trajectories[identifier]['episode'] = entry['episode']
-            trajectories[identifier]['car_idx'] = entry['car_idx']
-    
-    # Convert the defaultdict to a list of dictionaries
-    formatted_trajectories = list(trajectories.values())
-    
-    return formatted_trajectories
     
 if __name__ == '__main__':
 
