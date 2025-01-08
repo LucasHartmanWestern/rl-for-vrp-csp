@@ -3,7 +3,7 @@ algorithm_settings:
   algorithm: DQN
 cma_parameters:
   initial_sigma: 0.1
-  max_generations: 50
+  max_generations: 200
   model_type: optimizer
   population_dimension: 20
 environment_settings:
@@ -31,7 +31,7 @@ environment_settings:
   - BYD Song
   - Tesla Model 3
   num_of_cars: 100
-  num_of_chargers: 3
+  num_of_chargers: 1
   radius: 20
   season: winter
   seed: 1234
@@ -54,13 +54,15 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 1
+  aggregation_count: 20
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  batch_size: 1000
-  buffer_limit: 2000
+  model_training_batch_size: 5
+  average_rewards_when_training: true
+  batch_size: 75
+  buffer_limit: 150
   city_multiplier: 0.15
   discount_factor: 0.999
   eps_per_save: 200
@@ -74,7 +76,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 10000
+  num_episodes: 200
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
