@@ -66,8 +66,8 @@ for i in range(starting_exp_index, ending_exp_index + 1):
         train_job = train_job.replace(f"Exp_{i}", f"Exp_{i + (offset * chunk_gap)}")
         eval_job = eval_job.replace(f"Exp_{i}", f"Exp_{i + (offset * chunk_gap)}")
 
-        train_job = train_job.replace("--mem=32G", "--mem=64G")
-        eval_job = eval_job.replace("--mem=32G", "--mem=64G")
+        train_job = train_job.replace("--mem=64G", "--mem=32G")
+        eval_job = eval_job.replace("--mem=64G", "--mem=32G")
 
         train_job = train_job.replace(f"-e {i}", f"-e {i + (offset * chunk_gap)}")
         eval_job = eval_job.replace(f"-e {i}", f"-e {i + (offset * chunk_gap)}")
