@@ -1,0 +1,11 @@
+
+### Experiment 7071: ###
+--------------------------------
+Seed: 2020
+Model: PPO
+Season: autumn
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 10000
+Number of aggregations: 1
+Average rewards when training: False

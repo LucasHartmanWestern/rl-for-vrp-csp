@@ -1,6 +1,6 @@
 algorithm_settings:
   agent_by_zone: false
-  algorithm: DQN
+  algorithm: PPO
   exp_num: 0
 cma_parameters:
   initial_sigma: 0.1
@@ -27,8 +27,8 @@ environment_settings:
   - Tesla Model Y
   - BYD Song
   - Tesla Model 3
-  num_of_cars: 100
-  num_of_chargers: 3
+  num_of_cars: 50
+  num_of_chargers: 1
   radius: 20
   season: winter
   seed: 1234
@@ -48,10 +48,10 @@ eval_config:
   save_aggregate_rewards: false
   save_data: true
   save_offline_data: false
-  save_path_metrics: ../../../storage_1/metrics/Exp
+  save_path_metrics: metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 5
+  aggregation_count: 20
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
@@ -71,7 +71,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 2000
+  num_episodes: 200
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
