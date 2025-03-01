@@ -10,7 +10,7 @@ def init_weights(m):
         nn.init.constant_(m.bias, 0.1)
 
 class ActorCritic(nn.Module):
-    def __init__(self, num_inputs, num_outputs, layers, std=1.0):
+    def __init__(self, num_inputs, num_outputs, layers, std=0.5):
         super(ActorCritic, self).__init__()
         
         # Critic network
@@ -32,7 +32,9 @@ class ActorCritic(nn.Module):
                 linear_layer = nn.Linear(layers[i - 1], layer_size)
             self.actor_layers.append(linear_layer)
         self.actor_output = nn.Linear(layers[-1], num_outputs)
-        self.log_std = nn.Parameter(torch.ones(num_outputs) * std) 
+        
+        # Using fixed std for more stable learning initially
+        self.log_std = nn.Parameter(torch.ones(num_outputs) * np.log(std))
         
         self.apply(init_weights)
         
@@ -47,14 +49,23 @@ class ActorCritic(nn.Module):
         mu = x
         for layer in self.actor_layers:
             mu = torch.relu(layer(mu))
+        
+        # Output raw logits instead of sigmoid
         mu = self.actor_output(mu)
+        
+        # Use a smaller std for more precise actions
         std = self.log_std.exp().expand_as(mu)
+        
+        # Ensure std doesn't get too small to prevent numerical instability
+        std = torch.clamp(std, min=1e-3, max=1.0)
+        
         dist = Normal(mu, std)
-
         return dist, value
 
-    # def update_log_std(self, decay_rate):
-    #     self.log_std.data *= decay_rate  # Modify data in-place
+    def update_log_std(self, decay_rate):
+        # Re-enable this method to gradually reduce exploration
+        with torch.no_grad():
+            self.log_std.data *= decay_rate  # Modify data in-place
 
 def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
     # Detach values to prevent gradient tracking
@@ -73,7 +84,7 @@ def ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantages):
     batch_size = states.size(0)
     indices = np.random.permutation(batch_size)
     for start_idx in range(0, batch_size, mini_batch_size):
-        end_idx = start_idx + mini_batch_size
+        end_idx = min(start_idx + mini_batch_size, batch_size)
         rand_ids = indices[start_idx:end_idx]
         yield (
             states[rand_ids],
@@ -85,6 +96,10 @@ def ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantages):
 
 
 def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, old_log_probs, returns, advantages, epsilon, clip_param=0.2):
+    total_actor_loss = 0
+    total_critic_loss = 0
+    total_entropy = 0
+    
     for _ in range(ppo_epochs):
         for state, action, old_log_prob, return_, advantage in ppo_iter(
             mini_batch_size, states, actions, old_log_probs, returns, advantages):
@@ -98,18 +113,41 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
 
             dist, value = model(state)
             value = value.squeeze(-1)
+            
+            # Calculate log_prob directly without clamping
             new_log_prob = dist.log_prob(action).sum(axis=1)
             entropy = dist.entropy().sum(axis=1).mean()
+
+            # Normalize advantages for more stable training
+            advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
 
             ratio = (new_log_prob - old_log_prob).exp()
             surr1 = ratio * advantage
             surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage
 
             actor_loss = -torch.min(surr1, surr2).mean()
-            critic_loss = (return_ - value).pow(2).mean()
-
-            loss = 0.5 * critic_loss + actor_loss - epsilon * entropy
+            critic_loss = 0.5 * (return_ - value).pow(2).mean()
+            
+            # Increase entropy coefficient for better exploration
+            loss = critic_loss + actor_loss - 0.02 * entropy
 
             optimizer.zero_grad()
             loss.backward()
+            # Gradient clipping to prevent exploding gradients
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
             optimizer.step()
+            
+            total_actor_loss += actor_loss.item()
+            total_critic_loss += critic_loss.item()
+            total_entropy += entropy.item()
+    
+    # Optionally update exploration rate
+    model.update_log_std(0.9995)  # Slower reduction in exploration
+    
+    # Return average losses for monitoring
+    num_updates = ppo_epochs * (len(states) // mini_batch_size + 1)
+    return {
+        'actor_loss': total_actor_loss / num_updates,
+        'critic_loss': total_critic_loss / num_updates,
+        'entropy': total_entropy / num_updates
+    }
