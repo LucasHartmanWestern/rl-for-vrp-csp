@@ -99,6 +99,7 @@ def train_rl_vrp_csp(args):
         experiment_list = init_config['experiment_list']
     elif len(experiment_list) == 2:
         experiment_list = range(experiment_list[0], experiment_list[1]+1)
+        print(f"Running experiments from {experiment_list[0]} to {experiment_list[-1]} (length: {len(experiment_list)})")
 
     #Getting into Training or Evaluating mode to run experiments
     run_mode = init_config['model_run_mode'] 
