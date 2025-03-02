@@ -513,15 +513,15 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
             to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
             f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
             f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f} - Exploration Param: {round(std, 3):0.3f}"
+            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f} - Std: {round(std, 3):0.3f}"
             with open(f'logs/{date}-training_logs.txt', 'a') as file:
                 print(to_print, file=file)
 
             print(to_print)
 
-        # # Update log_std to reduce exploration
-        # for actor_critic in actor_critics:
-        #     actor_critic.update_log_std(log_std_decay_rate)
+        # Update log_std to reduce exploration
+        for actor_critic in actor_critics:
+            actor_critic.update_log_std(0.9995)  # Decrease the standard deviation to reduce exploration over time
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 

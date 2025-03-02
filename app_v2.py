@@ -97,7 +97,9 @@ def train_rl_vrp_csp(args):
     if len(experiment_list) == 0: 
         # No experiment given in cosole, then getting initial configuration experiments list
         experiment_list = init_config['experiment_list']
-    
+    elif len(experiment_list) == 2:
+        experiment_list = range(experiment_list[0], experiment_list[1]+1)
+
     #Getting into Training or Evaluating mode to run experiments
     run_mode = init_config['model_run_mode'] 
 

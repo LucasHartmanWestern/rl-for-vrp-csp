@@ -100,6 +100,9 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
     total_critic_loss = 0
     total_entropy = 0
     
+    # Scale entropy coefficient based on epsilon to reduce exploration as epsilon decreases
+    entropy_coef = 0.02 * epsilon
+    
     for _ in range(ppo_epochs):
         for state, action, old_log_prob, return_, advantage in ppo_iter(
             mini_batch_size, states, actions, old_log_probs, returns, advantages):
@@ -123,13 +126,16 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
 
             ratio = (new_log_prob - old_log_prob).exp()
             surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage
+            
+            # Adjust clipping range based on epsilon for more conservative updates as epsilon decreases
+            adaptive_clip = clip_param * (0.5 + 0.5 * epsilon)
+            surr2 = torch.clamp(ratio, 1.0 - adaptive_clip, 1.0 + adaptive_clip) * advantage
 
             actor_loss = -torch.min(surr1, surr2).mean()
             critic_loss = 0.5 * (return_ - value).pow(2).mean()
             
-            # Increase entropy coefficient for better exploration
-            loss = critic_loss + actor_loss - 0.02 * entropy
+            # Use epsilon-scaled entropy coefficient for better exploration control
+            loss = critic_loss + actor_loss - entropy_coef * entropy
 
             optimizer.zero_grad()
             loss.backward()
@@ -140,9 +146,6 @@ def ppo_update(model, optimizer, ppo_epochs, mini_batch_size, states, actions, o
             total_actor_loss += actor_loss.item()
             total_critic_loss += critic_loss.item()
             total_entropy += entropy.item()
-    
-    # Optionally update exploration rate
-    model.update_log_std(0.9995)  # Slower reduction in exploration
     
     # Return average losses for monitoring
     num_updates = ppo_epochs * (len(states) // mini_batch_size + 1)
