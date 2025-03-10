@@ -213,12 +213,12 @@ class Experiment:
         # Path to the zone-specific PKL file
         #dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.pkl')
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
 
         if not os.path.exists(dataset_path):
             dataset_path = (
                 min(
-                    glob.glob(os.path.expanduser(f"/home/epigou/scratch/metrics/Exp_3000/data_zone_0.pkl")),
+                    glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{self.experiment_number}/data_zone_{self.zone_index}.pkl")),
                     key=os.path.getctime,
                     default=None
                 )

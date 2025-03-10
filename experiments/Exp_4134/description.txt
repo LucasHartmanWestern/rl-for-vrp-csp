@@ -1,11 +1,11 @@
 
-### Experiment 4134: ###
+### Experiment 4026: ###
 --------------------------------
 Seed: 2020
-Model: ODT + DQN
-Season: winter
+Model: DQN
+Season: summer
 Number of cars: 100
 Number of chargers: 1
-Number of episodes: 2000
+Number of episodes: 10000
 Number of aggregations: 1
-Average rewards when training: False
+Average rewards when training: True

@@ -87,7 +87,9 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
+  #Where saves
   exp_name: 4230
+  #Where dataset
   experiment_number: 4013
   init_temperature: 0.1
   learning_rate: 0.0001
