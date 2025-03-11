@@ -108,3 +108,4 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
+  evaluation: false

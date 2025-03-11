@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
 #SBATCH --time=20:00:00
-#SBATCH --mem=16G
-
+#SBATCH --mem=25G
+#SBATCH --gpus-per-node=4
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=epigou@uwo.ca
@@ -22,6 +22,4 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4119 -d /home/epigou/scratch/metrics/Exp 
-    
-#SBATCH --gpus-per-node=4
+python app_v2.py -g 0 1 2 3 -e 4119 -d "/home/epigou/scratch/metrics/Exp"
