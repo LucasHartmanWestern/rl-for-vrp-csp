@@ -90,6 +90,7 @@ odt_hyperparameters:
   env: hopper
   eval_context: 5
   eval_only: false
+  evaluation: false
   exp_name: 4135
   experiment_number: 4027
   learning_rate: 0.0001

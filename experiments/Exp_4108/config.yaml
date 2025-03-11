@@ -87,6 +87,7 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
+  evaluation: false
   exp_name: 4108
   experiment_number: 4000
   init_temperature: 0.1
@@ -107,4 +108,3 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-  evaluation: False
