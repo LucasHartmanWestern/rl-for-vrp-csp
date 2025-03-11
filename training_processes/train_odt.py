@@ -215,16 +215,16 @@ class Experiment:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
 
-    if not os.path.exists(dataset_path):
-        adjusted_experiment_number = str(int(self.experiment_number) - 108)
-        dataset_path = (
-            min(
-                glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
-                key=os.path.getctime,
-                default=None
+        if not os.path.exists(dataset_path):
+            adjusted_experiment_number = str(int(self.experiment_number) - 108)
+            dataset_path = (
+                min(
+                    glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
+                    key=os.path.getctime,
+                    default=None
+                )
+                or FileNotFoundError("No .pkl files starting with 'data' found")
             )
-            or FileNotFoundError("No .pkl files starting with 'data' found")
-        )
 
 
         #Load the PKL file

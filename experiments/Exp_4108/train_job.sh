@@ -22,6 +22,6 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4108 -d /home/hartman/scratch/metrics/Exp 
+python app_v2.py  -e 4108 -d /home/epigou/scratch/metrics/Exp 
     
 #SBATCH --gpus-per-node=4
