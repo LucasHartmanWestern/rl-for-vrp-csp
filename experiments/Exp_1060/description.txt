@@ -1,0 +1,12 @@
+### Experiment 1060: ###
+--------------------------------
+
+1/1/1 Reward scales
+
+Seed: 1234
+Model: DQN
+Season: Spring
+Number of cars: 150
+Number of chargers: 1
+Number of episodes: 200
+Number of aggregations: 50

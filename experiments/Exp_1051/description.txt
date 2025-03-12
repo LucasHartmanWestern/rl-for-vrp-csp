@@ -1,0 +1,12 @@
+### Experiment 1051: ###
+--------------------------------
+
+250 CARS (1x3) CHARGERS
+
+Seed: 1234
+Model: DQN
+Season: Spring
+Number of cars: 250
+Number of chargers: 1
+Number of episodes: 200
+Number of aggregations: 50
