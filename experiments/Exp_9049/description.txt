@@ -2,7 +2,7 @@
 ### Experiment 9049: ###
 --------------------------------
 Seed: 16665
-Model: PPO
+Model: REINFORCE
 Season: spring
 Number of cars: 100
 Number of chargers: 1

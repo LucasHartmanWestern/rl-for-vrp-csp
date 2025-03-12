@@ -2,7 +2,7 @@
 ### Experiment 4045: ###
 --------------------------------
 Seed: 1234
-Model: PPO
+Model: REINFORCE
 Season: winter
 Number of cars: 100
 Number of chargers: 1

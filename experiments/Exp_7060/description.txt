@@ -2,7 +2,7 @@
 ### Experiment 7060: ###
 --------------------------------
 Seed: 1234
-Model: PPO
+Model: REINFORCE
 Season: autumn
 Number of cars: 100
 Number of chargers: 1

@@ -2,7 +2,7 @@
 ### Experiment 6040: ###
 --------------------------------
 Seed: 16665
-Model: PPO
+Model: REINFORCE
 Season: winter
 Number of cars: 100
 Number of chargers: 1

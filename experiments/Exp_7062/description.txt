@@ -2,7 +2,7 @@
 ### Experiment 7062: ###
 --------------------------------
 Seed: 2020
-Model: PPO
+Model: REINFORCE
 Season: autumn
 Number of cars: 100
 Number of chargers: 1

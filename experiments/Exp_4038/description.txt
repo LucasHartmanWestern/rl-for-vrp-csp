@@ -2,7 +2,7 @@
 ### Experiment 4038: ###
 --------------------------------
 Seed: 2020
-Model: PPO
+Model: REINFORCE
 Season: winter
 Number of cars: 100
 Number of chargers: 1

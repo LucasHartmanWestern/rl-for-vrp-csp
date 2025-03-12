@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_5056_train
 #SBATCH --output=experiments/Exp_5056/output.log
 #SBATCH --error=experiments/Exp_5056/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=133:00:00
+#SBATCH --time=90:00:00
 #SBATCH --mem=16G
-#SBATCH --gpus-per-node=1
+
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=lhartma8@uwo.ca
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 -e 5056 -d "/home/hartman/scratch/metrics/Exp" 
+python app_v2.py  -e 5056 -d "/home/hartman/scratch/metrics/Exp" 
     
