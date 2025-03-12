@@ -209,12 +209,19 @@ class Experiment:
 
     def _load_dataset(self, env_name):
         print(f'Loading Dataset for Zone {self.zone_index}...')
-        
+        adjusted_experiment_number = str(int(self.experiment_number) - 108)
         # Path to the zone-specific PKL file
         #dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.pkl')
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
-        dataset_path = "Drac"
+        dataset_path = (
+            min(
+                    glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
+                    key=os.path.getctime,
+                    default=None
+                )
+                or FileNotFoundError("No .pkl files starting with 'data' found")
+            )
         if not os.path.exists(dataset_path):
             adjusted_experiment_number = str(int(self.experiment_number) - 108)
             dataset_path = (
@@ -227,10 +234,24 @@ class Experiment:
             )
 
 
-        #Load the PKL file
-        with open(dataset_path, 'rb') as f:
-            trajectories = pickle.load(f)
-        
+       # Load all objects from the PKL file (handles multiple appended pickle objects)
+        trajectories = []
+        try:
+            with open(dataset_path, 'rb') as f:
+                while True:
+                    try:
+                        data = pickle.load(f)
+                        if isinstance(data, list):
+                            trajectories.extend(data)
+                        elif isinstance(data, dict):
+                            trajectories.append(data)
+                        else:
+                            print(f"Unexpected data structure found: {type(data)}")
+                    except EOFError:
+                        break  # End of file reached
+        except Exception as e:
+            raise RuntimeError(f"Failed to load dataset from {dataset_path}: {e}")
+    
         # Convert lists back to NumPy arrays and normalize data
         states, traj_lens, returns = [], [], []
         for traj in trajectories:
@@ -268,7 +289,7 @@ class Experiment:
             ind -= 1
         sorted_inds = sorted_inds[-num_trajectories:]
         trajectories = [trajectories[ii] for ii in sorted_inds]
-        
+    
         return trajectories, state_mean, state_std
 
     def _augment_trajectories(
