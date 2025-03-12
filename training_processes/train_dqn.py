@@ -74,7 +74,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     eps_per_save = int(nn_c['eps_per_save'])
     
-    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
 
     if eval_c['evaluate_on_diff_zone'] or args.eval:
         target_episode_epsilon_frac = 0.1
