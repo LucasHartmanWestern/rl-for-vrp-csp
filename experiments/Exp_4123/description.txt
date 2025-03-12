@@ -1,11 +1,11 @@
 
-### Experiment 4123: ###
+### Experiment 4015: ###
 --------------------------------
 Seed: 1234
-Model: ODT + DQN
-Season: summer
+Model: DQN
+Season: winter
 Number of cars: 100
 Number of chargers: 1
-Number of episodes: 2000
+Number of episodes: 10000
 Number of aggregations: 1
-Average rewards when training: True
+Average rewards when training: False

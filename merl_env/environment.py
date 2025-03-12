@@ -71,6 +71,8 @@ def save_temps(coords_list: list, seed_list: list):
     # Ensure the directory exists
     os.makedirs('merl_env/temps', exist_ok=True)
     
+    print("Saving temps to file")
+
     # Define the CSV file path
     csv_file_path = 'merl_env/temps/temperatures.csv'
     
@@ -86,6 +88,8 @@ def save_temps(coords_list: list, seed_list: list):
             for seed in seed_list:
                 for season in ['spring', 'summer', 'autumn', 'winter']:
 
+                    print(f"Saving temp for {coords}, {seed}, {season}")
+
                     temp = get_temperature(season, coords, np.random.default_rng(seed), seed)
                     csvwriter.writerow([coords[0], coords[1], season, seed, temp])
 
@@ -93,6 +97,8 @@ def get_temps_from_file(coords: list, seed: int, season: str):
     # Define the CSV file path
     csv_file_path = 'merl_env/temps/temperatures.csv'
     
+    print("Getting temps from file")
+
     # Open the CSV file for reading
     with open(csv_file_path, 'r') as csvfile:
         csvreader = csv.DictReader(csvfile)
@@ -708,7 +714,7 @@ class EnvironmentClass:
         self.store_local_paths = []
 
 if __name__ == "__main__":
-    seeds = [1234, 5555, 2020, 5678, 9101]
+    seeds = [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6002, 6060]
     coords_list = [[43.02120034946083, -81.28349087468504],
                    [43.004969336049854, -81.18631870502043],
                    [42.95923445066671, -81.26016049362336],

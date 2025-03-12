@@ -50,11 +50,11 @@ eval_config:
   generate_plots: false
   save_aggregate_rewards: false
   save_data: true
-  save_offline_data: true
+  save_offline_data: false
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 10
+  aggregation_count: 50
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
@@ -75,7 +75,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 200
+  num_episodes: 60
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -87,12 +87,13 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 4000
+  evaluation: false
+  exp_name: 4108
   experiment_number: 4000
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
-  max_online_iters: 200
+  max_online_iters: 60
   max_pretrain_iters: 1
   n_head: 4
   n_layer: 4
@@ -107,3 +108,4 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
+  evaluation: false

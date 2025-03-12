@@ -129,7 +129,7 @@ def train_rl_vrp_csp(args):
         agent_by_zone= c['algorithm_settings']['agent_by_zone']
         federated_c = c['federated_learning_settings']
 
-        if algorithm_dm in ["DQN", "PPO", "DDPG"]:
+        if algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE"]:
             num_episodes = c['nn_hyperparameters']['num_episodes']
         elif algorithm_dm == 'CMA':
             num_episodes = c['cma_parameters']['max_generations']
@@ -533,6 +533,10 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'ODT':
             from training_processes.train_odt import train_odt as train
+
+        elif algorithm_dm == 'REINFORCE':
+            from training_processes.train_reinforce import train_reinforce as train
+            
         else:
             raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
 

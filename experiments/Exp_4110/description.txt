@@ -1,11 +1,11 @@
 
-### Experiment 4110: ###
+### Experiment 4002: ###
 --------------------------------
 Seed: 2020
-Model: ODT + DQN
+Model: DQN
 Season: winter
 Number of cars: 100
 Number of chargers: 1
 Number of episodes: 200
-Number of aggregations: 10
+Number of aggregations: 50
 Average rewards when training: True

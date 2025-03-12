@@ -2,12 +2,15 @@
 #SBATCH --job-name=Exp_4136_eval
 #SBATCH --output=experiments/Exp_4136/output.log
 #SBATCH --error=experiments/Exp_4136/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=33:20:00
-#SBATCH --mem=24G
-#SBATCH --gpus-per-node=5
+#SBATCH --time=90:00:00
+#SBATCH --mem=16G
+
+
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
 
 echo "Starting evaluation for experiment 4136"
 
@@ -19,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 4 -e 4136 -d "/home/epigou/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 4136 -d "/home/hartman/scratch/metrics/Exp" -eval True
     

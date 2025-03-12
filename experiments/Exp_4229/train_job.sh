@@ -9,7 +9,7 @@
 #SBATCH --mem=35G
 #SBATCH --gpus-per-node=4
 
-echo "Starting training for experiment 4129"
+echo "Starting training for experiment 4229"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
