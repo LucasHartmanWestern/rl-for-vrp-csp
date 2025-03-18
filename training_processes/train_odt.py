@@ -18,6 +18,7 @@ import os
 import json
 import glob
 import pandas as pd
+import h5py
 
 from collections import defaultdict
 from evaluation import evaluate
@@ -207,62 +208,162 @@ class Experiment:
             print(f"Model loaded at {path_prefix}/model.pt")
 
 
+    # def _load_dataset(self, env_name):
+    #     print(f'Loading Dataset for Zone {self.zone_index}...')
+    #     adjusted_experiment_number = str(int(self.experiment_number) - 108)
+    #     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+
+    #     dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/data_zone_{self.zone_index}.pkl')
+    #     #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
+    #     # dataset_path = (
+    #     #     min(
+    #     #             glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
+    #     #             key=os.path.getctime,
+    #     #             default=None
+    #     #         )
+    #     #         or FileNotFoundError("No .pkl files starting with 'data' found")
+    #     #     )
+    #     if not os.path.exists(dataset_path):
+    #         adjusted_experiment_number = str(int(self.experiment_number) - 108)
+    #         dataset_path = (
+    #             min(
+    #                 glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
+    #                 key=os.path.getctime,
+    #                 default=None
+    #             )
+    #             or FileNotFoundError("No .pkl files starting with 'data' found")
+    #         )
+
+
+    #    # Load all objects from the PKL file (handles multiple appended pickle objects)
+    #     trajectories = []
+    #     try:
+    #         with open(dataset_path, 'rb') as f:
+    #             while True:
+    #                 try:
+    #                     data = pickle.load(f)
+    #                     if isinstance(data, list):
+    #                         trajectories.extend(data)
+    #                     elif isinstance(data, dict):
+    #                         trajectories.append(data)
+    #                     else:
+    #                         print(f"Unexpected data structure found: {type(data)}")
+    #                 except EOFError:
+    #                     break  # End of file reached
+    #     except Exception as e:
+    #         raise RuntimeError(f"Failed to load dataset from {dataset_path}: {e}")
+    
+    #     # Convert lists back to NumPy arrays and normalize data
+    #     states, traj_lens, returns = [], [], []
+    #     for traj in trajectories:
+    #         traj["observations"] = np.array(traj["observations"], dtype=np.float32)
+    #         traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
+    #         traj["actions"] = np.array(traj["actions"], dtype=np.float32)
+    
+    #         states.append(traj["observations"])
+    #         traj_lens.append(len(traj["observations"]))
+    #         returns.append(sum(traj['rewards']))
+    
+    #     traj_lens, returns = np.array(traj_lens), np.array(returns)
+    #     states = np.concatenate(states, axis=0)
+    #     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+    #     num_timesteps = sum(traj_lens)
+    
+    #     # Print dataset statistics
+    #     print("=" * 50)
+    #     print(f"Dataset for Zone {self.zone_index} loaded successfully")
+    #     print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
+    #     print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
+    #     print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
+    #     print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
+    #     print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
+    #     print("=" * 50)
+    
+    #     # Sort and filter trajectories by return
+    #     sorted_inds = np.argsort(returns)  # Lowest to highest
+    #     num_trajectories = 1
+    #     timesteps = traj_lens[sorted_inds[-1]]
+    #     ind = len(trajectories) - 2
+    #     while ind >= 0 and timesteps + traj_lens[sorted_inds[ind]] < num_timesteps:
+    #         timesteps += traj_lens[sorted_inds[ind]]
+    #         num_trajectories += 1
+    #         ind -= 1
+    #     sorted_inds = sorted_inds[-num_trajectories:]
+    #     trajectories = [trajectories[ii] for ii in sorted_inds]
+    
+    #     return trajectories, state_mean, state_std
+
+
     def _load_dataset(self, env_name):
+        """
+        Loads dataset from HDF5 (.h5) files instead of .pkl.
+    
+        Parameters:
+        - env_name (str): Environment name (used for dataset location path).
+    
+        Returns:
+        - trajectories (list): List of trajectory dictionaries.
+        - state_mean (np.array): Mean values for state normalization.
+        - state_std (np.array): Standard deviation values for state normalization.
+        """
         print(f'Loading Dataset for Zone {self.zone_index}...')
+    
+        # Locate the dataset file
         adjusted_experiment_number = str(int(self.experiment_number) - 108)
-        # Path to the zone-specific PKL file
-        #dataset_path = os.path.join(self.metrics_base_path, f'zone_{self.zone_index}.pkl')
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
-        dataset_path = (
-            min(
-                    glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
-                    key=os.path.getctime,
-                    default=None
-                )
-                or FileNotFoundError("No .pkl files starting with 'data' found")
-            )
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/data_zone_{self.zone_index}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
+    
         if not os.path.exists(dataset_path):
             adjusted_experiment_number = str(int(self.experiment_number) - 108)
             dataset_path = (
                 min(
-                    glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
+                    glob.glob(os.path.expanduser(
+                        f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
+                    ),
                     key=os.path.getctime,
                     default=None
                 )
-                or FileNotFoundError("No .pkl files starting with 'data' found")
+                or FileNotFoundError("No .h5 files starting with 'data' found")
             )
-
-
-       # Load all objects from the PKL file (handles multiple appended pickle objects)
+    
+        # Load trajectories from HDF5 file
         trajectories = []
         try:
-            with open(dataset_path, 'rb') as f:
-                while True:
-                    try:
-                        data = pickle.load(f)
-                        if isinstance(data, list):
-                            trajectories.extend(data)
-                        elif isinstance(data, dict):
-                            trajectories.append(data)
-                        else:
-                            print(f"Unexpected data structure found: {type(data)}")
-                    except EOFError:
-                        break  # End of file reached
+            with h5py.File(dataset_path, 'r') as f:
+                zone_key = f"zone_{self.zone_index}"
+                if zone_key not in f:
+                    raise RuntimeError(f"Zone {self.zone_index} not found in {dataset_path}")
+                
+                zone_group = f[zone_key]
+                for traj_key in zone_group:
+                    traj_data = {}
+                    traj_group = zone_group[traj_key]
+                    
+                    # Extract trajectory data
+                    for key in traj_group:
+                        traj_data[key] = np.array(traj_group[key])
+                    
+                    # Extract metadata from attributes
+                    for attr_key in traj_group.attrs:
+                        traj_data[attr_key] = traj_group.attrs[attr_key]
+                    
+                    trajectories.append(traj_data)
+    
         except Exception as e:
             raise RuntimeError(f"Failed to load dataset from {dataset_path}: {e}")
-    
+        
         # Convert lists back to NumPy arrays and normalize data
         states, traj_lens, returns = [], [], []
         for traj in trajectories:
             traj["observations"] = np.array(traj["observations"], dtype=np.float32)
             traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
             traj["actions"] = np.array(traj["actions"], dtype=np.float32)
-    
+        
             states.append(traj["observations"])
             traj_lens.append(len(traj["observations"]))
             returns.append(sum(traj['rewards']))
-    
+        
         traj_lens, returns = np.array(traj_lens), np.array(returns)
         states = np.concatenate(states, axis=0)
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
