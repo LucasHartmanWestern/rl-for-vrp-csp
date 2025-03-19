@@ -311,7 +311,7 @@ class Experiment:
         # Locate the dataset file
         adjusted_experiment_number = str(int(self.experiment_number) - 108)
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/data_zone_{self.zone_index}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
