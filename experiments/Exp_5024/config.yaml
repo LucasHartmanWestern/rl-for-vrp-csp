@@ -33,7 +33,7 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 1
   radius: 20
-  season: summer
+  season: autumn
   seed: 2468
   starting_charge: 6000
   step_size: 0.01
@@ -59,7 +59,7 @@ federated_learning_settings:
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  average_rewards_when_training: true
+  average_rewards_when_training: false
   batch_size: 75
   buffer_limit: 150
   city_multiplier: 0.15
