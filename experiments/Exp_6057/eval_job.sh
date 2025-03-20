@@ -4,7 +4,7 @@
 #SBATCH --error=experiments/Exp_6057/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
+#SBATCH --cpus-per-task=4
 #SBATCH --time=90:00:00
 #SBATCH --mem=16G
 

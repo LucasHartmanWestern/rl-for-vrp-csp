@@ -3,9 +3,9 @@
 --------------------------------
 Seed: 1234
 Model: CMA
-Season: summer
+Season: autumn
 Number of cars: 100
 Number of chargers: 1
-Number of generations: 1000
-Number of aggregations: 6
-Average rewards when training: True
+Number of episodes: 1000
+Number of aggregations: 10
+Average rewards when training: False

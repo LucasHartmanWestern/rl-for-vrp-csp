@@ -3,9 +3,9 @@
 --------------------------------
 Seed: 2020
 Model: CMA
-Season: summer
+Season: autumn
 Number of cars: 100
 Number of chargers: 1
-Number of generations: 200
-Number of aggregations: 30
-Average rewards when training: True
+Number of episodes: 200
+Number of aggregations: 50
+Average rewards when training: False
