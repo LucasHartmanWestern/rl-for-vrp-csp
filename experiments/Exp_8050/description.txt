@@ -2,7 +2,7 @@
 ### Experiment 8050: ###
 --------------------------------
 Seed: 4040
-Model: PPO
+Model: REINFORCE
 Season: spring
 Number of cars: 100
 Number of chargers: 1

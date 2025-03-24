@@ -4,13 +4,13 @@
 #SBATCH --error=experiments/Exp_4000/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
+#SBATCH --cpus-per-task=4
 #SBATCH --time=90:00:00
 #SBATCH --mem=16G
 
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
-#SBATCH --mail-user=lhartma8@uwo.ca
+#SBATCH --mail-user=epigou@uwo.ca
 
 echo "Starting training for experiment 4000"
 
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4000 -d "/home/hartman/scratch/metrics/Exp" 
+python app_v2.py  -e 4000 -d "/home/epigou/scratch/metrics/Exp" 
     

@@ -7,13 +7,14 @@ import os
 import time
 import copy
 import pickle
+import h5py
 
 from evaluation import evaluate
 
 from agents.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
-from misc.utils import format_data
+from misc.utils import format_data, save_checkpoint, save_to_h5, verify_data_integrity
 
 # Define the experience tuple
 Experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -74,7 +75,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     eps_per_save = int(nn_c['eps_per_save'])
     
-    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
 
     if eval_c['evaluate_on_diff_zone'] or args.eval:
         target_episode_epsilon_frac = 0.1
@@ -162,10 +163,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     avg_output_values = []  # List to store the average values of output neurons for each episode
 
     for i in range(num_episodes):  # For each episode
-
         if save_offline_data:
-            for car_idx in range(num_cars):
-                traj = {
+            trajectories.extend([
+                {
                     'observations': [],
                     'actions': [],
                     'rewards': [],
@@ -173,10 +173,11 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     'terminals_car': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
-                    'episode': i,
+                    'episode': i,      # Critical: Keep this inside the loop for correct episode tracking
                     'car_idx': car_idx
                 }
-                trajectories.append(traj)
+                for car_idx in range(num_cars)
+            ])
 
         distributions = []
         distributions_unmodified = []
@@ -206,7 +207,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 if save_offline_data:
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
-                ########### Starting environment rutting
+                ########### Starting environment routing
                 state = environment.reset_agent(car_idx, timestep_counter)
                 states.append(state)  # Track states
 
@@ -406,23 +407,29 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
-            # Path to the file where trajectories will be saved
-            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
-            print(dataset_path)
+            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
+            checkpoint_path = f"{metrics_base_path}/checkpoints/data_zone_{zone_index}"
+            
+            # Ensure directories exist
             os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+            os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         
             # Format the new trajectories before saving
             traj_format = format_data(trajectories)
+            
+            # Save full data
+            save_to_h5(traj_format, dataset_path, zone_index)
+            
+            # Create a checkpoint every eps_per_save episodes
+            checkpoint_num = (i + 1) // eps_per_save
+            save_checkpoint(traj_format, checkpoint_path, checkpoint_num, zone_index)
+            
+            # Integrity check to ensure data is saved properly before clearing memory
+            verify_data_integrity(dataset_path)
         
-            # Append new trajectories directly to the file
-            with open(dataset_path, 'ab') as f:  # Open in append binary mode
-                pickle.dump(traj_format, f)
-                print(f"Appended {len(traj_format)} trajectories to {dataset_path}")
-        
-            # Clear the trajectories after saving
-            trajectories = []
-            traj_format = []
-
+            # Clear in-memory data after successful save
+            trajectories.clear()
+            traj_format.clear()
 
         if avg_reward > best_avg:
             best_avg = avg_reward

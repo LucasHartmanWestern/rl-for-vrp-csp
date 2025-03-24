@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_7043_eval
 #SBATCH --output=experiments/Exp_7043/output.log
 #SBATCH --error=experiments/Exp_7043/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=133:00:00
+#SBATCH --time=90:00:00
 #SBATCH --mem=16G
-#SBATCH --gpus-per-node=1
+
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=lhartma8@uwo.ca
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 -e 7043 -d "/home/hartman/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 7043 -d "/home/hartman/scratch/metrics/Exp" -eval True
     

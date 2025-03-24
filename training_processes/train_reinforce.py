@@ -61,7 +61,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     aggregation_count = federated_c['aggregation_count'] if 'aggregation_count' in federated_c else 1
 
     epsilon = nn_c['epsilon'] if train_model else 0
-    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.5
+    target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
     epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)

@@ -2,7 +2,7 @@
 ### Experiment 4064: ###
 --------------------------------
 Seed: 5555
-Model: PPO
+Model: REINFORCE
 Season: summer
 Number of cars: 100
 Number of chargers: 1

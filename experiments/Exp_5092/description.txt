@@ -1,0 +1,11 @@
+
+### Experiment 5092: ###
+--------------------------------
+Seed: 4040
+Model: CMA
+Season: autumn
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 200
+Number of aggregations: 50
+Average rewards when training: False

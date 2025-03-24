@@ -2,7 +2,7 @@
 ### Experiment 8064: ###
 --------------------------------
 Seed: 11110
-Model: PPO
+Model: REINFORCE
 Season: autumn
 Number of cars: 100
 Number of chargers: 1
