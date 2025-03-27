@@ -232,7 +232,7 @@ class Experiment:
             dataset_path = (
                 min(
                     glob.glob(os.path.expanduser(
-                        f"/home/epigou/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
+                        f"/home/epigou/scratch/metrics/Exp_4000/data_zone_{self.zone_index}.h5")
                     ),
                     key=os.path.getctime,
                     default=None
