@@ -34,7 +34,7 @@ environment_settings:
   num_of_chargers: 1
   radius: 20
   season: winter
-  seed: 5555
+  seed: 2020
   starting_charge: 6000
   step_size: 0.01
   usage_per_hour:
@@ -81,15 +81,15 @@ nn_hyperparameters:
 odt_hyperparameters:
   K: 20
   activation_function: relu
-  batch_size: 128
+  batch_size: 32
   dropout: 0.1
   embed_dim: 512
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
   evaluation: false
-  exp_name: 4901
-  experiment_number: 4001
+  exp_name: 4917
+  experiment_number: 4002
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
