@@ -223,17 +223,16 @@ class Experiment:
         print(f'Loading Dataset for Zone {self.zone_index}...')
     
         # Locate the dataset file
-        adjusted_experiment_number = str(int(self.experiment_number) - 108)
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
-            adjusted_experiment_number = str(int(self.experiment_number) - 108)
+            adjusted_experiment_number = str(4000 + (int(self.experiment_number) - 4900) % 3)
             dataset_path = (
                 min(
                     glob.glob(os.path.expanduser(
-                        f"/home/epigou/scratch/metrics/Exp_4000/data_zone_{self.zone_index}.h5")
+                        f"/home/epigou/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
                     ),
                     key=os.path.getctime,
                     default=None
