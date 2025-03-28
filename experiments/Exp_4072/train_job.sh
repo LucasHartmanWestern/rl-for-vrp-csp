@@ -4,13 +4,10 @@
 #SBATCH --error=experiments/Exp_4072/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=20:00:00
+#SBATCH --cpus-per-task=5
+#SBATCH --time=10:40:00
 #SBATCH --mem=16G
 
-
-#SBATCH --mail-type=FAIL,TIME_LIMIT
-#SBATCH --mail-user=epigou@uwo.ca
 
 echo "Starting training for experiment 4072"
 
@@ -22,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4072 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py  -e 4072 -d "/home/sgomezro/scratch/metrics/Exp" 
     
