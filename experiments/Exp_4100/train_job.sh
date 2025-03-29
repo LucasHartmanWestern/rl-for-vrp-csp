@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
 #SBATCH --time=10:40:00
-#SBATCH --mem=8G
+#SBATCH --mem=6G
 
 
 echo "Starting training for experiment 4100"

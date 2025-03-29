@@ -54,7 +54,7 @@ def create_job(args):
             if algorithm in algorithm_time_mapping:
                 if algorithm == 'CMA':
                     total_episodes = num_generations * num_aggregations
-                    mem_size = "8G"
+                    mem_size = "6G"
                     num_cpus = len(config['environment_settings']['coords']) + 1
                     calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
                 elif algorithm == 'ODT':
