@@ -1,7 +1,7 @@
 
 ### Experiment 6072: ###
 --------------------------------
-Seed: 3702
+Seed: 4936
 Model: CMA
 Season: spring
 Number of cars: 100
