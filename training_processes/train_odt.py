@@ -56,6 +56,7 @@ class Experiment:
         self.agg_num = agg_num
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
+        self.active_batch = []
         
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
