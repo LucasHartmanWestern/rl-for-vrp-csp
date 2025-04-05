@@ -255,8 +255,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             # Calculate the average values of the output neurons for this episode
             episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num,\
-                                      zone_index, main_seed))
+            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
 
             time_end_paths = time.time() - time_start_paths
 

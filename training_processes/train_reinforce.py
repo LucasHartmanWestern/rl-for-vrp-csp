@@ -66,7 +66,6 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
 
-
     # For saving metrics
     eps_per_save = int(nn_c['eps_per_save']) if 'eps_per_save' in nn_c else 1
 
@@ -93,9 +92,11 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         num_agents = 1
         policy_net = initialize(state_dimension, action_dim, layers, device)
         if global_weights is not None:
-            # Load weights if they exist
-            index_to_use = (zone_index + 1) % len(global_weights) if (eval_c['evaluate_on_diff_zone'] or args.eval) else zone_index
-            policy_net.load_state_dict(global_weights[index_to_use])
+            print("Resume from global weights")
+            if eval_c['evaluate_on_diff_zone'] or args.eval:
+                policy_net.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
+            else:
+                policy_net.load_state_dict(global_weights[zone_index])
 
         optimizer = optim.RMSprop(policy_net.parameters(), lr=learning_rate)
         policy_networks.append(policy_net)
@@ -105,9 +106,11 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         for agent_ind in range(num_agents):
             policy_net = initialize(state_dimension, action_dim, layers, device)
             if global_weights is not None:
-                # Load weights if they exist
-                index_to_use = (zone_index + 1) % len(global_weights) if (eval_c['evaluate_on_diff_zone'] or args.eval) else zone_index
-                policy_net.load_state_dict(global_weights[index_to_use][model_indices[agent_ind]])
+                print("Resume from global weights")
+                if eval_c['evaluate_on_diff_zone'] or args.eval:
+                    policy_net.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
+                else:
+                    policy_net.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
             optimizer = optim.RMSprop(policy_net.parameters(), lr=learning_rate)
             policy_networks.append(policy_net)
             optimizers.append(optimizer)
@@ -148,7 +151,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         timestep_counter = 0
         episode_rewards = None
 
-        # We'll store experience in-lieu of replay buffer (per-episode)
+        # Store experiences (per-episode)
         episode_experiences = [[] for _ in range(num_agents)]
 
         while not sim_done:
@@ -186,11 +189,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 distributions_unmodified.append(distribution.tolist())
 
                 # Apply sigmoid transformation
-                distribution = np.where(
-                    distribution >= 0,
-                    1 / (1 + np.exp(-distribution)),
-                    np.exp(distribution) / (1 + np.exp(distribution))
-                )
+                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
                 distributions.append(distribution.tolist())
 
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
@@ -218,9 +217,18 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
             # Accumulate episode rewards
             if timestep_counter == 0:
-                episode_rewards = np.expand_dims(time_step_rewards, axis=0)
+                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
             else:
-                episode_rewards = np.vstack((episode_rewards, time_step_rewards))
+                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+
+            # Train the model only using the average of all timestep rewards
+            if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
+                avg_reward = time_step_rewards.sum(axis=0) / len(time_step_rewards)
+                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
+                rewards.extend(time_step_rewards_avg)
+            # Train the model using the rewards from it's own experiences
+            else:
+                rewards.extend(time_step_rewards)
 
             # For REINFORCE, we store transitions for each agent
             for car_idx, rew in enumerate(time_step_rewards):
@@ -267,7 +275,6 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 s_list, a_list, r_list, done_list = zip(*episode_experiences[agent_ind])
                 experiences = (s_list, a_list, r_list, [None]*len(s_list), done_list)
 
-
                 if agent_by_zone:
                     agent_learn(experiences, discount_factor, policy_networks[0], optimizers[0], device)
                 else:
@@ -283,7 +290,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
             epsilon = max(0.1, epsilon) # Minimal learning threshold
 
         avg_reward = episode_rewards.sum(axis=0).mean()
-        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
