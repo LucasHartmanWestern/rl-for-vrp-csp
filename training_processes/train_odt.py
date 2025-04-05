@@ -56,7 +56,6 @@ class Experiment:
         self.agg_num = agg_num
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
-        self.active_batch = []
         
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
@@ -225,8 +224,8 @@ class Experiment:
     
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
             adjusted_experiment_number = str(4000 + (int(self.experiment_number) - 4900) % 3)
@@ -494,6 +493,23 @@ class Experiment:
     
         buffer_to_return = None  # Initialize as None
         full_metrics = []
+
+        # Initialize the fixed active batch only once at the start of online tuning.
+        if not hasattr(self, 'active_batch'):
+            available_trajs = self.replay_buffer.trajectories
+            if len(available_trajs) < self.variant["batch_size"]:
+                raise ValueError("Not enough trajectories in the buffer to initialize active batch.")
+            self.active_batch = random.sample(available_trajs, self.variant["batch_size"])
+            print("Initialized active batch:")
+            # for i, traj in enumerate(self.active_batch):
+            #     print(f"  Batch[{i}]: {traj}")
+
+
+        # Define a replacement rate (e.g., replace 10% of trajectories per iteration)
+        #replacement_rate = self.variant.get("replacement_rate", 0.1)
+        replacement_rate = 1
+        num_to_replace = max(1, int(replacement_rate * self.variant["batch_size"]))
+        
         while self.online_iter < self.variant["max_online_iters"]:
             outputs = {}   
             augment_outputs, metrics = self._augment_trajectories(
@@ -505,16 +521,28 @@ class Experiment:
             )
             full_metrics.extend(metrics)
             outputs.update(augment_outputs)
+            
             # Call evaluate() only every 5 iterations
             if self.online_iter % 5 == 0:
                 directory = f"{self.metrics_base_path}/train/metrics"
                 os.makedirs(directory, exist_ok=True)
                 evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
                 full_metrics = []
-                
-    
+
+            if self.aug_trajs:
+                new_trajs = self.aug_trajs[:num_to_replace]
+                self.aug_trajs = self.aug_trajs[len(new_trajs):]
+                for i, traj in enumerate(new_trajs):
+                    print(f"Replacing active_batch[{i}] with new trajectory.")
+                    self.active_batch[i] = traj
+                print("Active batch size after replacement:", len(self.active_batch))
+
+
+
+
+
             dataloader = create_dataloader(
-                trajectories=self.replay_buffer.trajectories,
+                trajectories=self.active_batch,
                 num_iters=self.variant["num_updates_per_online_iter"],
                 batch_size=self.variant["batch_size"],
                 max_len=self.variant["K"],
@@ -552,8 +580,10 @@ class Experiment:
     
             if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
+
+                #TODO Remove
                 if self.persist_buffers:
-                    buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                    buffer_to_return = None  # Assign buffer only at the last iteration
                 else:
                     buffer_to_return = None
                 
