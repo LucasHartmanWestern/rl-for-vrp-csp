@@ -69,7 +69,9 @@ class Experiment:
             with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
                 pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
         else:
-            self.replay_buffer = buffers
+            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
+            # Initialize by offline trajectories
+            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
             buffers = None
             # Load state_mean and state_std
             with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
@@ -224,7 +226,7 @@ class Experiment:
     
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/._3000/data_zone_{self.zone_index}.h5')
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
@@ -255,7 +257,12 @@ class Experiment:
                     
                     # Extract trajectory data
                     for key in traj_group:
-                        traj_data[key] = np.array(traj_group[key])
+                        dataset = traj_group[key]
+                        if dataset.shape == ():  # scalar dataset
+                            traj_data[key] = dataset[()]
+                        else:
+                            traj_data[key] = dataset[:]
+
                     
                     # Extract metadata from attributes
                     for attr_key in traj_group.attrs:
