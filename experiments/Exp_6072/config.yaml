@@ -32,7 +32,7 @@ environment_settings:
   num_of_chargers: 1
   radius: 20
   season: spring
-  seed: 4936
+  seed: 3702
   starting_charge: 6000
   step_size: 0.01
   usage_per_hour:
