@@ -154,9 +154,20 @@ cd ../../storage_1/metrics
 ### 2. Retrieve metrics data
 Use the following command to copy the results from DRAC to the current directory:
 ```
-rsync -av --ignore-existing --remove-source-files <your_username>@beluga.computecanada.ca:/lustre04/scratch/<your_username>/metrics/ ./
+rsync -av --no-perms --prune-empty-dirs \
+  --include='*/' \
+  --include='Exp_*/train/**' \
+  --exclude='*' \
+  <your_username>@beluga.computecanada.ca:/lustre04/scratch/<your_username>/metrics/ .
 ```
-Note that when using the above command, the files on DRAC that were copied will be deleted, and files that already exist on the lab server will not be copied from the DRAC server.
+e.g.,
+```
+rsync -av --no-perms --prune-empty-dirs \
+  --include='*/' \
+  --include='Exp_*/train/**' \
+  --exclude='*' \
+  hartman@beluga.computecanada.ca:/lustre04/scratch/hartman/metrics/ .
+```
 
 ### 3. Delete empty directories (optional)
 Use the below command if you want to delete empty directories after the transfer:
