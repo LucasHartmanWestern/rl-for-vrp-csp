@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4119_eval
-#SBATCH --output=experiments/Exp_4119/output.log
-#SBATCH --error=experiments/Exp_4119/error.log
+#SBATCH --job-name=Exp_4011_eval
+#SBATCH --output=experiments/Exp_4011/output.log
+#SBATCH --error=experiments/Exp_4011/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
+#SBATCH --cpus-per-task=4
 #SBATCH --time=90:00:00
 #SBATCH --mem=16G
 
@@ -12,7 +12,7 @@
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=lhartma8@uwo.ca
 
-echo "Starting evaluation for experiment 4119"
+echo "Starting evaluation for experiment 4011"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4119 -d "/home/hartman/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 4011 -d "/home/hartman/scratch/metrics/Exp" -eval True
     

@@ -4,8 +4,8 @@
 #SBATCH --error=experiments/Exp_4900/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=14:30:00
+#SBATCH --cpus-per-task=4
+#SBATCH --time=13:30:00
 #SBATCH --mem=15G
 #SBATCH --gpus-per-node=4
 
