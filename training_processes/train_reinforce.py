@@ -5,6 +5,7 @@ import os
 import time
 import copy
 import pickle
+import h5py
 
 from evaluation import evaluate
 
@@ -12,7 +13,7 @@ from evaluation import evaluate
 from agents.reinforce_agent import initialize, agent_learn, get_actions, save_model
 from data_loader import load_config_file
 from merl_env._pathfinding import haversine
-from misc.utils import format_data
+from misc.utils import format_data, save_to_h5
 
 def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
     seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
@@ -124,8 +125,8 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
     for i in range(num_episodes):
         if save_offline_data:
-            for car_idx in range(num_cars):
-                traj = {
+            trajectories.extend([
+                {
                     'observations': [],
                     'actions': [],
                     'rewards': [],
@@ -133,10 +134,11 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                     'terminals_car': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
-                    'episode': i,
+                    'episode': i,      # Critical: Keep this inside the loop for correct episode tracking
                     'car_idx': car_idx
                 }
-                trajectories.append(traj)
+                for car_idx in range(num_cars)
+            ])
 
         distributions = []
         distributions_unmodified = []
@@ -293,15 +295,53 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
-            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.pkl"
-            print(dataset_path)
-            os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
+            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path), f"temp/Exp_{experiment_number}_checkpoints")
+            os.makedirs(checkpoint_dir, exist_ok=True)
+        
+            # Format current trajectories
             traj_format = format_data(trajectories)
-            with open(dataset_path, 'ab') as f:
-                pickle.dump(traj_format, f)
-                print(f"Appended {len(traj_format)} trajectories to {dataset_path}")
-            trajectories = []
-            traj_format = []
+        
+            #Save a temp checkpoint
+            temp_path = os.path.join(checkpoint_dir, f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
+            with h5py.File(temp_path, 'w') as f:
+                zone_grp = f.create_group(f"zone_{zone_index}")
+                for i_traj, entry in enumerate(traj_format):
+                    traj_grp = zone_grp.create_group(f"traj_{i_traj}")
+                    for key, value in entry.items():
+                        if isinstance(value, (list, np.ndarray)):
+                            traj_grp.create_dataset(key, data=np.array(value))
+                        else:
+                            traj_grp.attrs[key] = value
+        
+            #Verify data
+            try:
+                with h5py.File(temp_path, "r") as f:
+                    _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
+            except Exception as e:
+                print(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
+                os.remove(temp_path)  # Optional: clean up bad file
+                trajectories.clear()
+                continue  # Skip appending and move to next episode
+
+        
+            #Append to main .h5 dataset incrementally
+            with h5py.File(dataset_path, 'a') as main_f, h5py.File(temp_path, 'r') as temp_f:
+                main_zone_grp = main_f.require_group(f"zone_{zone_index}")
+                temp_zone_grp = temp_f[f"zone_{zone_index}"]
+                existing_keys = list(main_zone_grp.keys())
+                offset = len(existing_keys)
+        
+                for i, traj_key in enumerate(temp_zone_grp):
+                    traj_data = temp_zone_grp[traj_key]
+                    new_grp = main_zone_grp.create_group(f"traj_{offset + i}")
+                    for key in traj_data:
+                        new_grp.create_dataset(key, data=traj_data[key][:])
+                    for attr_key in traj_data.attrs:
+                        new_grp.attrs[attr_key] = traj_data.attrs[attr_key]
+        
+            os.remove(temp_path)
+            trajectories.clear()
 
         if avg_reward > best_avg:
             best_avg = avg_reward
