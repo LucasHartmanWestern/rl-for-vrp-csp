@@ -26,11 +26,13 @@ from misc import utils
 from misc.replay_buffer import ReplayBuffer
 from misc.lamb import Lamb
 from pathlib import Path
-from misc.data import create_dataloader
+from misc.data import create_dataloader, TransformSamplingSubTraj
 from decision_transformer.models.decision_transformer import DecisionTransformer
 from misc.evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
 from misc.trainer import SequenceTrainer
 from misc.logger import Logger
+from misc.online_data import PersistentOnlineDataset, create_online_dataloader
+
 
 
 MAX_EPISODE_LEN = 1000
@@ -56,6 +58,10 @@ class Experiment:
         self.agg_num = agg_num
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
+        self.action_batch = None
+        self.dataloader = None
+        self.online_dataset = getattr(self, "online_dataset", None)
+
         
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
@@ -64,7 +70,6 @@ class Experiment:
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
             # Initialize by offline trajectories
             self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
-        
             # Save state_mean and state_std
             with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
                 pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
@@ -147,8 +152,27 @@ class Experiment:
             end_time = time.time()
             elapsed = end_time - start_time
             print(f'Loading aggregated models took {elapsed}')
-            
 
+        if self.online_dataset is None:
+            transform = TransformSamplingSubTraj(
+                max_len=self.variant["K"],
+                state_dim=self.state_dim,
+                act_dim=self.act_dim,
+                state_mean=self.state_mean,
+                state_std=self.state_std,
+                reward_scale=1,
+                action_range=self.action_range,
+            )
+
+
+        self.online_dataset = PersistentOnlineDataset(
+            initial_trajectories=self.replay_buffer.trajectories,
+            sample_size=self.variant["batch_size"] * self.variant["num_updates_per_online_iter"],
+            transform=transform
+        )
+        self.online_dataloader = create_online_dataloader(
+            self.online_dataset, batch_size=self.variant["batch_size"]
+        )
 
         # track the training progress and
         # training/evaluation/online performance in all the iterations
@@ -349,7 +373,9 @@ class Experiment:
                 device=self.device,
             )    
         # Add trajectories to replay buffer
-        self.replay_buffer.add_new_trajs(trajs)
+        self.online_dataset.update_with_new_trajectories(trajs)
+
+        
         self.aug_trajs += trajs
         self.total_transitions_sampled += np.sum(lengths)
     
@@ -500,6 +526,8 @@ class Experiment:
     
         buffer_to_return = None  # Initialize as None
         full_metrics = []
+
+        
         while self.online_iter < self.variant["max_online_iters"]:
             outputs = {}   
             augment_outputs, metrics = self._augment_trajectories(
@@ -511,26 +539,13 @@ class Experiment:
             )
             full_metrics.extend(metrics)
             outputs.update(augment_outputs)
+            
             # Call evaluate() only every 5 iterations
             if self.online_iter % 5 == 0:
                 directory = f"{self.metrics_base_path}/train/metrics"
                 os.makedirs(directory, exist_ok=True)
                 evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
                 full_metrics = []
-                
-    
-            dataloader = create_dataloader(
-                trajectories=self.replay_buffer.trajectories,
-                num_iters=self.variant["num_updates_per_online_iter"],
-                batch_size=self.variant["batch_size"],
-                max_len=self.variant["K"],
-                state_dim=self.state_dim,
-                act_dim=self.act_dim,
-                state_mean=self.state_mean,
-                state_std=self.state_std,
-                reward_scale=self.reward_scale,
-                action_range=self.action_range,
-            )
     
             is_last_iter = self.online_iter == self.variant["max_online_iters"] - 1
             if (self.online_iter + 1) % self.variant["eval_interval"] == 0 or is_last_iter:
@@ -540,7 +555,7 @@ class Experiment:
     
             train_outputs = trainer.train_iteration(
                 loss_fn=loss_fn,
-                dataloader=dataloader,
+                dataloader=self.online_dataloader,
             )
             outputs.update(train_outputs)
     
@@ -558,8 +573,10 @@ class Experiment:
     
             if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
+
+                #TODO Remove
                 if self.persist_buffers:
-                    buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                    buffer_to_return = None  # Assign buffer only at the last iteration
                 else:
                     buffer_to_return = None
                 
