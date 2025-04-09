@@ -1,5 +1,5 @@
 algorithm_settings:
-  agent_by_zone: true
+  agent_by_zone: false
   algorithm: ODT
 cma_parameters:
   initial_sigma: 0.1
