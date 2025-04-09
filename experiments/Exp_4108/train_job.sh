@@ -20,6 +20,12 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=4
 
-python app_v2.py -g 0 1 2 3 -e 4108 -d "/home/epigou/scratch/metrics/Exp"
+# Activate Nvidia MPS:
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+nvidia-cuda-mps-control -d
+
+
+python app_v2.py -g 0 -e 4108 -d "/home/epigou/scratch/metrics/Exp"
