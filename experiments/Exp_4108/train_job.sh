@@ -5,7 +5,7 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=13:30:00
+#SBATCH --time=15:00:00
 #SBATCH --mem=15G
 #SBATCH --gpus-per-node=4
 
@@ -28,4 +28,4 @@ export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
 nvidia-cuda-mps-control -d
 
 
-python app_v2.py -g 0 -e 4108 -d "/home/epigou/scratch/metrics/Exp"
+python app_v2.py -g 0 1 2 3 -e 4108 -d "/home/epigou/scratch/metrics/Exp"
