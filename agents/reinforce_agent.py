@@ -10,22 +10,24 @@ class PolicyNetwork(nn.Module):
     """
     def __init__(self, state_dim, action_dim, layers):
         super(PolicyNetwork, self).__init__()
+
         self.layers = nn.ModuleList()
         for i, layer_size in enumerate(layers):
             if i == 0:
                 linear_layer = nn.Linear(state_dim, layer_size)
             else:
                 linear_layer = nn.Linear(layers[i - 1], layer_size)
+            
             self.layers.append(linear_layer)
-        self.output = nn.Linear(layers[-1], action_dim)
 
+        self.output = nn.Linear(layers[-1], action_dim)
+        
     def forward(self, state):
         x = state
-        for layer in self.layers:
-            x = layer(x)
-            x = torch.relu(x)
+        for i in range(len(self.layers)):
+            x = self.layers[i](x)
+            x = torch.relu(x)  # Apply ReLU activation
         x = self.output(x)
-        # Convert logits to probabilities
         probs = F.softmax(x, dim=-1)
         return probs
 
@@ -110,7 +112,6 @@ def agent_learn(experiences, gamma, policy_network, optimizer, device):
 
     states, actions, rewards, next_states, dones = experiences
     states = torch.tensor(states, dtype=torch.float32, device=device)
-    # Fix: actions are distributions, not discrete indices
     actions = torch.tensor(actions, dtype=torch.float32, device=device)
     rewards = torch.tensor(rewards, dtype=torch.float32, device=device)
     dones = torch.tensor(dones, dtype=torch.float32, device=device)
@@ -118,7 +119,6 @@ def agent_learn(experiences, gamma, policy_network, optimizer, device):
     experiences_torch = (states, actions, rewards, next_states, dones)
     loss = compute_loss(experiences_torch, gamma, policy_network)
 
-    # Ensure we're actually updating the network
     optimizer.zero_grad()
     loss.backward()
     # Apply gradient clipping to prevent exploding gradients
@@ -150,21 +150,7 @@ def get_actions(state, policy_networks, episode_index, agent_index, device, epsi
     else:
         probs = policy_networks[0](state)
         
-    return probs.detach()  # Return the probabilities for all actions, detached from computation graph
-
-def soft_update(target_network, source_network, tau=0.001):
-    """
-    Dummy soft update function for compatibility with the REINFORCE agent, which does not use a target network.
-
-    Parameters:
-        target_network (nn.Module): Not used in this algorithm.
-        source_network (nn.Module): Not used in this algorithm.
-        tau (float, optional): Not used in this algorithm.
-
-    Returns:
-        None
-    """
-    pass
+    return probs.detach()
 
 def save_model(network, filename):
     """
