@@ -4,9 +4,9 @@
 #SBATCH --error=experiments/Exp_4191/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=6
-#SBATCH --time=13:00:00
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=5
+#SBATCH --time=10:40:00
+#SBATCH --mem=6G
 
 
 echo "Starting training for experiment 4191"

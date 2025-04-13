@@ -1,14 +1,11 @@
 
-### Experiment 4192: ###
+### Experiment 4193: ###
 --------------------------------
-NOTE: This experiment is the same as Exp_4038, but with agent_by_zone set to true.
-
 Seed: 5555
-Model: PPO
+Model: DENSER
 Season: winter
 Number of cars: 100
 Number of chargers: 1
 Number of episodes: 1000
-Number of aggregations: 6
-Average rewards when training: True
-
+Number of aggregations: 10
+Average rewards when training: False
