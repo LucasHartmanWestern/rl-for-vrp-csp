@@ -129,11 +129,13 @@ def train_rl_vrp_csp(args):
         agent_by_zone= c['algorithm_settings']['agent_by_zone']
         federated_c = c['federated_learning_settings']
 
-        if algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE"]:
+        if algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE"]: # reinforcement learning
             num_episodes = c['nn_hyperparameters']['num_episodes']
-        elif algorithm_dm == 'CMA':
+            variant = c
+        elif algorithm_dm in ['CMA', 'DENSER', 'NEAT']: # population based
             num_episodes = c['cma_parameters']['max_generations']
-        if algorithm_dm == 'ODT':
+            variant = c
+        elif algorithm_dm == 'ODT': # transformer based
             num_episodes = c['nn_hyperparameters']['num_episodes']
             variant = c        
         else:
@@ -315,8 +317,10 @@ def train_rl_vrp_csp(args):
                         global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
                                                             federated_c['zone_multiplier'], federated_c['model_multiplier'],\
                                                             agent_by_zone, True)
+                    elif algorithm_dm == 'DENSER': # Cannot aggregate weights for DENSER because architecture is different between agents
+                        pass
                     else:
-                                            # Aggregate the weights from all local models
+                        # Aggregate the weights from all local models
                         global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
                                                             federated_c['zone_multiplier'], federated_c['model_multiplier'],\
                                                             agent_by_zone)
@@ -530,6 +534,12 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'CMA':
             from training_processes.train_cma import train_cma as train
+
+        elif algorithm_dm == 'DENSER':
+            from training_processes.train_denser import train_denser as train
+
+        elif algorithm_dm == 'NEAT':
+            from training_processes.train_neat import train_neat as train
 
         elif algorithm_dm == 'ODT':
             from training_processes.train_odt import train_odt as train

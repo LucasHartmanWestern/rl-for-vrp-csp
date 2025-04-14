@@ -1,13 +1,11 @@
 
 ### Experiment 4188: ###
 --------------------------------
-NOTE: This experiment is the same as Exp_4077, but with agent_by_zone set to true.
-
 Seed: 2020
-Model: CMA
-Season: winter
+Model: DENSER
+Season: spring
 Number of cars: 100
 Number of chargers: 1
-Number of generations: 1000
-Number of aggregations: 6
-Average rewards when training: True
+Number of episodes: 10000
+Number of aggregations: 1
+Average rewards when training: False

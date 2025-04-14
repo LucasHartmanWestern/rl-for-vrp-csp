@@ -83,6 +83,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     # Decay epsilon such that by the target_episode_epsilon_frac * num_episodes it is 0.1
     epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
+    avg_reward = -np.inf
     avg_rewards = []
 
     # Carry over epsilon from last aggregation
@@ -364,6 +365,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         epsilon *= epsilon_decay  # Decay epsilon
         if train_model:
             epsilon = max(0.1, epsilon) # Minimal learning threshold
+
+        avg_reward = episode_rewards.sum(axis=0).mean()
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed)) 
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 

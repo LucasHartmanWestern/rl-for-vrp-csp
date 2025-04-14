@@ -1,15 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4131_eval
-#SBATCH --output=experiments/Exp_4131/output.log
-#SBATCH --error=experiments/Exp_4131/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH --job-name=Exp_4231_eval
+#SBATCH --output=experiments/Exp_4231/output.log
+#SBATCH --error=experiments/Exp_4231/error.log
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=33:20:00
-#SBATCH --mem=24G
-#SBATCH --gpus-per-node=5
+#SBATCH --cpus-per-task=4
+#SBATCH --time=20:00:00
+#SBATCH --mem=16G
 
-echo "Starting evaluation for experiment 4131"
+
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
+
+echo "Starting evaluation for experiment 4231"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -19,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 4 -e 4131 -d "/home/epigou/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 4231 -d "/home/sgomezro/scratch/metrics/Exp" -eval True
     
