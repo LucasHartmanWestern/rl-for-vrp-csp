@@ -254,11 +254,12 @@ class Experiment:
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
-            adjusted_experiment_number = str(4000 + (int(self.experiment_number) - 4900) % 3)
+            adjusted_experiment_number = str((int(self.experiment_number) - 108))
+            print(f'Loading from {adjusted_experiment_number}')
             dataset_path = (
                 min(
                     glob.glob(os.path.expanduser(
-                        f"/home/epigou/scratch/metrics/Exp_4000/data_zone_{self.zone_index}.h5")
+                        f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
                     ),
                     key=os.path.getctime,
                     default=None
