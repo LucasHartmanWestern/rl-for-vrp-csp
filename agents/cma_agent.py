@@ -110,6 +110,14 @@ class CMAAgent:
         solutions = weights
         return solutions
 
+    def cma_restart(self):
+        """ Restart the cma evolution strategies model because of reaching the matrix max limit
+        """
+        last_weights = self.es.best.x
+        self.es = None
+        es = cma.CMAEvolutionStrategy(last_weights, self.initial_sigma, self.cma_config)
+        self.es = es
+    
     def get_solutions(self):
         """
         Requests a set of candidate solutions (weights) from the CMA-ES algorithm.

@@ -26,11 +26,13 @@ from misc import utils
 from misc.replay_buffer import ReplayBuffer
 from misc.lamb import Lamb
 from pathlib import Path
-from misc.data import create_dataloader
+from misc.data import create_dataloader, TransformSamplingSubTraj
 from decision_transformer.models.decision_transformer import DecisionTransformer
 from misc.evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
 from misc.trainer import SequenceTrainer
 from misc.logger import Logger
+from misc.online_data import PersistentOnlineDataset, create_online_dataloader
+
 
 
 MAX_EPISODE_LEN = 1000
@@ -56,6 +58,10 @@ class Experiment:
         self.agg_num = agg_num
         self.logger = Logger(variant, agg_num, zone_index)
         self.action_range = self._get_env_spec(variant)
+        self.action_batch = None
+        self.dataloader = None
+        self.online_dataset = getattr(self, "online_dataset", None)
+
         
         save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
         os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
@@ -64,12 +70,13 @@ class Experiment:
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
             # Initialize by offline trajectories
             self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
-        
             # Save state_mean and state_std
             with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
                 pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
         else:
-            self.replay_buffer = buffers
+            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
+            # Initialize by offline trajectories
+            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
             buffers = None
             # Load state_mean and state_std
             with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
@@ -145,8 +152,27 @@ class Experiment:
             end_time = time.time()
             elapsed = end_time - start_time
             print(f'Loading aggregated models took {elapsed}')
-            
 
+        if self.online_dataset is None:
+            transform = TransformSamplingSubTraj(
+                max_len=self.variant["K"],
+                state_dim=self.state_dim,
+                act_dim=self.act_dim,
+                state_mean=self.state_mean,
+                state_std=self.state_std,
+                reward_scale=1,
+                action_range=self.action_range,
+            )
+
+
+        self.online_dataset = PersistentOnlineDataset(
+            initial_trajectories=self.replay_buffer.trajectories,
+            sample_size=self.variant["batch_size"] * self.variant["num_updates_per_online_iter"],
+            transform=transform
+        )
+        self.online_dataloader = create_online_dataloader(
+            self.online_dataset, batch_size=self.variant["batch_size"]
+        )
 
         # track the training progress and
         # training/evaluation/online performance in all the iterations
@@ -208,92 +234,6 @@ class Experiment:
             print(f"Model loaded at {path_prefix}/model.pt")
 
 
-    # def _load_dataset(self, env_name):
-    #     print(f'Loading Dataset for Zone {self.zone_index}...')
-    #     adjusted_experiment_number = str(int(self.experiment_number) - 108)
-    #     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-
-    #     dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/data_zone_{self.zone_index}.pkl')
-    #     #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.pkl')
-    #     # dataset_path = (
-    #     #     min(
-    #     #             glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
-    #     #             key=os.path.getctime,
-    #     #             default=None
-    #     #         )
-    #     #         or FileNotFoundError("No .pkl files starting with 'data' found")
-    #     #     )
-    #     if not os.path.exists(dataset_path):
-    #         adjusted_experiment_number = str(int(self.experiment_number) - 108)
-    #         dataset_path = (
-    #             min(
-    #                 glob.glob(os.path.expanduser(f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.pkl")),
-    #                 key=os.path.getctime,
-    #                 default=None
-    #             )
-    #             or FileNotFoundError("No .pkl files starting with 'data' found")
-    #         )
-
-
-    #    # Load all objects from the PKL file (handles multiple appended pickle objects)
-    #     trajectories = []
-    #     try:
-    #         with open(dataset_path, 'rb') as f:
-    #             while True:
-    #                 try:
-    #                     data = pickle.load(f)
-    #                     if isinstance(data, list):
-    #                         trajectories.extend(data)
-    #                     elif isinstance(data, dict):
-    #                         trajectories.append(data)
-    #                     else:
-    #                         print(f"Unexpected data structure found: {type(data)}")
-    #                 except EOFError:
-    #                     break  # End of file reached
-    #     except Exception as e:
-    #         raise RuntimeError(f"Failed to load dataset from {dataset_path}: {e}")
-    
-    #     # Convert lists back to NumPy arrays and normalize data
-    #     states, traj_lens, returns = [], [], []
-    #     for traj in trajectories:
-    #         traj["observations"] = np.array(traj["observations"], dtype=np.float32)
-    #         traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
-    #         traj["actions"] = np.array(traj["actions"], dtype=np.float32)
-    
-    #         states.append(traj["observations"])
-    #         traj_lens.append(len(traj["observations"]))
-    #         returns.append(sum(traj['rewards']))
-    
-    #     traj_lens, returns = np.array(traj_lens), np.array(returns)
-    #     states = np.concatenate(states, axis=0)
-    #     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
-    #     num_timesteps = sum(traj_lens)
-    
-    #     # Print dataset statistics
-    #     print("=" * 50)
-    #     print(f"Dataset for Zone {self.zone_index} loaded successfully")
-    #     print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
-    #     print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
-    #     print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
-    #     print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
-    #     print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
-    #     print("=" * 50)
-    
-    #     # Sort and filter trajectories by return
-    #     sorted_inds = np.argsort(returns)  # Lowest to highest
-    #     num_trajectories = 1
-    #     timesteps = traj_lens[sorted_inds[-1]]
-    #     ind = len(trajectories) - 2
-    #     while ind >= 0 and timesteps + traj_lens[sorted_inds[ind]] < num_timesteps:
-    #         timesteps += traj_lens[sorted_inds[ind]]
-    #         num_trajectories += 1
-    #         ind -= 1
-    #     sorted_inds = sorted_inds[-num_trajectories:]
-    #     trajectories = [trajectories[ii] for ii in sorted_inds]
-    
-    #     return trajectories, state_mean, state_std
-
-
     def _load_dataset(self, env_name):
         """
         Loads dataset from HDF5 (.h5) files instead of .pkl.
@@ -309,17 +249,17 @@ class Experiment:
         print(f'Loading Dataset for Zone {self.zone_index}...')
     
         # Locate the dataset file
-        adjusted_experiment_number = str(int(self.experiment_number) - 108)
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-cspp/data_zone_{self.zone_index}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/._3000/data_zone_{self.zone_index}.h5')
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
     
         if not os.path.exists(dataset_path):
-            adjusted_experiment_number = str(int(self.experiment_number) - 108)
+            adjusted_experiment_number = str((int(self.experiment_number) - 108))
+            print(f'Loading from {adjusted_experiment_number}')
             dataset_path = (
                 min(
                     glob.glob(os.path.expanduser(
-                        f"/home/epigou/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
+                        f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
                     ),
                     key=os.path.getctime,
                     default=None
@@ -342,7 +282,12 @@ class Experiment:
                     
                     # Extract trajectory data
                     for key in traj_group:
-                        traj_data[key] = np.array(traj_group[key])
+                        dataset = traj_group[key]
+                        if dataset.shape == ():  # scalar dataset
+                            traj_data[key] = dataset[()]
+                        else:
+                            traj_data[key] = dataset[:]
+
                     
                     # Extract metadata from attributes
                     for attr_key in traj_group.attrs:
@@ -429,7 +374,9 @@ class Experiment:
                 device=self.device,
             )    
         # Add trajectories to replay buffer
-        self.replay_buffer.add_new_trajs(trajs)
+        self.online_dataset.update_with_new_trajectories(trajs)
+
+        
         self.aug_trajs += trajs
         self.total_transitions_sampled += np.sum(lengths)
     
@@ -580,6 +527,8 @@ class Experiment:
     
         buffer_to_return = None  # Initialize as None
         full_metrics = []
+
+        
         while self.online_iter < self.variant["max_online_iters"]:
             outputs = {}   
             augment_outputs, metrics = self._augment_trajectories(
@@ -591,26 +540,13 @@ class Experiment:
             )
             full_metrics.extend(metrics)
             outputs.update(augment_outputs)
+            
             # Call evaluate() only every 5 iterations
             if self.online_iter % 5 == 0:
                 directory = f"{self.metrics_base_path}/train/metrics"
                 os.makedirs(directory, exist_ok=True)
                 evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.variant["max_online_iters"], directory, True, True)
                 full_metrics = []
-                
-    
-            dataloader = create_dataloader(
-                trajectories=self.replay_buffer.trajectories,
-                num_iters=self.variant["num_updates_per_online_iter"],
-                batch_size=self.variant["batch_size"],
-                max_len=self.variant["K"],
-                state_dim=self.state_dim,
-                act_dim=self.act_dim,
-                state_mean=self.state_mean,
-                state_std=self.state_std,
-                reward_scale=self.reward_scale,
-                action_range=self.action_range,
-            )
     
             is_last_iter = self.online_iter == self.variant["max_online_iters"] - 1
             if (self.online_iter + 1) % self.variant["eval_interval"] == 0 or is_last_iter:
@@ -620,7 +556,7 @@ class Experiment:
     
             train_outputs = trainer.train_iteration(
                 loss_fn=loss_fn,
-                dataloader=dataloader,
+                dataloader=self.online_dataloader,
             )
             outputs.update(train_outputs)
     
@@ -638,8 +574,10 @@ class Experiment:
     
             if is_last_iter:
                 self.save_attn_layers(self.model, self.device)
+
+                #TODO Remove
                 if self.persist_buffers:
-                    buffer_to_return = self.replay_buffer  # Assign buffer only at the last iteration
+                    buffer_to_return = None  # Assign buffer only at the last iteration
                 else:
                     buffer_to_return = None
                 

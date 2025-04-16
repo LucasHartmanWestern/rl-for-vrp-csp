@@ -1,18 +1,18 @@
 algorithm_settings:
   agent_by_zone: false
-  algorithm: ODT
+  algorithm: NEAT
 cma_parameters:
+  crossover_rate: 0.5
   initial_sigma: 0.1
   max_generations: 200
-  model_type: optimizer
+  model_type: NN_basic
+  mutation_rate: 0.2
   population_dimension: 20
 environment_settings:
   action_dim: 3
   coords:
   - - 43.02120034946083
     - -81.28349087468504
-  - - 43.004969336049854
-    - -81.18631870502043
   - - 42.95923445066671
     - -81.26016049362336
   - - 42.98111190139387
@@ -33,8 +33,8 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 1
   radius: 20
-  season: winter
-  seed: 2020
+  season: spring
+  seed: 1234
   starting_charge: 6000
   step_size: 0.01
   usage_per_hour:
@@ -44,8 +44,8 @@ environment_settings:
 eval_config:
   continue_training: false
   display_training_times: false
-  evaluate_on_diff_seed: True
-  evaluate_on_diff_zone: True
+  evaluate_on_diff_seed: false
+  evaluate_on_diff_zone: false
   fixed_attributes: []
   generate_plots: false
   save_aggregate_rewards: false
@@ -54,12 +54,12 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 2
+  aggregation_count: 50
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  average_rewards_when_training: true
+  average_rewards_when_training: false
   batch_size: 75
   buffer_limit: 150
   city_multiplier: 0.15
@@ -75,7 +75,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 1000
+  num_episodes: 200
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -87,13 +87,13 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 4216
-  experiment_number: 4004
+  exp_name: 4143
+  experiment_number: 4023
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
   max_online_iters: 200
-  max_pretrain_iters: 0
+  max_pretrain_iters: 1
   n_head: 4
   n_layer: 4
   num_eval_episodes: 1
@@ -107,4 +107,3 @@ odt_hyperparameters:
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-  evaluation: True

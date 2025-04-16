@@ -1,0 +1,11 @@
+
+### Experiment 6222: ###
+--------------------------------
+Seed: 3702
+Model: NEAT
+Season: spring
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 10000
+Number of aggregations: 1
+Average rewards when training: False

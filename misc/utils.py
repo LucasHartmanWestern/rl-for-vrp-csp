@@ -109,21 +109,14 @@ def save_to_h5(data, path, zone_index):
     os.replace(temp_path, path)
     print(f"Data for Zone {zone_index} saved successfully to {path}")
 
-def save_checkpoint(data, checkpoint_path, checkpoint_num, zone_index):
-    """Saves incremental checkpoints every eps_per_save episodes."""
-    with h5py.File(f"{checkpoint_path}_checkpoint_{checkpoint_num}.h5", 'w') as f:
+def save_temp_checkpoint(data, path, zone_index):
+    """Write data to a temporary .h5 checkpoint file and return the filename."""
+    temp_path = path + ".tmp.h5"
+    with h5py.File(temp_path, 'w') as f:
         zone_grp = f.create_group(f"zone_{zone_index}")
         for i, entry in enumerate(data):
             traj_grp = zone_grp.create_group(f"traj_{i}")
             for key, value in entry.items():
                 traj_grp.create_dataset(key, data=np.array(value) if isinstance(value, (list, np.ndarray)) else value)
-    print(f"Checkpoint {checkpoint_num} saved successfully.")
+    return temp_path
 
-def verify_data_integrity(file_path):
-    """Verifies `.h5` file integrity by attempting to read key data."""
-    try:
-        with h5py.File(file_path, "r") as f:
-            sample_data = f[f"zone_0"]["traj_0"]["observations"][:5]
-            print(f"Verification successful: Sample data loaded")
-    except Exception as e:
-        print(f"Verification failed for {file_path}: {e}")

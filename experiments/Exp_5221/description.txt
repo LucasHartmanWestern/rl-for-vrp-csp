@@ -1,0 +1,11 @@
+
+### Experiment 5221: ###
+--------------------------------
+Seed: 4040
+Model: NEAT
+Season: spring
+Number of cars: 100
+Number of chargers: 1
+Number of episodes: 1000
+Number of aggregations: 10
+Average rewards when training: False

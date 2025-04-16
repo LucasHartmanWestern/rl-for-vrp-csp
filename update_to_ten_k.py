@@ -2,8 +2,8 @@ import os
 import shutil
 import yaml
 
-starting_exp_index = 4000
-ending_exp_index = 4071
+starting_exp_index = 5072
+ending_exp_index = 5107
 
 chunk_gap = 1000
 
@@ -22,12 +22,15 @@ for i in range(starting_exp_index, ending_exp_index + 1):
     for offset in range(0, 3):
 
         # Update the num of episodes or aggregation count to have 10k total episodes
-        if initial_num_aggs == 6:
+        if (initial_num_aggs == 6) | (initial_num_aggs == 10):
             config["federated_learning_settings"]["aggregation_count"] = 10
-        elif initial_num_aggs == 30:
+            config["cma_parameters"]["max_generations"] = 1000
+        elif (initial_num_aggs == 30) | (initial_num_aggs == 50):
             config["federated_learning_settings"]["aggregation_count"] = 50
+            config["cma_parameters"]["max_generations"] = 200
         elif initial_num_aggs == 1:
             config["nn_hyperparameters"]["num_episodes"] = 10000
+            config["cma_parameters"]["max_generations"] = 10000
 
         config["environment_settings"]["seed"] = seed * (offset + 1)
 

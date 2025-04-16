@@ -1,5 +1,5 @@
 algorithm_settings:
-  agent_by_zone: true
+  agent_by_zone: false
   algorithm: ODT
 cma_parameters:
   initial_sigma: 0.1
@@ -30,7 +30,7 @@ environment_settings:
   - Tesla Model Y
   - BYD Song
   - Tesla Model 3
-  num_of_cars: 15
+  num_of_cars: 5
   num_of_chargers: 1
   radius: 20
   season: winter
@@ -81,7 +81,7 @@ nn_hyperparameters:
 odt_hyperparameters:
   K: 20
   activation_function: relu
-  batch_size: 128
+  batch_size: 16
   dropout: 0.1
   embed_dim: 512
   eval_context_length: 5

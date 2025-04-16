@@ -5,9 +5,12 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=14:00:00
-#SBATCH --mem=35G
-#SBATCH --gpus-per-node=4
+#SBATCH --time=11:20:00
+#SBATCH --mem=6G
+
+
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
 
 echo "Starting training for experiment 4222"
 
@@ -19,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py -g 0 1 2 3 -e 4222 -d "/home/epigou/scratch/metrics/Exp" 
+python app_v2.py  -e 4222 -d "/home/hartman/scratch/metrics/Exp" 
     
