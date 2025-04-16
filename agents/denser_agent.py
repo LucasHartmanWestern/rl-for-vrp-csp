@@ -58,13 +58,9 @@ def decode_genotype(genotype_str, input_dim, output_dim):
                 i += 1
         else:
             i += 1
-    # Append final output layer (linear, no activation)
+    # Append final output layer
     layers.append(torch.nn.Linear(prev_units, output_dim))
     return torch.nn.Sequential(*layers)
-
-##############################################
-# Define the DenserAgent class with DENSER modifications.
-##############################################
 
 class DenserAgent:
     """
@@ -72,7 +68,7 @@ class DenserAgent:
     a grammar-based representation (genotype) that is decoded into a PyTorch model.
     
     The agent supports two model types:
-      - 'optimizer': which in this simplified example uses continuous vectors (not the main focus)
+      - 'optimizer': which in this simplified example uses continuous vectors
       - 'NN_basic': a neural network with a structured (grammar-based) representation
     """
 
@@ -97,7 +93,7 @@ class DenserAgent:
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-        self.population = []       # List of individuals (each is a dict with 'genotype', 'structure', and 'fitness')
+        self.population = [] # List of individuals (each is a dict with 'genotype', 'structure', and 'fitness')
         self.fitness_history = deque(maxlen=10)
 
         # Initialize population based on model type.
@@ -137,7 +133,7 @@ class DenserAgent:
 
     def initialize_optimizer_population(self, action_dimension, seed):
         """
-        Initialize population for an "optimizer" model. (For demonstration, uses continuous vectors.)
+        Initialize population for an "optimizer" model.
         """
         rng = np.random.default_rng(seed)
         for _ in range(self.population_size):
