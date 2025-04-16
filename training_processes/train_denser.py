@@ -72,7 +72,7 @@ def train_denser(ev_info,
                 initial_weights = global_weights[zone_index]
             else:
                 initial_weights = global_weights[zone_index][model_indices[agent_idx]]
-        agent = DenserAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number)
+        agent = DenserAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number, device)
         denser_agents_list.append(agent)
 
     # Storage for average outputs (if needed)

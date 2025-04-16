@@ -64,7 +64,7 @@ class DenserAgent:
       - 'NN_basic': a neural network with a structured (grammar-based) representation
     """
 
-    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number):
+    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number, device):
         """
         Initializes the DenserAgent by loading configuration, setting parameters, and
         initializing the population.
@@ -78,6 +78,7 @@ class DenserAgent:
         self.max_generation = denser_c['max_generations']
         self.mutation_rate = denser_c.get('mutation_rate', 0.2)
         self.crossover_rate = denser_c.get('crossover_rate', 0.5)
+        self.device = device
         model_type = denser_c['model_type']
 
         # Set random seeds for reproducibility.
@@ -156,6 +157,8 @@ class DenserAgent:
         for _ in range(self.population_size):
             genotype = self.generate_random_genotype(GRAMMAR, "Network")
             structure = decode_genotype(genotype, state_dimension, action_dimension)
+            # Move the structure to the specified device
+            structure = structure.to(self.device)
             individual = {
                 'genotype': genotype,
                 'structure': structure,
@@ -187,6 +190,8 @@ class DenserAgent:
                         tokens[idx] = replacement
                 mutated_genotype = " ".join(tokens)
                 new_structure = decode_genotype(mutated_genotype, self.in_size, self.out_size)
+                # Move the structure to the specified device
+                new_structure = new_structure.to(self.device)
                 individual = {
                     'genotype': mutated_genotype,
                     'structure': new_structure,
@@ -275,6 +280,8 @@ class DenserAgent:
         child_tokens = tokens1[:cp1] + tokens2[cp2:]
         child_genotype = " ".join(child_tokens)
         child_structure = decode_genotype(child_genotype, self.in_size, self.out_size)
+        # Move the structure to the specified device
+        child_structure = child_structure.to(self.device)
         return {
             'genotype': child_genotype,
             'structure': child_structure,
@@ -296,6 +303,8 @@ class DenserAgent:
             tokens[idx] = replacement
         new_genotype = " ".join(tokens)
         new_structure = decode_genotype(new_genotype, self.in_size, self.out_size)
+        # Move the structure to the specified device
+        new_structure = new_structure.to(self.device)
         individual['genotype'] = new_genotype
         individual['structure'] = new_structure
         return individual
@@ -313,12 +322,12 @@ class DenserAgent:
         with open(fname, 'wb') as f:
             pickle.dump(state, f)
 
-    def evaluate_individual(self, individual, train_loader, val_loader, device):
+    def evaluate_individual(self, individual, train_loader, val_loader):
         """
         Evaluates an individual's phenotype (the decoded network) by training it for a few epochs
         and computing the fitness (here, negative total validation loss).
         """
-        model = individual['structure'].to(device)
+        model = individual['structure'].to(self.device)
         criterion = torch.nn.MSELoss()  # Choose an appropriate loss based on your task.
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
         epochs = 3  # For a proxy evaluation—full training would take longer.
@@ -328,7 +337,7 @@ class DenserAgent:
         for epoch in range(epochs):
             for batch in train_loader:
                 inputs, targets = batch
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
@@ -341,7 +350,7 @@ class DenserAgent:
         with torch.no_grad():
             for batch in val_loader:
                 inputs, targets = batch
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
                 total_loss += loss.item()
@@ -357,7 +366,8 @@ class DenserAgent:
         """
         if self.model_type == 'NN_basic':
             individual = self.population[individual_index]
-            return individual['structure'](torch.tensor(state, dtype=torch.float32))
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+            return individual['structure'](state_tensor)
         else:
             # For 'optimizer' branch, simply return weights (dummy implementation)
             individual = self.population[individual_index]
@@ -373,8 +383,9 @@ if __name__ == "__main__":
     agent_index = 0
     global_weights = None
     experiment_number = 1
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    agent = DenserAgent(state_dim, action_dim, num_cars, seed, agent_index, global_weights, experiment_number)
+    agent = DenserAgent(state_dim, action_dim, num_cars, seed, agent_index, global_weights, experiment_number, device)
     
     # Example: Retrieve the solutions (genotypes) of the current population.
     solutions = agent.get_solutions()
@@ -386,6 +397,7 @@ if __name__ == "__main__":
     # call agent.tell() with the fitness rewards (list of rewards per individual).
     # For demonstration, we can simulate rewards:
     # fake_rewards = [random.uniform(-10, 0) for _ in range(agent.population_size)]
+    rng = np.random.default_rng(seed)
     fake_rewards = rng.uniform(-10, 0, size=agent.population_size).tolist()
     agent.tell(fake_rewards)
     
