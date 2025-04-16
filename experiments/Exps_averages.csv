@@ -1,0 +1,2 @@
+model,season,avg_reward,std_reward
+DQN,winter,-86.69204889749251,1.7459582426257598
