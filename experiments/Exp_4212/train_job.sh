@@ -9,6 +9,9 @@
 #SBATCH --mem=6G
 
 
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=lhartma8@uwo.ca
+
 echo "Starting training for experiment 4212"
 
 set -e  # Exit immediately if a command exits with a non-zero status
