@@ -39,7 +39,7 @@ def train_denser(ev_info,
     """
     start_time = time.time()  # Start timing the training process
     avg_rewards = []          # List to store average rewards per generation
-
+    seed = int(seed)
     # Set seeds for reproducibility
     if seed is not None:
         torch.manual_seed(seed)

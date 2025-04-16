@@ -13,14 +13,7 @@ GRAMMAR = {
     "activation": [["relu"], ["tanh"], ["sigmoid"]]
 }
 
-def generate_random_genotype(grammar, symbol="Network"):
-    """
-    Recursively generate a random genotype (string) from a given grammar.
-    """
-    if symbol not in grammar:
-        return symbol  # terminal symbol
-    rule = random.choice(grammar[symbol])
-    return " ".join(generate_random_genotype(grammar, sym) for sym in rule)
+
 
 def decode_genotype(genotype_str, input_dim, output_dim):
     """
@@ -89,9 +82,10 @@ class DenserAgent:
         model_type = denser_c['model_type']
 
         # Set random seeds for reproducibility.
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
+        # random.seed(seed+agent_index)
+        # np.random.seed(seed)
+        # torch.manual_seed(seed)
+        self.rng = np.random.default_rng(seed+agent_index)
 
         self.population = [] # List of individuals (each is a dict with 'genotype', 'structure', and 'fitness')
         self.fitness_history = deque(maxlen=10)
@@ -131,18 +125,27 @@ class DenserAgent:
         self.weights_result = []
         self.solutions = None
 
+    def generate_random_genotype(self, grammar, symbol="Network"):
+        """
+        Recursively generate a random genotype (string) from a given grammar.
+        """
+        if symbol not in grammar:
+            return symbol  # terminal symbol
+        choices = np.array(grammar[symbol], dtype=object)
+        rule = self.rng.choice(choices)
+        return " ".join(self.generate_random_genotype(grammar, sym) for sym in rule)
+    
     def initialize_optimizer_population(self, action_dimension, seed):
         """
         Initialize population for an "optimizer" model.
         """
-        rng = np.random.default_rng(seed)
         for _ in range(self.population_size):
             # Use a random genotype (even if structure is not used in this branch).
-            genotype = generate_random_genotype(GRAMMAR, "Network")
+            genotype = self.generate_random_genotype(GRAMMAR, "Network")
             individual = {
                 'genotype': genotype,
                 'structure': None,  # Not used in optimizer branch.
-                'weights': rng.random(action_dimension),
+                'weights': self.rng.random(action_dimension),
                 'fitness': float('-inf')
             }
             self.population.append(individual)
@@ -152,9 +155,8 @@ class DenserAgent:
         Initialize population for a neural network model.
         Each individual is represented by a genotype (string) and its decoded PyTorch model.
         """
-        rng = np.random.default_rng(seed)
         for _ in range(self.population_size):
-            genotype = generate_random_genotype(GRAMMAR, "Network")
+            genotype = self.generate_random_genotype(GRAMMAR, "Network")
             structure = decode_genotype(genotype, state_dimension, action_dimension)
             individual = {
                 'genotype': genotype,
@@ -178,6 +180,7 @@ class DenserAgent:
             for _ in range(self.population_size):
                 # Clone best genotype and apply a small mutation.
                 tokens = self.best_individual['genotype'].split()
+                print(f'agent denser line 182 tokens {tokens}')
                 if tokens:
                     idx = random.randint(0, len(tokens)-1)
                     if tokens[idx] in GRAMMAR:
