@@ -9,8 +9,8 @@ from data_loader import load_config_file
 GRAMMAR = {
     "Network": [["Layer", "Network"], ["Layer"]],
     "Layer": [["dense", "(", "units", ")", "activation"]],
-    "units": [["16"], ["32"], ["64"], ["128"]],
-    "activation": [["relu"], ["tanh"], ["sigmoid"]]
+    "units": [["4"], ["8"], ["16"], ["32"], ["64"], ["128"], ["256"]],
+    "activation": [["relu"], ["tanh"], ["sigmoid"], ["linear"]]
 }
 
 
@@ -29,16 +29,13 @@ def decode_genotype(genotype_str, input_dim, output_dim):
     # Look for occurrences of the pattern: dense ( units ) activation
     while i < len(tokens):
         if tokens[i] == "dense":
-            # Ensure the pattern "dense ( units ) activation" exists.
             if i + 4 < len(tokens) and tokens[i + 1] == "(" and tokens[i + 3] == ")":
                 try:
                     units = int(tokens[i + 2])
                 except ValueError:
                     units = 32  # default if conversion fails
                 act = tokens[i + 4] if i + 4 < len(tokens) else "relu"
-                # Create linear layer with previous number of units -> current units
                 layers.append(torch.nn.Linear(prev_units, units))
-                # Append activation function
                 if act == "relu":
                     layers.append(torch.nn.ReLU())
                 elif act == "tanh":
@@ -51,9 +48,12 @@ def decode_genotype(genotype_str, input_dim, output_dim):
                 i += 1
         else:
             i += 1
-    # Append final output layer
+            
     layers.append(torch.nn.Linear(prev_units, output_dim))
+    # Add final Sigmoid activation to guarantee outputs are in [0, 1]
+    layers.append(torch.nn.Sigmoid())
     return torch.nn.Sequential(*layers)
+
 
 class DenserAgent:
     """
@@ -184,7 +184,7 @@ class DenserAgent:
                 if tokens:
                     idx = random.randint(0, len(tokens)-1)
                     if tokens[idx] in GRAMMAR:
-                        replacement = random.choice(random.choice(GRAMMAR[tokens[idx]]))
+                        replacement = random.choice(GRAMMAR[tokens[idx]])
                         tokens[idx] = replacement
                 mutated_genotype = " ".join(tokens)
                 new_structure = decode_genotype(mutated_genotype, self.in_size, self.out_size)
@@ -220,20 +220,18 @@ class DenserAgent:
         return None
 
     def tell(self, rewards):
-        """
-        Updates the fitness values of the population based on provided rewards,
-        and then evolves the population.
-        """
         for i, reward in enumerate(rewards):
             self.population[i]['fitness'] = reward
-            if reward > self.best_individual['fitness']:
+            # For minimization, update if the candidate's fitness is lower than the current best.
+            if reward < self.best_individual['fitness']:
                 self.best_individual = {
                     'genotype': self.population[i]['genotype'],
                     'structure': self.population[i]['structure'],
                     'fitness': reward
                 }
-        self.fitness_history.append(max(rewards))
+        self.fitness_history.append(min(rewards))  # Optionally use min() for minimization.
         self.evolve_population()
+
 
     def evolve_population(self):
         """
@@ -281,7 +279,7 @@ class DenserAgent:
         return {
             'genotype': child_genotype,
             'structure': child_structure,
-            'fitness': float('-inf')
+            'fitness': float('inf')
         }
 
     def mutate(self, individual):

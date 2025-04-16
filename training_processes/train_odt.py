@@ -259,14 +259,17 @@ class Experiment:
             print(f'Loading from {adjusted_experiment_number}')
             dataset_path = (
                 min(
-                    glob.glob(os.path.expanduser(
-                        f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
+                    glob.glob(
+                        os.path.expanduser(
+                            f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
+                        )
                     ),
                     key=os.path.getctime,
                     default=None
                 )
                 or FileNotFoundError("No .h5 files starting with 'data' found")
             )
+
     
         # Load trajectories from HDF5 file
         trajectories = []
