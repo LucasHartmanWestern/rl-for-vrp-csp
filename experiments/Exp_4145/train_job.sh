@@ -2,14 +2,17 @@
 #SBATCH --job-name=Exp_4145_train
 #SBATCH --output=experiments/Exp_4145/output.log
 #SBATCH --error=experiments/Exp_4145/error.log
-#SBATCH -A def-mcapretz
+#SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=14:00:00
-#SBATCH --mem=35G
+#SBATCH --cpus-per-task=4
+#SBATCH --time=24:00:00
+#SBATCH --mem=15G
 #SBATCH --gpus-per-node=4
 
-echo "Starting training for experiment 4145"
+#SBATCH --mail-type=FAIL,TIME_LIMIT
+#SBATCH --mail-user=epigou@uwo.ca
+
+echo "Starting training for experiment 4145, 4146, 4147"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -17,7 +20,24 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=4
 
-python app_v2.py -g 0 1 2 3 -e 4145 -d "/home/epigou/scratch/metrics/Exp" 
-    
+# Activate Nvidia MPS:
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+nvidia-cuda-mps-control -d
+
+# Run 3 experiments in parallel on the same GPU
+START_EXP=4145
+NUM_EXPS=3
+
+for ((i=0; i<NUM_EXPS; i++))
+do
+    EXP_NUM=$((START_EXP + i))
+    echo "Launching experiment $EXP_NUM"
+    python app_v2.py -g 0 -e "$EXP_NUM" -d "/home/epigou/scratch/metrics/Exp_$EXP_NUM" &
+done
+
+wait  # Wait for all background processes to finish
+
+python app_v2.py -g 0 1 2 3 -e 4145 -d "/home/epigou/scratch/metrics/Exp"
