@@ -77,7 +77,7 @@ def train_denser(ev_info,
 
     # Storage for average outputs (if needed)
     avg_output_values = np.zeros((denser_agents_list[0].max_generation, action_dim))
-    best_avg = float('inf')
+    best_avg = float('-inf')
     best_paths = None
     metrics = []
     trained = False

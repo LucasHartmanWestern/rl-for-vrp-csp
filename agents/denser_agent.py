@@ -2,7 +2,6 @@
 import numpy as np
 import torch
 import pickle
-import random
 from collections import deque
 from data_loader import load_config_file
 
@@ -82,7 +81,6 @@ class DenserAgent:
         model_type = denser_c['model_type']
 
         # Set random seeds for reproducibility.
-        # random.seed(seed+agent_index)
         # np.random.seed(seed)
         # torch.manual_seed(seed)
         self.rng = np.random.default_rng(seed+agent_index)
@@ -182,9 +180,10 @@ class DenserAgent:
                 tokens = self.best_individual['genotype'].split()
                 print(f'agent denser line 182 tokens {tokens}')
                 if tokens:
-                    idx = random.randint(0, len(tokens)-1)
+                    idx = self.rng.integers(0, len(tokens))
                     if tokens[idx] in GRAMMAR:
-                        replacement = random.choice(GRAMMAR[tokens[idx]])
+                        choices = np.array(GRAMMAR[tokens[idx]], dtype=object)
+                        replacement = self.rng.choice(self.rng.choice(choices))
                         tokens[idx] = replacement
                 mutated_genotype = " ".join(tokens)
                 new_structure = decode_genotype(mutated_genotype, self.in_size, self.out_size)
@@ -223,13 +222,13 @@ class DenserAgent:
         for i, reward in enumerate(rewards):
             self.population[i]['fitness'] = reward
             # For minimization, update if the candidate's fitness is lower than the current best.
-            if reward < self.best_individual['fitness']:
+            if reward > self.best_individual['fitness']:
                 self.best_individual = {
                     'genotype': self.population[i]['genotype'],
                     'structure': self.population[i]['structure'],
                     'fitness': reward
                 }
-        self.fitness_history.append(min(rewards))  # Optionally use min() for minimization.
+        self.fitness_history.append(max(rewards))  # Optionally use min() for minimization.
         self.evolve_population()
 
 
@@ -245,7 +244,7 @@ class DenserAgent:
         while len(new_population) < self.population_size:
             parent1 = self.tournament_selection(sorted_population)
             parent2 = self.tournament_selection(sorted_population)
-            if random.random() < self.crossover_rate:
+            if self.rng.random() < self.crossover_rate:
                 child = self.crossover(parent1, parent2)
             else:
                 # Clone parent1 if no crossover
@@ -259,7 +258,7 @@ class DenserAgent:
         """
         Selects an individual from the population using tournament selection.
         """
-        tournament = random.sample(population, min(tournament_size, len(population)))
+        tournament = self.rng.choice(population, min(tournament_size, len(population)), replace=False)
         return max(tournament, key=lambda x: x['fitness']).copy()
 
     def crossover(self, parent1, parent2):
@@ -271,15 +270,15 @@ class DenserAgent:
         tokens2 = parent2['genotype'].split()
         if len(tokens1) < 2 or len(tokens2) < 2:
             return parent1.copy()
-        cp1 = random.randint(1, len(tokens1) - 1)
-        cp2 = random.randint(1, len(tokens2) - 1)
+        cp1 = self.rng.integers(1, len(tokens1))
+        cp2 = self.rng.integers(1, len(tokens2))
         child_tokens = tokens1[:cp1] + tokens2[cp2:]
         child_genotype = " ".join(child_tokens)
         child_structure = decode_genotype(child_genotype, self.in_size, self.out_size)
         return {
             'genotype': child_genotype,
             'structure': child_structure,
-            'fitness': float('inf')
+            'fitness': float('-inf')
         }
 
     def mutate(self, individual):
@@ -289,9 +288,11 @@ class DenserAgent:
         """
         tokens = individual['genotype'].split()
         indices = [i for i, tok in enumerate(tokens) if tok in GRAMMAR]
+        # print(f'indices {indices}')
         if indices:
-            idx = random.choice(indices)
-            replacement = random.choice(random.choice(GRAMMAR[tokens[idx]]))
+            idx = self.rng.choice(indices)
+            choices = np.array(GRAMMAR[tokens[idx]], dtype=object)
+            replacement = self.rng.choice(self.rng.choice(choices))
             tokens[idx] = replacement
         new_genotype = " ".join(tokens)
         new_structure = decode_genotype(new_genotype, self.in_size, self.out_size)
@@ -384,7 +385,8 @@ if __name__ == "__main__":
     # To evolve, evaluate your individuals with your training and validation loaders,
     # call agent.tell() with the fitness rewards (list of rewards per individual).
     # For demonstration, we can simulate rewards:
-    fake_rewards = [random.uniform(-10, 0) for _ in range(agent.population_size)]
+    # fake_rewards = [random.uniform(-10, 0) for _ in range(agent.population_size)]
+    fake_rewards = rng.uniform(-10, 0, size=agent.population_size).tolist()
     agent.tell(fake_rewards)
     
     # Retrieve best solution genotype and its weights (state_dict if NN model).
