@@ -39,7 +39,7 @@ def train_denser(ev_info,
     """
     start_time = time.time()  # Start timing the training process
     avg_rewards = []          # List to store average rewards per generation
-
+    seed = int(seed)
     # Set seeds for reproducibility
     if seed is not None:
         torch.manual_seed(seed)
@@ -72,7 +72,7 @@ def train_denser(ev_info,
                 initial_weights = global_weights[zone_index]
             else:
                 initial_weights = global_weights[zone_index][model_indices[agent_idx]]
-        agent = DenserAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number)
+        agent = DenserAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number, device)
         denser_agents_list.append(agent)
 
     # Storage for average outputs (if needed)
@@ -89,6 +89,8 @@ def train_denser(ev_info,
 
     environment.cma_store()
 
+    fitnesses = np.empty((population_size, num_agents))
+
     # Evolution loop over generations
     for generation in range(denser_info.max_generation):
         # Optionally restart evolution if a threshold is reached
@@ -98,16 +100,15 @@ def train_denser(ev_info,
             for agent in denser_agents_list:
                 agent.denser_restart()
 
-        # (For logging) No matrix_solutions used now; we use each individual's structure directly.
         sim_done = False
         time_start_paths = time.time()
         timestep_counter = 0
 
         # --- Evaluate each candidate in the current population ---
-        # For each candidate (pop_idx) in each agent, simulate the environment using its network structure.
-        fitnesses = np.zeros((population_size, num_agents))
         while not sim_done:
             environment.init_routing()
+            reward_timestep = 0
+            
             # For each candidate solution in population:
             for pop_idx in range(population_size):
                 environment.cma_copy_store()  # Restore environment state
@@ -119,15 +120,15 @@ def train_denser(ev_info,
                     # Get the candidate individual's structure
                     candidate = agent.population[pop_idx]
                     state_tensor = torch.tensor(state, dtype=torch.float32).to(device)
-                    # Forward pass through candidate's network; detach and convert to numpy if needed
+                    # Forward pass through candidate's network
                     car_route = candidate['structure'](state_tensor).detach().cpu().numpy()
                     environment.generate_paths(car_route, None, agent_idx)
 
                 # Obtain rewards from environment
                 sim_done = environment.simulate_routes(timestep_counter)
-                _, sim_traffic, sim_battery_levels, sim_distances, rewards_pop, arrived_at_final = environment.get_results()
+                _, _, _, _, rewards_pop, _ = environment.get_results()
 
-                # Compute fitness (here we assume higher rewards are better; adjust as needed)
+                # Compute fitness
                 if agent_by_zone:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0).mean()
                 elif 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']:

@@ -2,25 +2,17 @@
 import numpy as np
 import torch
 import pickle
-import random
 from collections import deque
 from data_loader import load_config_file
 
 GRAMMAR = {
     "Network": [["Layer", "Network"], ["Layer"]],
     "Layer": [["dense", "(", "units", ")", "activation"]],
-    "units": [["16"], ["32"], ["64"], ["128"]],
-    "activation": [["relu"], ["tanh"], ["sigmoid"]]
+    "units": [["4"], ["8"], ["16"], ["32"], ["64"], ["128"], ["256"]],
+    "activation": [["relu"], ["tanh"], ["sigmoid"], ["linear"]]
 }
 
-def generate_random_genotype(grammar, symbol="Network"):
-    """
-    Recursively generate a random genotype (string) from a given grammar.
-    """
-    if symbol not in grammar:
-        return symbol  # terminal symbol
-    rule = random.choice(grammar[symbol])
-    return " ".join(generate_random_genotype(grammar, sym) for sym in rule)
+
 
 def decode_genotype(genotype_str, input_dim, output_dim):
     """
@@ -36,16 +28,13 @@ def decode_genotype(genotype_str, input_dim, output_dim):
     # Look for occurrences of the pattern: dense ( units ) activation
     while i < len(tokens):
         if tokens[i] == "dense":
-            # Ensure the pattern "dense ( units ) activation" exists.
             if i + 4 < len(tokens) and tokens[i + 1] == "(" and tokens[i + 3] == ")":
                 try:
                     units = int(tokens[i + 2])
                 except ValueError:
                     units = 32  # default if conversion fails
                 act = tokens[i + 4] if i + 4 < len(tokens) else "relu"
-                # Create linear layer with previous number of units -> current units
                 layers.append(torch.nn.Linear(prev_units, units))
-                # Append activation function
                 if act == "relu":
                     layers.append(torch.nn.ReLU())
                 elif act == "tanh":
@@ -58,9 +47,12 @@ def decode_genotype(genotype_str, input_dim, output_dim):
                 i += 1
         else:
             i += 1
-    # Append final output layer
+            
     layers.append(torch.nn.Linear(prev_units, output_dim))
+    # Add final Sigmoid activation to guarantee outputs are in [0, 1]
+    layers.append(torch.nn.Sigmoid())
     return torch.nn.Sequential(*layers)
+
 
 class DenserAgent:
     """
@@ -72,7 +64,7 @@ class DenserAgent:
       - 'NN_basic': a neural network with a structured (grammar-based) representation
     """
 
-    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number):
+    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number, device):
         """
         Initializes the DenserAgent by loading configuration, setting parameters, and
         initializing the population.
@@ -86,12 +78,13 @@ class DenserAgent:
         self.max_generation = denser_c['max_generations']
         self.mutation_rate = denser_c.get('mutation_rate', 0.2)
         self.crossover_rate = denser_c.get('crossover_rate', 0.5)
+        self.device = device
         model_type = denser_c['model_type']
 
         # Set random seeds for reproducibility.
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
+        # np.random.seed(seed)
+        # torch.manual_seed(seed)
+        self.rng = np.random.default_rng(seed+agent_index)
 
         self.population = [] # List of individuals (each is a dict with 'genotype', 'structure', and 'fitness')
         self.fitness_history = deque(maxlen=10)
@@ -131,18 +124,27 @@ class DenserAgent:
         self.weights_result = []
         self.solutions = None
 
+    def generate_random_genotype(self, grammar, symbol="Network"):
+        """
+        Recursively generate a random genotype (string) from a given grammar.
+        """
+        if symbol not in grammar:
+            return symbol  # terminal symbol
+        choices = np.array(grammar[symbol], dtype=object)
+        rule = self.rng.choice(choices)
+        return " ".join(self.generate_random_genotype(grammar, sym) for sym in rule)
+    
     def initialize_optimizer_population(self, action_dimension, seed):
         """
         Initialize population for an "optimizer" model.
         """
-        rng = np.random.default_rng(seed)
         for _ in range(self.population_size):
             # Use a random genotype (even if structure is not used in this branch).
-            genotype = generate_random_genotype(GRAMMAR, "Network")
+            genotype = self.generate_random_genotype(GRAMMAR, "Network")
             individual = {
                 'genotype': genotype,
                 'structure': None,  # Not used in optimizer branch.
-                'weights': rng.random(action_dimension),
+                'weights': self.rng.random(action_dimension),
                 'fitness': float('-inf')
             }
             self.population.append(individual)
@@ -152,10 +154,11 @@ class DenserAgent:
         Initialize population for a neural network model.
         Each individual is represented by a genotype (string) and its decoded PyTorch model.
         """
-        rng = np.random.default_rng(seed)
         for _ in range(self.population_size):
-            genotype = generate_random_genotype(GRAMMAR, "Network")
+            genotype = self.generate_random_genotype(GRAMMAR, "Network")
             structure = decode_genotype(genotype, state_dimension, action_dimension)
+            # Move the structure to the specified device
+            structure = structure.to(self.device)
             individual = {
                 'genotype': genotype,
                 'structure': structure,
@@ -178,13 +181,17 @@ class DenserAgent:
             for _ in range(self.population_size):
                 # Clone best genotype and apply a small mutation.
                 tokens = self.best_individual['genotype'].split()
+                print(f'agent denser line 182 tokens {tokens}')
                 if tokens:
-                    idx = random.randint(0, len(tokens)-1)
+                    idx = self.rng.integers(0, len(tokens))
                     if tokens[idx] in GRAMMAR:
-                        replacement = random.choice(random.choice(GRAMMAR[tokens[idx]]))
+                        choices = np.array(GRAMMAR[tokens[idx]], dtype=object)
+                        replacement = self.rng.choice(self.rng.choice(choices))
                         tokens[idx] = replacement
                 mutated_genotype = " ".join(tokens)
                 new_structure = decode_genotype(mutated_genotype, self.in_size, self.out_size)
+                # Move the structure to the specified device
+                new_structure = new_structure.to(self.device)
                 individual = {
                     'genotype': mutated_genotype,
                     'structure': new_structure,
@@ -217,20 +224,18 @@ class DenserAgent:
         return None
 
     def tell(self, rewards):
-        """
-        Updates the fitness values of the population based on provided rewards,
-        and then evolves the population.
-        """
         for i, reward in enumerate(rewards):
             self.population[i]['fitness'] = reward
+            # For minimization, update if the candidate's fitness is lower than the current best.
             if reward > self.best_individual['fitness']:
                 self.best_individual = {
                     'genotype': self.population[i]['genotype'],
                     'structure': self.population[i]['structure'],
                     'fitness': reward
                 }
-        self.fitness_history.append(max(rewards))
+        self.fitness_history.append(max(rewards))  # Optionally use min() for minimization.
         self.evolve_population()
+
 
     def evolve_population(self):
         """
@@ -244,7 +249,7 @@ class DenserAgent:
         while len(new_population) < self.population_size:
             parent1 = self.tournament_selection(sorted_population)
             parent2 = self.tournament_selection(sorted_population)
-            if random.random() < self.crossover_rate:
+            if self.rng.random() < self.crossover_rate:
                 child = self.crossover(parent1, parent2)
             else:
                 # Clone parent1 if no crossover
@@ -258,7 +263,7 @@ class DenserAgent:
         """
         Selects an individual from the population using tournament selection.
         """
-        tournament = random.sample(population, min(tournament_size, len(population)))
+        tournament = self.rng.choice(population, min(tournament_size, len(population)), replace=False)
         return max(tournament, key=lambda x: x['fitness']).copy()
 
     def crossover(self, parent1, parent2):
@@ -270,11 +275,13 @@ class DenserAgent:
         tokens2 = parent2['genotype'].split()
         if len(tokens1) < 2 or len(tokens2) < 2:
             return parent1.copy()
-        cp1 = random.randint(1, len(tokens1) - 1)
-        cp2 = random.randint(1, len(tokens2) - 1)
+        cp1 = self.rng.integers(1, len(tokens1))
+        cp2 = self.rng.integers(1, len(tokens2))
         child_tokens = tokens1[:cp1] + tokens2[cp2:]
         child_genotype = " ".join(child_tokens)
         child_structure = decode_genotype(child_genotype, self.in_size, self.out_size)
+        # Move the structure to the specified device
+        child_structure = child_structure.to(self.device)
         return {
             'genotype': child_genotype,
             'structure': child_structure,
@@ -288,12 +295,16 @@ class DenserAgent:
         """
         tokens = individual['genotype'].split()
         indices = [i for i, tok in enumerate(tokens) if tok in GRAMMAR]
+        # print(f'indices {indices}')
         if indices:
-            idx = random.choice(indices)
-            replacement = random.choice(random.choice(GRAMMAR[tokens[idx]]))
+            idx = self.rng.choice(indices)
+            choices = np.array(GRAMMAR[tokens[idx]], dtype=object)
+            replacement = self.rng.choice(self.rng.choice(choices))
             tokens[idx] = replacement
         new_genotype = " ".join(tokens)
         new_structure = decode_genotype(new_genotype, self.in_size, self.out_size)
+        # Move the structure to the specified device
+        new_structure = new_structure.to(self.device)
         individual['genotype'] = new_genotype
         individual['structure'] = new_structure
         return individual
@@ -311,12 +322,12 @@ class DenserAgent:
         with open(fname, 'wb') as f:
             pickle.dump(state, f)
 
-    def evaluate_individual(self, individual, train_loader, val_loader, device):
+    def evaluate_individual(self, individual, train_loader, val_loader):
         """
         Evaluates an individual's phenotype (the decoded network) by training it for a few epochs
         and computing the fitness (here, negative total validation loss).
         """
-        model = individual['structure'].to(device)
+        model = individual['structure'].to(self.device)
         criterion = torch.nn.MSELoss()  # Choose an appropriate loss based on your task.
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
         epochs = 3  # For a proxy evaluation—full training would take longer.
@@ -326,7 +337,7 @@ class DenserAgent:
         for epoch in range(epochs):
             for batch in train_loader:
                 inputs, targets = batch
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
@@ -339,7 +350,7 @@ class DenserAgent:
         with torch.no_grad():
             for batch in val_loader:
                 inputs, targets = batch
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
                 total_loss += loss.item()
@@ -355,7 +366,8 @@ class DenserAgent:
         """
         if self.model_type == 'NN_basic':
             individual = self.population[individual_index]
-            return individual['structure'](torch.tensor(state, dtype=torch.float32))
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+            return individual['structure'](state_tensor)
         else:
             # For 'optimizer' branch, simply return weights (dummy implementation)
             individual = self.population[individual_index]
@@ -371,8 +383,9 @@ if __name__ == "__main__":
     agent_index = 0
     global_weights = None
     experiment_number = 1
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    agent = DenserAgent(state_dim, action_dim, num_cars, seed, agent_index, global_weights, experiment_number)
+    agent = DenserAgent(state_dim, action_dim, num_cars, seed, agent_index, global_weights, experiment_number, device)
     
     # Example: Retrieve the solutions (genotypes) of the current population.
     solutions = agent.get_solutions()
@@ -383,7 +396,9 @@ if __name__ == "__main__":
     # To evolve, evaluate your individuals with your training and validation loaders,
     # call agent.tell() with the fitness rewards (list of rewards per individual).
     # For demonstration, we can simulate rewards:
-    fake_rewards = [random.uniform(-10, 0) for _ in range(agent.population_size)]
+    # fake_rewards = [random.uniform(-10, 0) for _ in range(agent.population_size)]
+    rng = np.random.default_rng(seed)
+    fake_rewards = rng.uniform(-10, 0, size=agent.population_size).tolist()
     agent.tell(fake_rewards)
     
     # Retrieve best solution genotype and its weights (state_dict if NN model).
