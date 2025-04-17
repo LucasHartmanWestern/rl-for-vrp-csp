@@ -258,6 +258,10 @@ def train_rl_vrp_csp(args):
             old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
             global_weights = None
 
+            # Initialize weights_to_save as a manager list to persist between aggregations
+            manager = mp.Manager()
+            weights_to_save = manager.list([None for _ in range(len(chargers))])
+
             for aggregate_step in range(federated_c['aggregation_count']):
                 try:
                     # Start tracking emissions
@@ -291,7 +295,7 @@ def train_rl_vrp_csp(args):
                                             ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                             local_weights_list, process_rewards, process_metrics, process_output_values,\
                                             barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                            agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers))
+                                            agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save))
                         processes.append(process)
                         process.start()
 
@@ -316,7 +320,7 @@ def train_rl_vrp_csp(args):
                         # Aggregate the weights from all local models
                         global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
                                                             federated_c['zone_multiplier'], federated_c['model_multiplier'],\
-                                                            agent_by_zone, True)
+                                                            agent_by_zone, is_odt=True)
                     elif algorithm_dm == 'DENSER': # Cannot aggregate weights for DENSER because architecture is different between agents
                         pass
                     else:
@@ -396,6 +400,7 @@ def train_rl_vrp_csp(args):
             process_output_values = manager.list()
             process_metrics = manager.list()
             process_buffers = manager.list([None for _ in range(len(chargers))])
+            weights_to_save = manager.list([None for _ in range(len(chargers))])
 
             # Barrier for synchronization
             barrier = mp.Barrier(len(chargers))
@@ -407,7 +412,7 @@ def train_rl_vrp_csp(args):
                                     ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
                                     barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
-                                    agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers))
+                                    agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save))
                 processes.append(process)
                 process.start()
 
@@ -483,7 +488,7 @@ def train_rl_vrp_csp(args):
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, args, fixed_attributes, local_weights_list,
                 rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
-                save_offline_data, train_model, old_buffers, process_buffers):
+                save_offline_data, train_model, old_buffers, process_buffers, weights_to_save):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -537,6 +542,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         elif algorithm_dm == 'DENSER':
             from training_processes.train_denser import train_denser as train
+            global_weights = weights_to_save[ind]
 
         elif algorithm_dm == 'NEAT':
             from training_processes.train_neat import train_neat as train
@@ -571,6 +577,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         if train_model:
             local_weights_list[ind] = local_weights_per_agent
+            weights_to_save[ind] = local_weights_per_agent
 
         print(f"Thread {ind} waiting")
 
