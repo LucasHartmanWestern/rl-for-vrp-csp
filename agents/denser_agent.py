@@ -238,18 +238,43 @@ class DenserAgent:
             return self.best_individual['structure'].state_dict()
         return None
 
+    # def tell(self, rewards):       
+    #     old_best_fitness = self.best_individual['fitness']
+    #     best_idx = -1
+        
+    #     for i, reward in enumerate(rewards):
+    #         self.population[i]['fitness'] = reward
+    #         if reward > self.best_individual['fitness']:
+    #             best_idx = i
+
+    #             structural_change = True
+    #             if self.best_individual['genotype'] is not None:
+    #                 structural_change = self.best_individual['genotype'] != self.population[i]['genotype']
+
+    #             self.best_individual = {
+    #                 'genotype': self.population[i]['genotype'],
+    #                 'structure': self.population[i]['structure'],
+    #                 'fitness': reward
+    #             }
+            
+    #     self.fitness_history.append(max(rewards))
+        
+    #     self.evolve_population()
+    #     self.generation_counter += 1
+
     def tell(self, rewards):       
-        old_best_fitness = self.best_individual['fitness']
-        best_idx = -1
+        # old_best_fitness = self.best_individual['fitness']
+        # best_idx = -1
+        best_gen_fitness = rewards[0]
         
         for i, reward in enumerate(rewards):
             self.population[i]['fitness'] = reward
             if reward > self.best_individual['fitness']:
-                best_idx = i
+                # best_idx = i
 
-                structural_change = True
-                if self.best_individual['genotype'] is not None:
-                    structural_change = self.best_individual['genotype'] != self.population[i]['genotype']
+                # structural_change = True
+                # if self.best_individual['genotype'] is not None:
+                #     structural_change = self.best_individual['genotype'] != self.population[i]['genotype']
 
                 self.best_individual = {
                     'genotype': self.population[i]['genotype'],
@@ -297,13 +322,14 @@ class DenserAgent:
             if self.rng.random() < 0.6:
                 child = self.mutate(child)
             
-            # Verify the child is actually different from parents
-            if (child['genotype'] != parent1['genotype'] and 
-                child['genotype'] != parent2['genotype']):
-                new_population.append(child)
+            # # Verify the child is actually different from parents
+            # if (child['genotype'] != parent1['genotype'] and 
+            #     child['genotype'] != parent2['genotype']):
+            new_population.append(child)
         
         # Ensure we have the right population size even if some children were rejected
         while len(new_population) < self.population_size:
+            print(f'Missing population entering in second while loop')
             genotype = self.generate_random_genotype(GRAMMAR, "Network")
             structure = decode_genotype(genotype, self.in_size, self.out_size).to(self.device)
             new_individual = {

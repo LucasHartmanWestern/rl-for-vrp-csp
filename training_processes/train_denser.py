@@ -87,13 +87,6 @@ def train_denser(ev_info,
         environment.reset_episode(chargers, routes, unique_chargers)
         fitnesses = np.zeros((population_size, num_agents))
 
-        # Optionally restart evolution if a threshold is reached
-        thresh_limit = 2000
-        max_limit = (generation % thresh_limit + 1) * population_size * action_dim
-        if max_limit >= 2000 * 20 * 3:
-            for agent in denser_agents_list:
-                agent.denser_restart()
-
         # --- Evaluate each candidate in the current population, one full episode at a time ---
         for pop_idx in range(population_size):
             # Reset just this candidate’s episode
@@ -118,9 +111,13 @@ def train_denser(ev_info,
                 sim_done = environment.simulate_routes(timestep)
                 _, _, _, _, rewards_pop, _ = environment.get_results()
 
+                # print(f'pop {pop_idx}, timestep {timestep} rewards pop size {rewards_pop.shape} matrix{rewards_pop}')
+                # print(f'reward cumulative {rewards_pop.sum(axis=0).mean()}')
                 if agent_by_zone:
                     # one agent sees the mean across all cars
                     cumulative[0] += rewards_pop.sum(axis=0).mean()
+                elif 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
+                    cumulative +=  np.array(rewards_pop.sum(axis=0).mean())*num_cars
                 else:
                     # each agent gets its own car’s reward
                     cumulative += rewards_pop
