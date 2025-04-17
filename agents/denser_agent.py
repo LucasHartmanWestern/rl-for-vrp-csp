@@ -238,30 +238,6 @@ class DenserAgent:
             return self.best_individual['structure'].state_dict()
         return None
 
-    # def tell(self, rewards):       
-    #     old_best_fitness = self.best_individual['fitness']
-    #     best_idx = -1
-        
-    #     for i, reward in enumerate(rewards):
-    #         self.population[i]['fitness'] = reward
-    #         if reward > self.best_individual['fitness']:
-    #             best_idx = i
-
-    #             structural_change = True
-    #             if self.best_individual['genotype'] is not None:
-    #                 structural_change = self.best_individual['genotype'] != self.population[i]['genotype']
-
-    #             self.best_individual = {
-    #                 'genotype': self.population[i]['genotype'],
-    #                 'structure': self.population[i]['structure'],
-    #                 'fitness': reward
-    #             }
-            
-    #     self.fitness_history.append(max(rewards))
-        
-    #     self.evolve_population()
-    #     self.generation_counter += 1
-
     def tell(self, rewards):       
         # old_best_fitness = self.best_individual['fitness']
         # best_idx = -1
@@ -566,8 +542,8 @@ class DenserAgent:
         and computing the fitness (here, negative total validation loss).
         """
         model = individual['structure'].to(self.device)
-        criterion = torch.nn.MSELoss()  # Choose an appropriate loss based on your task.
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        criterion = torch.nn.MSELoss().to(self.device)  # Choose an appropriate loss based on your task.
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3).to(self.device)
         epochs = 3  # For a proxy evaluation—full training would take longer.
         
         # Train phase (simplified)
