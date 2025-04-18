@@ -2,10 +2,10 @@
 #SBATCH --job-name=Exp_4146_train
 #SBATCH --output=experiments/Exp_4146/output.log
 #SBATCH --error=experiments/Exp_4146/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=15:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mem=15G
 #SBATCH --gpus-per-node=4
 

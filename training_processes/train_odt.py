@@ -250,12 +250,12 @@ class Experiment:
 
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/data_zone_{self.zone_index}.h5')
-        # dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
+        adjusted_experiment_number = str((int(self.experiment_number) - 108))
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5')
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{self.zone_index}.h5')
         # f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
 
         if not os.path.exists(dataset_path):
-            adjusted_experiment_number = str((int(self.experiment_number) - 108))
             print(f'Loading from {adjusted_experiment_number}')
             glob_path = os.path.expanduser(
                 f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
