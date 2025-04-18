@@ -128,11 +128,11 @@ def train_cma(ev_info,
 
     # Evolution process: Loop over generations to evolve the population
     for generation in range(cma_info.max_generation):
-        # Confirm if solutions have not reached max limit; otherwise restart cma-es model
-        thresh_limit = 2000
-        max_limit = (generation%thresh_limit+1)*population_size*action_dim
-        # print(f'max limit {max_limit}, action dim {action_dim}')
-        if max_limit >= 2000*20*3:
+        # CMA matrix able to work with 120 K dimensions but no more than that
+        # Resetting the matrix if it goes beyond 120K 
+        # Matrix has reached max limit? then, restart cma-es model
+        max_limit = (generation%2000+1)*population_size*action_dim
+        if max_limit >= 120000:
             for agent in cma_agents_list:
                 agent.cma_restart()
         
