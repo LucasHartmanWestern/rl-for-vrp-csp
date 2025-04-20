@@ -5,8 +5,13 @@
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
+<<<<<<< HEAD
 #SBATCH --time=30:00:00
 #SBATCH --mem=15G
+=======
+#SBATCH --time=24:00:00
+#SBATCH --mem=50G
+>>>>>>> 26ca5fdef7e24bf203cb892634050949fbcd1603
 #SBATCH --gpus-per-node=4
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
@@ -38,4 +43,8 @@ do
     python app_v2.py -g 0 -e "$EXP_NUM" -d "/home/epigou/scratch/metrics/Exp_$EXP_NUM" &
 done
 
+<<<<<<< HEAD
 wait  # Wait for all background processes to finish
+=======
+wait  # Wait for all background processes to finish
+>>>>>>> 26ca5fdef7e24bf203cb892634050949fbcd1603

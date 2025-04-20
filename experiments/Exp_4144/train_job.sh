@@ -2,12 +2,12 @@
 #SBATCH --job-name=Exp_4144_train
 #SBATCH --output=experiments/Exp_4144/output.log
 #SBATCH --error=experiments/Exp_4144/error.log
-#SBATCH -A rrg-kgroling
+#SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=24:00:00
 #SBATCH --mem=15G
-#SBATCH --gpus-per-node=1
+#SBATCH --gpus-per-node=4
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=epigou@uwo.ca
@@ -27,4 +27,5 @@ export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
 export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
 nvidia-cuda-mps-control -d
 
-python app_v2.py -g 0 -e 4144 -d "/home/epigou/scratch/metrics/Exp"
+
+python app_v2.py -g 0 1 2 3 -e 4144 -d "/home/epigou/scratch/metrics/Exp"

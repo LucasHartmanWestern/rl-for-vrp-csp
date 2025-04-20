@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_4170_train
-#SBATCH --output=experiments/Exp_4170/output.log
-#SBATCH --error=experiments/Exp_4170/error.log
+#SBATCH --job-name=Exp_4179_train
+#SBATCH --output=experiments/Exp_4179/output.log
+#SBATCH --error=experiments/Exp_4179/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -12,7 +12,7 @@
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=epigou@uwo.ca
 
-echo "Starting training for experiment 4170"
+echo "Starting training for experiment 4179"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -28,4 +28,4 @@ export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
 nvidia-cuda-mps-control -d
 
 
-python app_v2.py -g 0 1 2 3 -e 4170 -d "/home/epigou/scratch/metrics/Exp"
+python app_v2.py -g 0 1 2 3 -e 4179 -d "/home/epigou/scratch/metrics/Exp"

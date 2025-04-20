@@ -237,40 +237,35 @@ class Experiment:
     def _load_dataset(self, env_name):
         """
         Loads dataset from HDF5 (.h5) files instead of .pkl.
-    
+
         Parameters:
         - env_name (str): Environment name (used for dataset location path).
-    
+
         Returns:
         - trajectories (list): List of trajectory dictionaries.
         - state_mean (np.array): Mean values for state normalization.
         - state_std (np.array): Standard deviation values for state normalization.
         """
         print(f'Loading Dataset for Zone {self.zone_index}...')
-    
+
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/data_zone_{self.zone_index}.h5')
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/metrics/Exp_3000/data_zone_{self.zone_index}.h5')
+        adjusted_experiment_number = str((int(self.experiment_number) - 108))
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5')
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{self.zone_index}.h5')
         # f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
-    
-        if not os.path.exists(dataset_path):
-            adjusted_experiment_number = str((int(self.experiment_number) - 108))
-            print(f'Loading from {adjusted_experiment_number}')
-            dataset_path = (
-                min(
-                    glob.glob(
-                        os.path.expanduser(
-                            f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
-                        )
-                    ),
-                    key=os.path.getctime,
-                    default=None
-                )
-                or FileNotFoundError("No .h5 files starting with 'data' found")
-            )
 
-    
+        if not os.path.exists(dataset_path):
+            print(f'Loading from {adjusted_experiment_number}')
+            glob_path = os.path.expanduser(
+                f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
+            )
+            matching_files = glob.glob(glob_path)
+            if not matching_files:
+                print(f"[ERROR] No .h5 files found for zone {self.zone_index} in fallback path: {glob_path}")
+                raise FileNotFoundError(f"No .h5 files found for zone {self.zone_index}")
+            dataset_path = min(matching_files, key=os.path.getctime)
+
         # Load trajectories from HDF5 file
         trajectories = []
         try:
@@ -278,12 +273,12 @@ class Experiment:
                 zone_key = f"zone_{self.zone_index}"
                 if zone_key not in f:
                     raise RuntimeError(f"Zone {self.zone_index} not found in {dataset_path}")
-                
+
                 zone_group = f[zone_key]
                 for traj_key in zone_group:
                     traj_data = {}
                     traj_group = zone_group[traj_key]
-                    
+
                     # Extract trajectory data
                     for key in traj_group:
                         dataset = traj_group[key]
@@ -292,32 +287,32 @@ class Experiment:
                         else:
                             traj_data[key] = dataset[:]
 
-                    
                     # Extract metadata from attributes
                     for attr_key in traj_group.attrs:
                         traj_data[attr_key] = traj_group.attrs[attr_key]
-                    
+
                     trajectories.append(traj_data)
-    
+
         except Exception as e:
+            print(f"[ERROR] Failed to load from path: {dataset_path}")
             raise RuntimeError(f"Failed to load dataset from {dataset_path}: {e}")
-        
+
         # Convert lists back to NumPy arrays and normalize data
         states, traj_lens, returns = [], [], []
         for traj in trajectories:
             traj["observations"] = np.array(traj["observations"], dtype=np.float32)
             traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
             traj["actions"] = np.array(traj["actions"], dtype=np.float32)
-        
+
             states.append(traj["observations"])
             traj_lens.append(len(traj["observations"]))
             returns.append(sum(traj['rewards']))
-        
+
         traj_lens, returns = np.array(traj_lens), np.array(returns)
         states = np.concatenate(states, axis=0)
         state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
         num_timesteps = sum(traj_lens)
-    
+
         # Print dataset statistics
         print("=" * 50)
         print(f"Dataset for Zone {self.zone_index} loaded successfully")
@@ -327,7 +322,7 @@ class Experiment:
         print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
         print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
         print("=" * 50)
-    
+
         # Sort and filter trajectories by return
         sorted_inds = np.argsort(returns)  # Lowest to highest
         num_trajectories = 1
@@ -339,8 +334,9 @@ class Experiment:
             ind -= 1
         sorted_inds = sorted_inds[-num_trajectories:]
         trajectories = [trajectories[ii] for ii in sorted_inds]
-    
+
         return trajectories, state_mean, state_std
+
 
     def _augment_trajectories(
         self,
