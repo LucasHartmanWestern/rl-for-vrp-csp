@@ -5,7 +5,7 @@
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=24:00:00
+#SBATCH --time=30:00:00
 #SBATCH --mem=15G
 #SBATCH --gpus-per-node=4
 
@@ -39,5 +39,3 @@ do
 done
 
 wait  # Wait for all background processes to finish
-
-python app_v2.py -g 0 1 2 3 -e 4145 -d "/home/epigou/scratch/metrics/Exp"
