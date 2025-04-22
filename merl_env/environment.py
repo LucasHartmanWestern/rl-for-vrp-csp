@@ -575,11 +575,12 @@ class EnvironmentClass:
             traffic_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[0], device=self.device, dtype=self.dtype)
             distance_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[1], device=self.device, dtype=self.dtype)
 
-        unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(self.device, dtype=self.dtype)
-
-        graph_tensor = torch.from_numpy(graph).to(self.device, dtype=self.dtype) # Work with graph as tensor
+        # Make sure all tensors are on the same device
+        unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(device=self.device, dtype=self.dtype)
+        graph_tensor = torch.from_numpy(graph).to(device=self.device, dtype=self.dtype) # Work with graph as tensor
+        
         graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
-        graph = graph_tensor.detach().cpu().numpy()
+        graph = graph_tensor.cpu().detach().numpy()
 
         path = dijkstra(graph, self.agent.idx)
 

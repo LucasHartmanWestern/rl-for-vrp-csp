@@ -145,7 +145,7 @@ def vec_evaluate_episode_rtg(
             car_traj['actions'][car_traj['cur_len']] = action.detach()
 
             # Execute action
-            vec_env.generate_paths(action.cpu().numpy(), None, car)
+            vec_env.generate_paths(action, None, car)
 
         # Finalize simulation step
         sim_done = vec_env.simulate_routes(timestep_counter)
