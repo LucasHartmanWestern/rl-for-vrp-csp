@@ -101,10 +101,10 @@ def train_cma(ev_info,
                 initial_weights = global_weights[zone_index][model_indices[agent_idx]]
 
         # Create a new CMA agent with the provided parameters and initial weights
-        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number)
+        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number, device)
         cma_agents_list.append(cma_agent)
 
-    avg_output_values = np.zeros((cma_agents_list[0].max_generation, action_dim))  # Initialize output values storage
+    avg_output_values = torch.zeros((cma_agents_list[0].max_generation, action_dim), device=device)  # Initialize output values storage
     best_avg = float('-inf')  # Track the best average reward encountered
     best_paths = None  # Store the best paths observed
     metrics = []  # Initialize metrics list to track performance
@@ -116,14 +116,14 @@ def train_cma(ev_info,
     cma_info = cma_agents_list[0]  # Retrieve information from the first CMA agent
     population_size = cma_info.population_size  # Size of the population for evolution
 
-    generation_weights = np.empty((num_agents, action_dim))  # Storage for weights per generation
+    generation_weights = torch.empty((num_agents, action_dim),device=device)  # Storage for weights per generation
 
     # Save the current state of the environment for later restoration during evolution
     environment.cma_store()
 
     # Initialize matrices for storing solutions and fitness values during evolution
-    matrix_solutions = np.zeros((population_size, num_agents, cma_info.out_size))
-    fitnesses = np.empty((population_size, num_agents))
+    matrix_solutions = torch.zeros((population_size, num_agents, cma_info.out_size), device=device)
+    fitnesses = torch.empty((population_size, num_agents), device=device)
 
 
     # Evolution process: Loop over generations to evolve the population
@@ -182,7 +182,7 @@ def train_cma(ev_info,
  
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
-            agent.es.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
+            agent.es.tell(matrix_solutions[:, agent_idx, :].cpu().numpy(), fitnesses[:, agent_idx].flatten().cpu().numpy())
 
         #--- Start simulate route with best CMA agents
         # Get rewards with best solutions after evolving population
