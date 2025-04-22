@@ -29,7 +29,7 @@ class CMAAgent:
         weights_result (list): List to store the resulting weights after optimization.
     """
 
-    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number):
+    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number,device):
         """
         Initializes the CMAAgent with configuration and parameters for the CMA-ES algorithm.
 
@@ -84,6 +84,7 @@ class CMAAgent:
         es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma, cma_config)
 
         # Store relevant parameters and objects for the agent
+        self.device = device
         self.es = es
         self.weights = []
         self.in_size = state_dimension
@@ -125,7 +126,7 @@ class CMAAgent:
         Returns:
             ndarray: A set of candidate solutions for the current generation.
         """
-        return self.es.ask()
+        return torch.tensor(self.es.ask(), device=self.device)
 
     def get_best_solutions(self):
         """
@@ -134,7 +135,7 @@ class CMAAgent:
         Returns:
             ndarray: The best weights found during optimization.
         """
-        weights = self.es.best.x
+        weights = torch.from_numpy(self.es.best.x).to(device=self.device)
         self.weights_result.append(weights)
         return weights
 
@@ -159,7 +160,8 @@ class CMAAgent:
         Parameters:
             reward (ndarray): The fitness values associated with the solutions of the current generation.
         """
-        self.es.tell(self.solutions, reward)
+        print(f'reward {reward}')
+        self.es.tell(self.solutions, reward.cpu())
 
     def save_model(self, fname):
         """
