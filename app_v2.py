@@ -298,7 +298,7 @@ def train_rl_vrp_csp(args):
                                    0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
                                    local_weights_list, process_rewards, process_metrics, process_output_values,
                                    None, devices[0], verbose, eval_c['display_training_times'],
-                                   agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[0], process_buffers, weights_to_save)
+                                   agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[0], process_buffers, weights_to_save, len(chargers))
                     else:
                         manager = mp.Manager()
                         local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -322,7 +322,7 @@ def train_rl_vrp_csp(args):
                                                 ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                                 local_weights_list, process_rewards, process_metrics, process_output_values,\
                                                 barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                                agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save))
+                                                agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save, len(chargers)))
                             processes.append(process)
                             process.start()
 
@@ -437,7 +437,7 @@ def train_rl_vrp_csp(args):
                            0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
                            local_weights_list, process_rewards, process_metrics, process_output_values,
                            None, devices[0], verbose, eval_c['display_training_times'],
-                           agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[0], process_buffers, weights_to_save)
+                           agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[0], process_buffers, weights_to_save, len(chargers))
             else:
                 manager = mp.Manager()
                 local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -457,7 +457,7 @@ def train_rl_vrp_csp(args):
                                         ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                         local_weights_list, process_rewards, process_metrics, process_output_values,\
                                         barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                        agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save))
+                                        agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save, len(chargers)))
                     processes.append(process)
                     process.start()
 

@@ -6,7 +6,7 @@ import torch
 def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
                 aggregate_step, ind, algorithm_dm, sub_seed, main_seed, args, fixed_attributes, local_weights_list,
                 rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
-                save_offline_data, train_model, old_buffers, process_buffers, weights_to_save):
+                save_offline_data, train_model, old_buffers, process_buffers, weights_to_save, num_zones):
 
     """
     Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
@@ -99,7 +99,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
 
         print(f"Thread {ind} waiting")
 
-        if train_model:
+        if train_model and num_zones > 1:
             barrier.wait()  # Wait for all threads to finish before proceeding
 
     except Exception as e:
