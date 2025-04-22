@@ -164,7 +164,7 @@ def train_cma(ev_info,
                     agent = cma_agents_list[agent_idx]
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
                     car_route = agent.model(state, weights)  # Get the route from the agent's model
-                    environment.generate_paths(car_route, None, agent_idx)  # Stack the generated paths in the environment
+                    environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  # Stack the generated paths in the environment
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes(timestep_counter)
@@ -202,7 +202,7 @@ def train_cma(ev_info,
                 agent = cma_agents_list[agent_idx]
                 weights = agent.get_best_solutions()  # Get the best solutions
                 car_route = agent.model(state, weights)  # Generate paths based on best weights
-                environment.generate_paths(car_route, None, agent_idx)
+                environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
     
             sim_done = environment.simulate_routes(timestep_counter)  # Simulate the environment with the best solutions
