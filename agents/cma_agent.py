@@ -160,7 +160,6 @@ class CMAAgent:
         Parameters:
             reward (ndarray): The fitness values associated with the solutions of the current generation.
         """
-        print(f'reward {reward}')
         self.es.tell(self.solutions, reward.cpu())
 
     def save_model(self, fname):

@@ -4,7 +4,6 @@ import time
 import copy
 import torch
 import numpy as np
-import random
 
 from data_loader import load_config_file
 from agents.denser_agent import DenserAgent
@@ -43,7 +42,6 @@ def train_denser(ev_info,
     if seed is not None:
         torch.manual_seed(seed)
         np.random.seed(seed)
-        random.seed(seed)
 
     unique_chargers = np.unique(
         np.array(list(map(tuple, chargers.reshape(-1, 3))),
@@ -71,7 +69,7 @@ def train_denser(ev_info,
         agent = DenserAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number, device)
         denser_agents_list.append(agent)
 
-    avg_output_values = np.zeros((denser_agents_list[0].max_generation, action_dim))
+    avg_output_values = torch.zeros((denser_agents_list[0].max_generation, action_dim), device=device)
     best_avg = float('-inf')
     metrics = []
 
@@ -82,10 +80,11 @@ def train_denser(ev_info,
         environment.cma_store()
     except:
         print("Error storing environment")
+    # environment.cma_store()
 
     for generation in range(denser_info.max_generation):
         environment.reset_episode(chargers, routes, unique_chargers)
-        fitnesses = np.zeros((population_size, num_agents))
+        fitnesses = torch.zeros((population_size, num_agents), device=device)
 
         # --- Evaluate each candidate in the current population, one full episode at a time ---
         for pop_idx in range(population_size):
@@ -94,7 +93,7 @@ def train_denser(ev_info,
             sim_done = False
             timestep = 0
             # cumulative reward: scalar if agent_by_zone else vector per car
-            cumulative = np.zeros(num_agents)
+            cumulative = torch.zeros(num_agents, device=device)
 
             while not sim_done:
                 environment.init_routing()
@@ -117,7 +116,7 @@ def train_denser(ev_info,
                     # one agent sees the mean across all cars
                     cumulative[0] += rewards_pop.sum(axis=0).mean()
                 elif 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                    cumulative +=  np.array(rewards_pop.sum(axis=0).mean())*num_cars
+                    cumulative +=  torch.full((num_cars,),rewards_pop.sum(axis=0).mean(), device=device)
                 else:
                     # each agent gets its own car’s reward
                     cumulative += rewards_pop
@@ -215,12 +214,17 @@ def train_denser(ev_info,
 
         # log dummy outputs
         dummy_state = torch.zeros(state_dimension, dtype=dtype, device=device)
-        gen_outputs = [
-            agent.best_individual['structure'](dummy_state)
-            .detach().cpu().numpy()
-            for agent in denser_agents_list
-        ]
-        avg_output_values[generation] = np.mean(gen_outputs, axis=0)
+        gen_outputs = torch.empty((len(denser_agents_list),
+                                   len(denser_agents_list[0].best_individual['structure'](dummy_state))),device=device)
+        for idx, agent in enumerate(denser_agents_list):
+            gen_outputs[idx] = agent.best_individual['structure'](dummy_state).detach()
+        # gen_outputs = [
+        #     agent.best_individual['structure'](dummy_state)
+        #     .detach().cpu().numpy()
+        #     for agent in denser_agents_list
+        # ]
+        # avg_output_values[generation] = np.mean(gen_outputs, axis=0)
+        avg_output_values[generation] = gen_outputs.mean(axis=0)
 
     # End of evolution
     sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final = \
@@ -236,8 +240,10 @@ def train_denser(ev_info,
         agent.save_model(f'{fname}_agent{idx}.pkl')
 
     elapsed_time = time.time() - start_time
-    weights_list = [agent.get_weights() for agent in denser_agents_list]
-    return weights_list, avg_rewards, avg_output_values, metrics, None
+    # weights_list = [agent.get_weights() for agent in denser_agents_list]
+    structure_list = [agent.get_best_solutions() for agent in denser_agents_list]
+
+    return structure_list, avg_rewards, avg_output_values.cpu(), metrics, None
 
 
 def print_log(label, date, et):
