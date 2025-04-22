@@ -224,7 +224,7 @@ class EnvironmentClass:
         self.num_cars = config['num_of_cars']
         self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70, dtype=float, device=self.device)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
@@ -394,7 +394,7 @@ class EnvironmentClass:
         target_battery_level = self.target_battery_level
 
         if target_battery_level.size(1) == 0:
-            target_battery_level = torch.zeros(target_battery_level.size(0)).unsqueeze(1)
+            target_battery_level = torch.zeros(target_battery_level.size(0), device=self.device).unsqueeze(1)
 
         stops = self.stops
 
@@ -408,7 +408,7 @@ class EnvironmentClass:
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
 
-        energy_used = np.zeros(self.num_cars)  # Initialize energy used for each car
+        energy_used = torch.zeros(self.num_cars, device=self.device, dtype=self.dtype)
 
         traffic_level = None
 
@@ -453,9 +453,11 @@ class EnvironmentClass:
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
             # Track energy used (absolute value of charging rates)
-            energy_used += torch.abs(charging_rates).cpu().numpy()
+            energy_used += torch.abs(charging_rates)
 
             # Check if the car is at their target battery level
+            # Ensure target_battery_level is on the same device as battery
+            target_battery_level = target_battery_level.to(self.device)
             battery_charged = get_battery_charged(battery, target_battery_level, self.device)
 
             # Charging but ready to leave
@@ -507,7 +509,7 @@ class EnvironmentClass:
         # Calculate reward as -(distance * 100 + peak traffic + energy used / 100)
         distance_factor = distances_per_car[-1].numpy() * self.distance_scale
         peak_traffic = np.max(traffic_per_charger.numpy()) * self.traffic_scale
-        energy_used = energy_used * self.energy_scale
+        energy_used = energy_used.cpu().numpy() * self.energy_scale
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
         reward_scale = (timestep + 1) if self.reward_version == 2 else 1
@@ -543,13 +545,14 @@ class EnvironmentClass:
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
 
-    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, agent_index: int):
+    def generate_paths(self, distribution, fixed_attributes: list, agent_index: int):
         """
         Generate paths for the agents based on distribution and fixed attributes.
 
         Parameters:
-            distribution (np.ndarray): Distribution array for generating paths.
+            distribution (torch.Tensor): Distribution tensor for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
+            agent_index (int): Index of the agent for which to generate paths.
         """
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,\
@@ -561,18 +564,22 @@ class EnvironmentClass:
             print("-------------")
             print(f"{agent_index} - CHARGES NEEDED - {graph}")
 
-        # Redefine weights in graph
-        for v in range(graph.shape[0] - 2):
-            # Get multipliers from neural network
-            if not fixed_attributes:
-                traffic_mult = 1 - distribution[v]
-                distance_mult = distribution[v]
-            else:
-                traffic_mult = fixed_attributes[0]
-                distance_mult = fixed_attributes[1]
+        num_nodes_to_update = graph.shape[0] - 2
+        if not fixed_attributes:
+            # Assuming distribution has relevant values up to num_nodes_to_update
+            dist_slice = distribution[:num_nodes_to_update] # Keep on GPU
+            traffic_mult_tensor = 1 - dist_slice
+            distance_mult_tensor = dist_slice
+        else:
+            # Create tensors if using fixed attributes
+            traffic_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[0], device=self.device, dtype=self.dtype)
+            distance_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[1], device=self.device, dtype=self.dtype)
 
-            # Distance * distance_mult + Traffic * traffic_mult
-            graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult
+        unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(self.device, dtype=self.dtype)
+
+        graph_tensor = torch.from_numpy(graph).to(self.device, dtype=self.dtype) # Work with graph as tensor
+        graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
+        graph = graph_tensor.detach().cpu().numpy()
 
         path = dijkstra(graph, self.agent.idx)
 

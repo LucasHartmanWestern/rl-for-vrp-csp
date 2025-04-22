@@ -182,17 +182,16 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 else:
                     action_probs = get_actions(state_tensor, [policy_networks[car_idx]], i, car_idx, device, epsilon)
 
-                distribution = action_probs.detach().cpu().numpy()
+                distribution = action_probs
 
                 if save_offline_data:
-                    car_traj['actions'].append(distribution.tolist())
+                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) #Save unmodified action
+                
+                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist())  # Track outputs before the sigmoid application
 
-                # Store unmodified distributions (raw logits if desired)
-                distributions_unmodified.append(distribution.tolist())
-
-                # Apply sigmoid transformation
-                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
-                distributions.append(distribution.tolist())
+                # Apply sigmoid function to the entire tensor
+                distribution = torch.sigmoid(distribution)
+                distributions.append(distribution.detach().cpu().numpy().tolist())  # Convert to list and append
 
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
 

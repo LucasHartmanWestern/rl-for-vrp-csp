@@ -105,7 +105,7 @@ def train_denser(ev_info,
                     agent = denser_agents_list[agent_idx]
                     candidate = agent.population[pop_idx]
                     state_tensor = torch.tensor(state, dtype=dtype, device=device)
-                    car_route = candidate['structure'](state_tensor).detach().cpu().numpy()
+                    car_route = candidate['structure'](state_tensor)
                     environment.generate_paths(car_route, None, agent_idx)
 
                 sim_done = environment.simulate_routes(timestep)
@@ -150,7 +150,7 @@ def train_denser(ev_info,
                 agent = denser_agents_list[agent_idx]
                 best_model = agent.best_individual['structure']
                 state_tensor = torch.tensor(state, dtype=dtype, device=device)
-                car_route = best_model(state_tensor).detach().cpu().numpy()
+                car_route = best_model(state_tensor)
                 environment.generate_paths(car_route, None, agent_idx)
 
             sim_done = environment.simulate_routes(timestep_counter)
