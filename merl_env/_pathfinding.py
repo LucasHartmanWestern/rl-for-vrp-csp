@@ -95,109 +95,56 @@ def haversine(lat1, lon1, lat2, lon2):
     
     return distance
 
-def dijkstra(graph: torch.Tensor, agent_idx: int, device: torch.device, dtype: torch.dtype) -> list:
-    """
-    Implements Dijkstra's algorithm using PyTorch for GPU acceleration
-    to find the shortest path in a graph from the origin to the destination.
+def dijkstra(graph, agent_index, device, dtype):
 
-    Assumes the graph represents distances, with float('inf') for non-existent edges.
+    """
+    Implements Dijkstra's algorithm to find the shortest path in a graph from the origin to the destination.
 
     Parameters:
-        graph (torch.Tensor): A 2D tensor representing the distances between nodes.
-                              graph[i, j] is the distance from node i to node j.
-                              Use float('inf') for non-edges.
-                              Expected shape: (N+2, N+2).
-        agent_idx (int): The index of the agent (currently unused in this implementation).
-        device (torch.device): The device to run the algorithm on (e.g., 'cuda').
-        dtype (torch.dtype): The data type for calculations (e.g., torch.float32).
+        graph (torch.Tensor): A 2D array representing the distances between nodes in the graph.
+        agent_index (int): The index of the agent in the graph.
+        device (torch.device): The device to run the algorithm on.
+        dtype (torch.dtype): The data type of the graph.
 
     Returns:
-        list: A list of node indices representing the shortest path from the origin
-              to the destination, excluding the origin and destination themselves.
-              Returns an empty list if the destination is unreachable.
-
-    Notes:
-        - The graph size includes two extra nodes: origin and destination.
-        - Nodes 0 to N-1 are intermediate nodes.
-        - Node N is the origin.
-        - Node N+1 is the destination.
-        - The input 'graph' tensor should already be on the target 'device'.
+        list: A list of node indices representing the shortest path from the origin to the destination, excluding the origin and destination themselves.
     """
-    num_nodes = graph.shape[0]
-    N = num_nodes - 2  # Number of intermediate nodes
-    origin = N         # Index of the origin node
-    destination = N + 1 # Index of the destination node
+
+    N = len(graph) - 2  # Exclude the origin and destination which are included in the graph size (N+2)
+    origin = N  # Second last entry
+    destination = N + 1  # Last entry
 
     # Distance from origin to all other nodes
-    min_dist = torch.full((num_nodes,), float('inf'), device=device, dtype=dtype)
+    min_dist = [float('inf')] * len(graph)
     min_dist[origin] = 0
-    # Keep track of visited nodes
-    visited = torch.zeros(num_nodes, device=device, dtype=torch.bool)
-    # To store the path
-    path = torch.full((num_nodes,), -1, device=device, dtype=torch.long)
+    visited = [False] * len(graph)
+    path = [-1] * len(graph)  # To store the path
 
+    def get_next_vertex():
+        min_vertex = -1
+        min_value = float('inf')
+        for v in range(len(graph)):
+            if not visited[v] and min_dist[v] < min_value:
+                min_value = min_dist[v]
+                min_vertex = v
+        return min_vertex
 
-    # Main loop - iterate through nodes
-    for _ in range(num_nodes):
-        # --- Find the unvisited node 'u' with the smallest distance ---
-        dist_masked = min_dist.clone()
-        # Ignore visited nodes for minimum search
-        dist_masked[visited] = float('inf')
-        min_val, u = torch.min(dist_masked, dim=0)
-
-        # Stop if remaining nodes are unreachable or all visited
-        if min_val == float('inf'):
-            break
-
-        # Mark the current node as visited
+    for _ in range(len(graph)):
+        u = get_next_vertex()
         visited[u] = True
 
-        # --- Update distances and path for neighbors ---
-        # Calculate potential new distances through node 'u'
-        distances_from_u = graph[u]
-        new_dist = min_dist[u] + distances_from_u
+        for v in range(len(graph)):
+            if graph[u][v] >= 0 and not visited[v]:
+                if min_dist[u] + graph[u][v] < min_dist[v]:
+                    min_dist[v] = min_dist[u] + graph[u][v]
+                    path[v] = u
 
-        # Create mask for nodes to update: must be unvisited, reachable from u, and the new path must be shorter
-        update_mask = (~visited) & (distances_from_u != float('inf')) & (new_dist < min_dist)
+    # Extract the path to the destination
+    def extract_path(dest):
+        rev_path = []
+        while dest != -1:
+            rev_path.append(dest)
+            dest = path[dest]
+        return rev_path[::-1]
 
-        # Apply updates using the mask
-        min_dist[update_mask] = new_dist[update_mask]
-        path[update_mask] = u
-
-
-    # --- Path Reconstruction ---
-    # Check if the destination node was reached
-    if min_dist[destination] == float('inf'):
-        print("Destination is unreachable.")
-        return []
-
-    # Transfer path to CPU and convert to numpy for easier processing
-    path_cpu = path.cpu().numpy()
-    dest_idx = destination
-    rev_path = [] # Store the path in reverse order initially
-
-    # Trace the path back from destination to origin
-    while dest_idx != -1:
-        rev_path.append(int(dest_idx)) # Add current node index
-        if dest_idx == origin: # Stop if we reached the origin
-             break
-        # Move to the predecessor node
-        prev_dest_idx = dest_idx
-        dest_idx = path_cpu[dest_idx]
-         # Basic check to prevent infinite loops in case of unexpected path data
-        if dest_idx == prev_dest_idx and dest_idx != origin:
-             print(f"Error during path reconstruction: stuck at node {dest_idx}") # Optional
-             return []
-
-    # Reverse the path to get the correct order from origin to destination
-    shortest_path = rev_path[::-1]
-
-    # Basic validation of the reconstructed path
-    if not shortest_path or shortest_path[0] != origin:
-        print("Error: Path reconstruction did not start at the origin.") # Optional
-        return []
-    if shortest_path[-1] != destination:
-         pass
-
-    # Return the path excluding the origin (first element) and destination (last element)
-    return shortest_path[1:-1]
+    return extract_path(destination)[1:-1]
