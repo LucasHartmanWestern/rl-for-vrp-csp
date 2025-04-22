@@ -224,7 +224,7 @@ class EnvironmentClass:
         self.num_cars = config['num_of_cars']
         self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70, dtype=float, device=self.device)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
@@ -543,13 +543,14 @@ class EnvironmentClass:
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
 
-    def generate_paths(self, distribution: np.ndarray, fixed_attributes: list, agent_index: int):
+    def generate_paths(self, distribution, fixed_attributes: list, agent_index: int):
         """
         Generate paths for the agents based on distribution and fixed attributes.
 
         Parameters:
-            distribution (np.ndarray): Distribution array for generating paths.
+            distribution (torch.Tensor): Distribution tensor for generating paths.
             fixed_attributes (list): Fixed attributes for path generation.
+            agent_index (int): Index of the agent for which to generate paths.
         """
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,\
@@ -564,12 +565,18 @@ class EnvironmentClass:
         # Redefine weights in graph
         for v in range(graph.shape[0] - 2):
             # Get multipliers from neural network
-            if not fixed_attributes:
-                traffic_mult = 1 - distribution[v]
-                distance_mult = distribution[v]
-            else:
-                traffic_mult = fixed_attributes[0]
-                distance_mult = fixed_attributes[1]
+            try:
+                if not fixed_attributes:
+                    traffic_mult = 1 - distribution[v].item()
+                    distance_mult = distribution[v].item()
+                else:
+                    traffic_mult = fixed_attributes[0]
+                    distance_mult = fixed_attributes[1]
+            except Exception as e:
+                # Convert numpy array to tensor
+                distribution = torch.from_numpy(distribution)
+                traffic_mult = 1 - distribution[v].item()
+                distance_mult = distribution[v].item()
 
             # Distance * distance_mult + Traffic * traffic_mult
             graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult

@@ -225,16 +225,16 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
                 t2 = time.time()
 
-                distribution = action_values.detach().numpy()  # Convert PyTorch tensor to NumPy array
+                distribution = action_values
 
                 if save_offline_data:
-                    car_traj['actions'].append(distribution.tolist()) #Save unmodified action
+                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) #Save unmodified action
                 
-                distributions_unmodified.append(distribution.tolist())  # Track outputs before the sigmoid application
+                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist())  # Track outputs before the sigmoid application
 
-                # Apply sigmoid function to the entire array
-                distribution = np.where(distribution >= 0, 1 / (1 + np.exp(-distribution)), np.exp(distribution) / (1 + np.exp(distribution)))
-                distributions.append(distribution.tolist())  # Convert back to list and append
+                # Apply sigmoid function to the entire tensor
+                distribution = torch.sigmoid(distribution)
+                distributions.append(distribution.detach().cpu().numpy().tolist())  # Convert to list and append
 
                 t3 = time.time()
 

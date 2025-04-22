@@ -18,6 +18,8 @@ import pandas as pd
 import sys
 import json
 import glob
+import cProfile
+from train_utils import train_route
 
 from collections import defaultdict
 
@@ -100,6 +102,8 @@ def train_rl_vrp_csp(args):
     elif len(experiment_list) == 2:
         experiment_list = range(experiment_list[0], experiment_list[1]+1)
         print(f"Running experiments from {experiment_list[0]} to {experiment_list[-1]} (length: {len(experiment_list)})")
+
+    verbose = args.verbose
 
     #Getting into Training or Evaluating mode to run experiments
     run_mode = init_config['model_run_mode'] 
@@ -269,6 +273,7 @@ def train_rl_vrp_csp(args):
                         output_dir=emission_output_dir,
                         save_to_file=f"emissions.csv",  # Temporary file
                         tracking_mode='process',
+                        allow_multiple_runs=True,
                         log_level='error'
                     )
                     tracker.start()
@@ -294,7 +299,7 @@ def train_rl_vrp_csp(args):
                                             all_routes[ind], date, action_dim, global_weights, aggregate_step,\
                                             ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                             local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                            barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
+                                            barrier, devices[ind], verbose, eval_c['display_training_times'],\
                                             agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save))
                         processes.append(process)
                         process.start()
@@ -411,7 +416,7 @@ def train_rl_vrp_csp(args):
                                     all_routes[ind], date, action_dim, global_weights, 0,\
                                     ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                     local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                    barrier, devices[ind], eval_c['verbose'], eval_c['display_training_times'],\
+                                    barrier, devices[ind], verbose, eval_c['display_training_times'],\
                                     agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save))
                 processes.append(process)
                 process.start()
@@ -447,11 +452,11 @@ def train_rl_vrp_csp(args):
             if not os.path.exists(f'{metrics_base_path}/eval'):
                 os.makedirs(f'{metrics_base_path}/eval')
             # Save all metrics from evaluation into a file
-            evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
+                evaluate(ev_info, None, seed, date, verbose, 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
 
         if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
             attr_label = 'learned'
@@ -484,111 +489,6 @@ def train_rl_vrp_csp(args):
     print(f"Experiment times: {exp_times}")
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(f"Experiment times: {exp_times}", file=file)
-
-def train_route(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights,
-                aggregate_step, ind, algorithm_dm, sub_seed, main_seed, args, fixed_attributes, local_weights_list,
-                rewards, metrics, output_values, barrier, device, verbose, display_training_times, agent_by_zone, variant,
-                save_offline_data, train_model, old_buffers, process_buffers, weights_to_save):
-
-    """
-    Trains a single route for the VRP-CSP problem using reinforcement learning in a multiprocessing environment.
-
-    Parameters:
-        chargers (array): Array of charger locations and their properties.
-        environment (class): Class containing information about the environment.
-        routes (array): Array containing route information for each EV.
-        date (str): Date string for logging purposes.
-        action_dim (int): Dimension of the action space.
-        global_weights (array): Pre-trained weights for initializing the Q-networks.
-        aggregate_step (int): Aggregation step number for tracking.
-        ind (int): Index of the current process.
-        sub_seed (int): Sub-seed for reproducibility of training.
-        main_seed (int): Main seed for initializing the environment.
-        num_of_cars (int): Number of agents (EVs) in the environment.
-        num_of_chargers (int): Number of charging stations.
-        args (argparse.Namespace): Command-line arguments.
-        fixed_attributes (list): List of fixed attributes for redefining weights in the graph.
-        local_weights_list (list): List to store the local weights of each agent.
-        rewards (list): List to store the average rewards for each episode.
-        metrics (list): List to store the various metrics collected during a simulation
-        output_values (list): List to store the average output values for each episode.
-        barrier (multiprocessing.Barrier): Barrier for synchronizing multiprocessing tasks.
-        verbose (bool): Flag to enable detailed logging.
-        display_training_times (bool): Flag to display training times for different operations.
-        agent_by_zone (bool): True if using one agent for each zone, and false if using a agent for each car
-        train_model (bool): True if training the model, False if evaluating the model
-
-    Returns:
-        None
-    """
-
-    try:
-        # Create a deep copy of the environment for this thread
-        chargers_copy = copy.deepcopy(chargers)
-
-        print(f'algorithm dm {algorithm_dm}')
-
-        if algorithm_dm == 'DQN':
-            from training_processes.train_dqn import train_dqn as train
-
-        elif algorithm_dm == 'PPO':
-            from training_processes.train_ppo import train_ppo as train
-
-        elif algorithm_dm == 'DDPG':
-            from training_processes.train_ddpg import train_ddpg as train
-
-        elif algorithm_dm == 'CMA':
-            from training_processes.train_cma import train_cma as train
-
-        elif algorithm_dm == 'DENSER':
-            from training_processes.train_denser import train_denser as train
-            global_weights = weights_to_save[ind]
-
-        elif algorithm_dm == 'NEAT':
-            from training_processes.train_neat import train_neat as train
-
-        elif algorithm_dm == 'ODT':
-            from training_processes.train_odt import train_odt as train
-
-        elif algorithm_dm == 'REINFORCE':
-            from training_processes.train_reinforce import train_reinforce as train
-            
-        else:
-            raise RuntimeError(f'model {algorithm_dm} algorithm not found.')
-
-        local_weights_per_agent, avg_rewards, avg_output_values, training_metrics, new_buffers =\
-            train(ev_info, metrics_base_path, experiment_number, chargers_copy, environment, routes, \
-                  date, action_dim, global_weights, aggregate_step, ind, sub_seed, main_seed, str(device), \
-                  agent_by_zone, variant, args, fixed_attributes, verbose, display_training_times, torch.float32, \
-                  save_offline_data, train_model, old_buffers)
-
-        # Save results of training
-        st = time.time()
-        rewards.append(avg_rewards)
-        output_values.append(avg_output_values)
-        metrics.append(training_metrics)
-        process_buffers[ind] = new_buffers
-        et = time.time() - st
-
-        if verbose:
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f'Spent {et:.3f} seconds saving results', file=file)  # Print saving time with 3 decimal places
-            print(f'Spent {et:.3f} seconds saving results')  # Print saving time with 3 decimal places
-
-        if train_model:
-            local_weights_list[ind] = local_weights_per_agent
-            weights_to_save[ind] = local_weights_per_agent
-
-        print(f"Thread {ind} waiting")
-
-        if train_model:
-            barrier.wait()  # Wait for all threads to finish before proceeding
-
-    except Exception as e:
-        import traceback
-        print(f"Error in process {ind} during aggregate step {aggregate_step}: {str(e)}")
-        traceback.print_exc()
-        sys.exit(1) # Exit the program with a non-zero status
     
 if __name__ == '__main__':
 
@@ -597,8 +497,13 @@ if __name__ == '__main__':
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
     parser.add_argument('-d','--data_dir', type=str, default='', help='Directory to save data to')
+    parser.add_argument('-verb','--verbose', type=bool, default=False, help='Verbose')
     parser.add_argument('-eval', type=bool, default=False, help='Evaluate the model')
+    parser.add_argument('-profile', type=bool, default=False, help='Profile the code')
 
     args = parser.parse_args()
 
-    train_rl_vrp_csp(args)
+    if args.profile:
+        cProfile.run('train_rl_vrp_csp(args)', 'profile.out')
+    else:
+        train_rl_vrp_csp(args)
