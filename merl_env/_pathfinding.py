@@ -1,8 +1,7 @@
 import numpy as np
-import torch
 DEBUG = False
 
-def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging, device, dtype):
+def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_long, dest_lat, dest_long, still_charging):
     """
     Builds a graph representing the distances between the origin, destination, and unique chargers for an agent.
 
@@ -38,73 +37,64 @@ def build_graph(agent_index, step_size, ev_info, unique_chargers, org_lat, org_l
     max_steps_on_full_charge = max_soc / usage_per_min
 
     # Convert unique_chargers to numpy array
-    charger_locs = torch.tensor([(lat, lon) for _, lat, lon in unique_chargers], device=device, dtype=dtype)
-    all_points = torch.vstack((charger_locs, torch.tensor([org_lat, org_long], device=device, dtype=dtype), torch.tensor([dest_lat, dest_long], device=device, dtype=dtype)))
+    charger_locs = np.array([(lat, lon) for _, lat, lon in unique_chargers])
+    all_points = np.vstack((charger_locs, [org_lat, org_long], [dest_lat, dest_long]))
 
     if DEBUG:
         print(f"{agent_index} - ALL POINTS - {all_points}")
 
     # Initialize graph matrix
     num_points = len(all_points)
-    graph = torch.zeros((num_points, num_points), device=device, dtype=dtype)
+    graph = np.zeros((num_points, num_points))
 
     # Populate graph matrix
     for i in range(num_points):
         for j in range(num_points):
             if i != j:
                 # Calculate Euclidean distance between point i and point j
-                distance = torch.linalg.norm(all_points[i] - all_points[j])
+                distance = np.linalg.norm(all_points[i] - all_points[j])
                 # Calculate number of steps and store in graph
                 graph[i, j] = ((distance / step_size) * usage_per_min) + usage_per_min
 
     # Apply thresholds
-    graph[graph > max_soc] = torch.inf
+    graph[graph > max_soc] = np.inf
 
-    graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = torch.inf  # Origin is capped based on the starting battery
-    graph[:, len(unique_chargers)] = torch.where(graph[:, len(unique_chargers)] > start_soc, torch.inf, graph[:, len(unique_chargers)])
+    graph[len(unique_chargers), graph[len(unique_chargers)] > start_soc] = np.inf  # Origin is capped based on the starting battery
+    graph[:, len(unique_chargers)] = np.where(graph[:, len(unique_chargers)] > start_soc, np.inf, graph[:, len(unique_chargers)])
 
     return graph
 
 def haversine(lat1, lon1, lat2, lon2):
+
     """
     Calculates the great-circle distance between two points on the Earth's surface using the Haversine formula.
 
     Parameters:
-        lat1 (float or torch.Tensor): Latitude of the first point.
-        lon1 (float or torch.Tensor): Longitude of the first point.
-        lat2 (float or torch.Tensor): Latitude of the second point.
-        lon2 (float or torch.Tensor): Longitude of the second point.
+        lat1 (float): Latitude of the first point.
+        lon1 (float): Longitude of the first point.
+        lat2 (float): Latitude of the second point.
+        lon2 (float): Longitude of the second point.
 
     Returns:
-        torch.Tensor: The distance between the two points in kilometers.
+        float: The distance between the two points in kilometers.
     """
+
     R = 6371  # Earth radius in kilometers
-    
-    # Convert to radians
-    if not isinstance(lat1, torch.Tensor):
-        lat1, lon1, lat2, lon2 = map(torch.tensor, [lat1, lon1, lat2, lon2])
-    
     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
-    
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    
-    a = torch.sin(dlat/2)**2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon/2)**2
-    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1-a))
+    a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
     distance = R * c
-    
     return distance
 
-def dijkstra(graph, agent_index, device, dtype):
+def dijkstra(graph, agent_index):
 
     """
     Implements Dijkstra's algorithm to find the shortest path in a graph from the origin to the destination.
 
     Parameters:
-        graph (torch.Tensor): A 2D array representing the distances between nodes in the graph.
-        agent_index (int): The index of the agent in the graph.
-        device (torch.device): The device to run the algorithm on.
-        dtype (torch.dtype): The data type of the graph.
+        graph (numpy.ndarray): A 2D array representing the distances between nodes in the graph.
 
     Returns:
         list: A list of node indices representing the shortest path from the origin to the destination, excluding the origin and destination themselves.

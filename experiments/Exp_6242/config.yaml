@@ -7,7 +7,7 @@ cma_parameters:
   max_generations: 10000
   model_type: NN_basic
   mutation_rate: 0.2
-  population_dimension: 20
+  population_dimension: 5
 environment_settings:
   action_dim: 3
   coords:

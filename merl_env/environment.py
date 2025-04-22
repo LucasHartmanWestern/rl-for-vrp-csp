@@ -557,7 +557,7 @@ class EnvironmentClass:
         # Generate graph of possible paths from chargers to each other, the origin, and destination
         graph = build_graph(self.agent.idx, self.step_size, self.info, self.agent.unique_chargers,\
                             self.agent.org_lat, self.agent.org_long, self.agent.dest_lat, self.agent.dest_long,\
-                            self.charging_status[agent_index], self.device, self.dtype)
+                            self.charging_status[agent_index])
         self.charges_needed.append(copy.deepcopy(graph))
 
         if DEBUG:
@@ -577,10 +577,12 @@ class EnvironmentClass:
 
         # Make sure all tensors are on the same device
         unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(device=self.device, dtype=self.dtype)
+        graph_tensor = torch.from_numpy(graph).to(device=self.device, dtype=self.dtype) # Work with graph as tensor
+        
+        graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
+        graph = graph_tensor.cpu().detach().numpy()
 
-        graph[:, :num_nodes_to_update] = graph[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
-
-        path = dijkstra(graph, self.agent.idx, self.device, self.dtype)
+        path = dijkstra(graph, self.agent.idx)
 
         if DEBUG:
             print(f"{agent_index} - PATH - {path}")

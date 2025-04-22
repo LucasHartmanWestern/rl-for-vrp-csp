@@ -4,9 +4,9 @@
 #SBATCH --error=experiments/Exp_4214/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=11:20:00
-#SBATCH --mem=6G
+#SBATCH --cpus-per-task=4
+#SBATCH --time=72:00:00
+#SBATCH --mem=16G
 
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
