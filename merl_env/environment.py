@@ -408,7 +408,7 @@ class EnvironmentClass:
         battery_levels = torch.empty((0, battery.shape[0]))
         distances_per_car = torch.zeros(1, tokens.shape[0])
 
-        energy_used = np.zeros(self.num_cars)  # Initialize energy used for each car
+        energy_used = torch.zeros(self.num_cars, device=self.device, dtype=self.dtype)
 
         traffic_level = None
 
@@ -453,7 +453,7 @@ class EnvironmentClass:
             battery_levels = torch.cat([battery_levels, battery.cpu().unsqueeze(0)], dim=0)
 
             # Track energy used (absolute value of charging rates)
-            energy_used += torch.abs(charging_rates).cpu().numpy()
+            energy_used += torch.abs(charging_rates)
 
             # Check if the car is at their target battery level
             battery_charged = get_battery_charged(battery, target_battery_level, self.device)
@@ -507,7 +507,7 @@ class EnvironmentClass:
         # Calculate reward as -(distance * 100 + peak traffic + energy used / 100)
         distance_factor = distances_per_car[-1].numpy() * self.distance_scale
         peak_traffic = np.max(traffic_per_charger.numpy()) * self.traffic_scale
-        energy_used = energy_used * self.energy_scale
+        energy_used = energy_used.cpu().numpy() * self.energy_scale
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
         reward_scale = (timestep + 1) if self.reward_version == 2 else 1
@@ -562,24 +562,22 @@ class EnvironmentClass:
             print("-------------")
             print(f"{agent_index} - CHARGES NEEDED - {graph}")
 
-        # Redefine weights in graph
-        for v in range(graph.shape[0] - 2):
-            # Get multipliers from neural network
-            try:
-                if not fixed_attributes:
-                    traffic_mult = 1 - distribution[v].item()
-                    distance_mult = distribution[v].item()
-                else:
-                    traffic_mult = fixed_attributes[0]
-                    distance_mult = fixed_attributes[1]
-            except Exception as e:
-                # Convert numpy array to tensor
-                distribution = torch.from_numpy(distribution)
-                traffic_mult = 1 - distribution[v].item()
-                distance_mult = distribution[v].item()
+        num_nodes_to_update = graph.shape[0] - 2
+        if not fixed_attributes:
+            # Assuming distribution has relevant values up to num_nodes_to_update
+            dist_slice = distribution[:num_nodes_to_update] # Keep on GPU
+            traffic_mult_tensor = 1 - dist_slice
+            distance_mult_tensor = dist_slice
+        else:
+            # Create tensors if using fixed attributes
+            traffic_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[0], device=self.device, dtype=self.dtype)
+            distance_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[1], device=self.device, dtype=self.dtype)
 
-            # Distance * distance_mult + Traffic * traffic_mult
-            graph[:, v] = graph[:, v] * distance_mult + self.agent.unique_traffic[v, 1] * traffic_mult
+        unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(self.device, dtype=self.dtype)
+
+        graph_tensor = torch.from_numpy(graph).to(self.device, dtype=self.dtype) # Work with graph as tensor
+        graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
+        graph = graph_tensor.detach().numpy()
 
         path = dijkstra(graph, self.agent.idx)
 
