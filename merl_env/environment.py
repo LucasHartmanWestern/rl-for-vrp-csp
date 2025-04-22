@@ -394,7 +394,7 @@ class EnvironmentClass:
         target_battery_level = self.target_battery_level
 
         if target_battery_level.size(1) == 0:
-            target_battery_level = torch.zeros(target_battery_level.size(0)).unsqueeze(1)
+            target_battery_level = torch.zeros(target_battery_level.size(0), device=self.device).unsqueeze(1)
 
         stops = self.stops
 
@@ -456,6 +456,8 @@ class EnvironmentClass:
             energy_used += torch.abs(charging_rates)
 
             # Check if the car is at their target battery level
+            # Ensure target_battery_level is on the same device as battery
+            target_battery_level = target_battery_level.to(self.device)
             battery_charged = get_battery_charged(battery, target_battery_level, self.device)
 
             # Charging but ready to leave
@@ -577,7 +579,7 @@ class EnvironmentClass:
 
         graph_tensor = torch.from_numpy(graph).to(self.device, dtype=self.dtype) # Work with graph as tensor
         graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
-        graph = graph_tensor.detach().numpy()
+        graph = graph_tensor.detach().cpu().numpy()
 
         path = dijkstra(graph, self.agent.idx)
 
