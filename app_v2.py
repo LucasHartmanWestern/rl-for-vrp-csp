@@ -278,36 +278,58 @@ def train_rl_vrp_csp(args):
                     )
                     tracker.start()
 
-                    manager = mp.Manager()
-                    local_weights_list = manager.list([None for _ in range(len(chargers))])
-                    process_rewards = manager.list()
-                    process_output_values = manager.list()
-                    process_metrics = manager.list()
-                    process_buffers = manager.list([None for _ in range(len(chargers))])
+                    # Check if we have only one zone - if so, don't use multiprocessing
+                    if len(chargers) == 1:
+                        print("Only one zone detected, running without multiprocessing")
+                        local_weights_list = [None]
+                        process_rewards = []
+                        process_output_values = []
+                        process_metrics = []
+                        process_buffers = [None]
+                        
+                        # Creating output directory
+                        folder = 'outputs/best_paths/'
+                        if not os.path.exists(folder):
+                            os.makedirs(folder)
+                        
+                        # Run directly without multiprocessing
+                        train_route(ev_info, metrics_base_path, experiment_number, chargers[0], environment_list[0],
+                                   all_routes[0], date, action_dim, global_weights, aggregate_step,
+                                   0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
+                                   local_weights_list, process_rewards, process_metrics, process_output_values,
+                                   None, devices[0], verbose, eval_c['display_training_times'],
+                                   agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[0], process_buffers, weights_to_save)
+                    else:
+                        manager = mp.Manager()
+                        local_weights_list = manager.list([None for _ in range(len(chargers))])
+                        process_rewards = manager.list()
+                        process_output_values = manager.list()
+                        process_metrics = manager.list()
+                        process_buffers = manager.list([None for _ in range(len(chargers))])
 
-                    # Barrier for synchronization
-                    barrier = mp.Barrier(len(chargers))
+                        # Barrier for synchronization
+                        barrier = mp.Barrier(len(chargers))
 
-                    # Creating output directory
-                    folder = 'outputs/best_paths/'
-                    if not os.path.exists(folder):
-                        os.makedirs(folder)
+                        # Creating output directory
+                        folder = 'outputs/best_paths/'
+                        if not os.path.exists(folder):
+                            os.makedirs(folder)
 
-                    processes = []
-                    for ind, charger_list in enumerate(chargers):
-                        process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                            all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                            ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                            local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                            barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                            agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save))
-                        processes.append(process)
-                        process.start()
+                        processes = []
+                        for ind, charger_list in enumerate(chargers):
+                            process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
+                                                all_routes[ind], date, action_dim, global_weights, aggregate_step,\
+                                                ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
+                                                local_weights_list, process_rewards, process_metrics, process_output_values,\
+                                                barrier, devices[ind], verbose, eval_c['display_training_times'],\
+                                                agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save))
+                            processes.append(process)
+                            process.start()
 
-                    print("Join Processes")
+                        print("Join Processes")
 
-                    for process in processes:
-                        process.join()
+                        for process in processes:
+                            process.join()
 
                     rewards = []
                     # for metric in process_metrics:
@@ -399,32 +421,50 @@ def train_rl_vrp_csp(args):
             print(f"Loading saved models - Seed {seed}")
             global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
-            manager = mp.Manager()
-            local_weights_list = manager.list([None for _ in range(len(chargers))])
-            process_rewards = manager.list()
-            process_output_values = manager.list()
-            process_metrics = manager.list()
-            process_buffers = manager.list([None for _ in range(len(chargers))])
-            weights_to_save = manager.list([None for _ in range(len(chargers))])
+            # Check if we have only one zone - if so, don't use multiprocessing
+            if len(chargers) == 1:
+                print("Only one zone detected, running without multiprocessing")
+                local_weights_list = [None]
+                process_rewards = []
+                process_output_values = []
+                process_metrics = []
+                process_buffers = [None]
+                weights_to_save = [None]
+                
+                # Run directly without multiprocessing
+                train_route(ev_info, metrics_base_path, experiment_number, chargers[0], environment_list[0],
+                           all_routes[0], date, action_dim, global_weights, 0,
+                           0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
+                           local_weights_list, process_rewards, process_metrics, process_output_values,
+                           None, devices[0], verbose, eval_c['display_training_times'],
+                           agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[0], process_buffers, weights_to_save)
+            else:
+                manager = mp.Manager()
+                local_weights_list = manager.list([None for _ in range(len(chargers))])
+                process_rewards = manager.list()
+                process_output_values = manager.list()
+                process_metrics = manager.list()
+                process_buffers = manager.list([None for _ in range(len(chargers))])
+                weights_to_save = manager.list([None for _ in range(len(chargers))])
 
-            # Barrier for synchronization
-            barrier = mp.Barrier(len(chargers))
+                # Barrier for synchronization
+                barrier = mp.Barrier(len(chargers))
 
-            processes = []
-            for ind, charger_list in enumerate(chargers):
-                process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                    all_routes[ind], date, action_dim, global_weights, 0,\
-                                    ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                    local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                    barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                    agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save))
-                processes.append(process)
-                process.start()
+                processes = []
+                for ind, charger_list in enumerate(chargers):
+                    process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
+                                        all_routes[ind], date, action_dim, global_weights, 0,\
+                                        ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
+                                        local_weights_list, process_rewards, process_metrics, process_output_values,\
+                                        barrier, devices[ind], verbose, eval_c['display_training_times'],\
+                                        agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save))
+                    processes.append(process)
+                    process.start()
 
-            print("Join Processes")
+                print("Join Processes")
 
-            for process in processes:
-                process.join()
+                for process in processes:
+                    process.join()
 
             rewards = []
             for metric in process_metrics:
