@@ -76,20 +76,25 @@ def train_denser(ev_info,
     denser_info = denser_agents_list[0]
     population_size = denser_info.population_size
 
-    try:
-        environment.cma_store()
-    except:
-        print("Error storing environment")
-    # environment.cma_store()
+    # try:
+    #     environment.cma_store()
+    # except:
+    #     print("Error storing environment")
+    # Reset the environment for a new training episode
+    environment.reset_episode(chargers, routes, unique_chargers)
+    environment.cma_store()
+    fitnesses = torch.full((population_size, num_agents), float('-inf'), device=device)
 
     for generation in range(denser_info.max_generation):
-        environment.reset_episode(chargers, routes, unique_chargers)
-        fitnesses = torch.zeros((population_size, num_agents), device=device)
+        # environment.reset_episode(chargers, routes, unique_chargers)
+        # fitnesses = torch.zeros((population_size, num_agents), device=device)
 
         # --- Evaluate each candidate in the current population, one full episode at a time ---
         for pop_idx in range(population_size):
-            # Reset just this candidate’s episode
-            environment.reset_episode(chargers, routes, unique_chargers)
+            # # Reset just this candidate’s episode
+            # environment.reset_episode(chargers, routes, unique_chargers)
+
+            environment.cma_copy_store()  # Restore environment to its stored state
             sim_done = False
             timestep = 0
             # cumulative reward: scalar if agent_by_zone else vector per car
