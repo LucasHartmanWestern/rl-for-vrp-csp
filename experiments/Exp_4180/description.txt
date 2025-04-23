@@ -1,8 +1,8 @@
 
-### Experiment 4180: ###
+### Experiment 4072: ###
 --------------------------------
 Seed: 1234
-Model: DENSER
+Model: CMA
 Season: spring
 Number of cars: 100
 Number of chargers: 1

@@ -2,15 +2,15 @@
 #SBATCH --job-name=Exp_4180_train
 #SBATCH --output=experiments/Exp_4180/output.log
 #SBATCH --error=experiments/Exp_4180/error.log
-#SBATCH -A def-mcapretz
+#SBATCH -A  rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=10:40:00
-#SBATCH --mem=6G
-
+#SBATCH --cpus-per-task=4
+#SBATCH --time=30:00:00
+#SBATCH --mem=32G
+#SBATCH --gpus-per-node=1
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
-#SBATCH --mail-user=lhartma8@uwo.ca
+#SBATCH --mail-user=epigou@uwo.ca
 
 echo "Starting training for experiment 4180"
 
@@ -20,7 +20,12 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=4
 
-python app_v2.py  -e 4180 -d "/home/hartman/scratch/metrics/Exp" 
-    
+# Activate Nvidia MPS:
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+nvidia-cuda-mps-control -d
+
+
+python app_v2.py -g 0 -e 4180 -d "/home/epigou/scratch/metrics/Exp"
