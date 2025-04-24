@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_5180_eval
-#SBATCH --output=experiments/Exp_5180/output.log
-#SBATCH --error=experiments/Exp_5180/error.log
+#SBATCH --job-name=Exp_5072_eval
+#SBATCH --output=experiments/Exp_5072/output.log
+#SBATCH --error=experiments/Exp_5072/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -12,7 +12,7 @@
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=lhartma8@uwo.ca
 
-echo "Starting evaluation for experiment 5180"
+echo "Starting evaluation for experiment 5072"
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 5180 -d "/home/hartman/scratch/metrics/Exp" -eval True
+python app_v2.py  -e 5072 -d "/home/sgomezro/scratch/metrics/Exp" -eval True
     
