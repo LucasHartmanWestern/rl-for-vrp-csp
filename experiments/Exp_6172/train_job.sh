@@ -4,10 +4,9 @@
 #SBATCH --error=experiments/Exp_6172/error.log
 #SBATCH -A  rrg-kgroling
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=30:00:00
-#SBATCH --mem=20G
-#SBATCH --gpus-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=10:00:00
+#SBATCH --mem=22G
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=epigou@uwo.ca
@@ -20,12 +19,8 @@ module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
 
 # Enable multi-threading
-export OMP_NUM_THREADS=4
-
-# Activate Nvidia MPS:
-export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
-export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
-nvidia-cuda-mps-control -d
+export OMP_NUM_THREADS=8
 
 
-python app_v2.py -g 0 -e 6172 -d "/home/epigou/scratch/metrics/Exp"
+
+python app_v2.py -e 6172 -d "/home/epigou/scratch/metrics/Exp"
