@@ -7,7 +7,7 @@ import os
 import argparse
 
 
-cookie = f"sessionid=x5o5g7z4520scpefl1b7ix4twvyvrpnt"
+cookie = f"sessionid=inogpb48rxgkxgklt34m3ivzklxp2isy"
 
 def save_job_power_usage(job, experiment_num, username, base_path):
 
@@ -47,7 +47,9 @@ def save_job_power_usage(job, experiment_num, username, base_path):
             f.write(f'{x},{y},{co2_data["co2_emissions_kg"]}\n')
 
 def get_jobs_per_experiments(experiment_list, username, base_path):
-    url = f"https://portail.beluga.calculquebec.ca/api/jobs/?format=datatables&username={username}"
+
+    
+    url = f"https://portail.beluga.calculquebec.ca/api/jobs/?format=datatables&username={username}&length=1000"
 
     print(f"Making request to {url}")
 
