@@ -6,8 +6,10 @@ import urllib.request
 import os
 import argparse
 
-
-cookie = f"sessionid=inogpb48rxgkxgklt34m3ivzklxp2isy"
+# Lucas: inogpb48rxgkxgklt34m3ivzklxp2isy
+# Ethan: zkndni8fd4vkdnnylyyccqz5lfljkoeg
+# Santiago: hdwdd0n0hqxe7piia875zha596nj6a11
+cookie = f"sessionid=hdwdd0n0hqxe7piia875zha596nj6a11"
 
 def save_job_power_usage(job, experiment_num, username, base_path):
 
@@ -49,7 +51,7 @@ def save_job_power_usage(job, experiment_num, username, base_path):
 def get_jobs_per_experiments(experiment_list, username, base_path):
 
     
-    url = f"https://portail.beluga.calculquebec.ca/api/jobs/?format=datatables&username={username}&length=1000"
+    url = f"https://portail.beluga.calculquebec.ca/api/jobs/?format=datatables&username={username}&length=2000"
 
     print(f"Making request to {url}")
 
