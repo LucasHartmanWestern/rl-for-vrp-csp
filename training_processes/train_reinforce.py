@@ -233,7 +233,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
             # For REINFORCE, we store transitions for each agent
             for car_idx, rew in enumerate(time_step_rewards):
-                episode_experiences[car_idx].append((
+                episode_experiences[0 if agent_by_zone else car_idx].append((
                     states[-num_cars + car_idx],
                     distributions_unmodified[-num_cars + car_idx],
                     rew,
