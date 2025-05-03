@@ -618,47 +618,52 @@ class EnvironmentClass:
             agent_chargers = self.chargers[0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
-        #Update needed: following lines should be optimized to work directly on device not as a list
-        agent_unique_chargers = torch.tensor([charger for charger in self.unique_chargers if charger[0] in agent_chargers], dtype=self.dtype, device=self.device)
-        agent_unique_traffic = torch.tensor([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers], device=self.device)
+
+        # OLD COPY:
+        agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
+        agent_unique_traffic = np.array([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers])
+        #NEW COPY: Update needed: following lines should be optimized to work directly on device not as a list
+        # agent_unique_chargers = torch.tensor([charger for charger in self.unique_chargers if charger[0] in agent_chargers], dtype=self.dtype, device=self.device)
+        # agent_unique_traffic = torch.tensor([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers], device=self.device)
 
         # Get distances from origin to each charging station
         org_lat, org_long, dest_lat, dest_long = self.routes[agent_idx]
-        #Update needed: following lines should be optimized to work directly on device not as a list
-        dists = torch.tensor([haversine(org_lat, org_long, charge_lat.cpu(), charge_long.cpu()) for (id, charge_lat, charge_long) in agent_unique_chargers], device=self.device)
+        #OLD COPY:
+        dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agent_unique_chargers])
+        #NEW COPY: Update needed: following lines should be optimized to work directly on device not as a list
+        # dists = torch.tensor([haversine(org_lat, org_long, charge_lat.cpu(), charge_long.cpu()) for (id, charge_lat, charge_long) in agent_unique_chargers], device=self.device)
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
 
-        # Traffic level and distance of each station plus total charger num, total distance,
-        # number of EVs, car model index, and temperature
-        # state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
-        #                    np.array([self.num_chargers * 3]), np.array([route_dist]),
-        #                    np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-        #                    np.array([self.temperature]), np.array([timestep_counter])))
-        #Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
+        # OLD COPY:
+        state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
+                           np.array([self.num_chargers * 3]), np.array([route_dist]),
+                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
+                           np.array([self.temperature]), np.array([timestep_counter])))
+        # Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
         # performing unnecesary repetitions of the state creation
-        state = torch.cat((
-            torch.cat((agent_unique_traffic[:, 1], dists), dim=0).reshape(-1),
-            torch.tensor([self.num_chargers * 3], device=self.device, dtype=self.dtype),
-            torch.tensor([route_dist], device=self.device, dtype=self.dtype),
-            torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
-            torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
-            torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
-            torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
+        # state = torch.cat((
+        #     torch.cat((agent_unique_traffic[:, 1], dists), dim=0).reshape(-1),
+        #     torch.tensor([self.num_chargers * 3], device=self.device, dtype=self.dtype),
+        #     torch.tensor([route_dist], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
+        #     torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
         
         # Normalize the state values
-        state = (state - torch.mean(state)) / torch.std(state)
+        state = (state - np.mean(state)) / np.std(state)
 
         # Round the state values to 3 decimal places
         # state = torch.round(state, 3)
-        state = torch.round(state * 1000) / 1000
+        state = np.round(state * 1000) / 1000
 
 
         # Storing agent info
         #Update needed: unique chargers and traffic set to be on cpu for now, but should work no current device
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
-                                agent_unique_chargers.cpu().numpy(), agent_unique_traffic.cpu().numpy())
-        return state.to(dtype=self.dtype)
+                                agent_unique_chargers, agent_unique_traffic)
+        return state
 
     def init_routing(self):
         # Clearing paths
