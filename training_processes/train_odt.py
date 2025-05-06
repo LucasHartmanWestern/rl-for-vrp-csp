@@ -56,15 +56,20 @@ class Experiment:
         self.seed = seed
         self.zone_index = zone_index
         self.agg_num = agg_num
-        self.logger = Logger(variant, agg_num, zone_index)
+
         self.action_range = self._get_env_spec(variant)
         self.action_batch = None
         self.dataloader = None
         self.online_dataset = getattr(self, "online_dataset", None)
 
-        
-        save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
-        os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
+        # if this is an evaluation run, write all logs/models into a sibling “eval” folder
+        base_save = variant["save_dir"]
+        if variant.get("evaluation", False):
+            base_save = os.path.join(base_save, "eval")
+        save_path = os.path.join(base_save, str(variant["exp_name"]))
+        os.makedirs(save_path, exist_ok=True)
+        variant["save_dir"] = base_save
+        self.logger = Logger(variant, agg_num, zone_index)
 
         if not variant['evaluation'] or agg_num < 1:
             self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
@@ -112,13 +117,19 @@ class Experiment:
         target_entropy=self.target_entropy,
     ).to(device=self.device)
 
-        if variant['evaluation']:
-            exp_number = int(self.experiment_number) - 100  # Subtract 100 from the experiment number
-            #exp_number = self.experiment_number
-            model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index + 1}/model.pt'  # Generate the updated pathprint
-            print(model_path)
+        # Load saved model for first aggregation, but from the *next* zone (wrapping around)
+        if variant.get("evaluation", False) and agg_num == 0:
+            num_zones = variant.get("num_zones", 4)
+            next_zone = (self.zone_index + 1) % num_zones
+            folder_zone = next_zone + 1
+            model_path = (
+                f"../exp/Exp_{self.experiment_number}"
+                f"/Agg:0-Zone:{folder_zone}/model.pt"
+            )
+            print(f"[eval] first‐agg load from zone {next_zone}: {model_path}")
             self._load_model(model_path)
             self.save_attn_layers(self.model, self.device)
+
 
         self.optimizer = Lamb(
             self.model.parameters(),
@@ -137,21 +148,28 @@ class Experiment:
         )
 
         if agg_num > 0:
-            start_time = time.time() 
-            
-            path = self.logger.log_path
-            current_agg_num = int(re.search(r'Agg:(\d+)', path ).group(1))
-            new_agg_num = current_agg_num - 1
-            updated_save_model_path = re.sub(r'Agg:\d+', f'Agg:{new_agg_num}', path)
-            self._load_model(updated_save_model_path)
+            prev = agg_num - 1
+            if variant.get("evaluation", False):
+                # wrap to next zone again each round
+                num_zones = variant.get("num_zones", 4)
+                next_zone = (self.zone_index + 1) % num_zones
+                folder_zone = next_zone + 1
+                prev_path = os.path.join(
+                    base_save,
+                    str(variant["exp_name"]),
+                    f"Agg:{prev}-Zone:{folder_zone}"
+                )
+                print(f"[eval] reload from {prev_path}")
+                self._load_model(prev_path)
+                self.save_attn_layers(self.model, self.device)
+            else:
+                # normal federated
+                prev_log = re.sub(r"Agg:\d+", f"Agg:{prev}", self.logger.log_path)
+                print(f"[federated] loading from {prev_log}")
+                self._load_model(prev_log)
+                attn_layers = load_global_weights(f"saved_networks/Exp_{self.experiment_number}/")
+                self.set_attn_layers(self.model, attn_layers.to(self.device))
 
-            #Load aggregated weights
-            save_global_path = f'saved_networks/Exp_{experiment_number}/'
-            attn_layers = load_global_weights(save_global_path)
-            self.set_attn_layers(self.model, attn_layers.to(device))
-            end_time = time.time()
-            elapsed = end_time - start_time
-            print(f'Loading aggregated models took {elapsed}')
 
         if self.online_dataset is None:
             transform = TransformSamplingSubTraj(
@@ -207,7 +225,7 @@ class Experiment:
 
         with open(f"{path_prefix}/model.pt", "wb") as f:
             torch.save(to_save, f)
-        print(f"\nModel saved at {path_prefix}/model.pt")
+        print(f"\n Model saved at {path_prefix}/model.pt")
 
         if is_pretrain_model:
             with open(f"{path_prefix}/pretrain_model.pt", "wb") as f:
@@ -246,33 +264,43 @@ class Experiment:
         - state_mean (np.array): Mean values for state normalization.
         - state_std (np.array): Standard deviation values for state normalization.
         """
-        print(f'Loading Dataset for Zone {self.zone_index}...')
+        # determine which zone to actually load from (wrap around)
+        num_zones = self.variant.get("num_zones", 4)
+        load_zone = (self.zone_index + 1) % num_zones
+        print(f'Loading Dataset for Zone {load_zone} (orig {self.zone_index})...')
 
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        adjusted_experiment_number = str((int(self.experiment_number) - 108))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5')
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{self.zone_index}.h5')
-        # f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
+        adjusted_experiment_number = str(int(self.experiment_number) - 108)
+        # original path (commented out)
+        # dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5')
+        # simplified/test path (commented out)
+        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{load_zone}.h5')
+        # use wrap-around load_zone instead of self.zone_index
+        dataset_path = os.path.join(
+            base_dir,
+            f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{load_zone}.h5'
+        )
 
+        # fallback to scratch if needed
         if not os.path.exists(dataset_path):
             print(f'Loading from {adjusted_experiment_number}')
             glob_path = os.path.expanduser(
-                f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
+                f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{load_zone}.h5"
             )
             matching_files = glob.glob(glob_path)
             if not matching_files:
-                print(f"[ERROR] No .h5 files found for zone {self.zone_index} in fallback path: {glob_path}")
-                raise FileNotFoundError(f"No .h5 files found for zone {self.zone_index}")
+                print(f"[ERROR] No .h5 files found for zone {load_zone} in fallback path: {glob_path}")
+                raise FileNotFoundError(f"No .h5 files found for zone {load_zone}")
             dataset_path = min(matching_files, key=os.path.getctime)
 
         # Load trajectories from HDF5 file
         trajectories = []
         try:
             with h5py.File(dataset_path, 'r') as f:
-                zone_key = f"zone_{self.zone_index}"
+                zone_key = f"zone_{load_zone}"
                 if zone_key not in f:
-                    raise RuntimeError(f"Zone {self.zone_index} not found in {dataset_path}")
+                    raise RuntimeError(f"Zone {load_zone} not found in {dataset_path}")
 
                 zone_group = f[zone_key]
                 for traj_key in zone_group:
@@ -301,8 +329,8 @@ class Experiment:
         states, traj_lens, returns = [], [], []
         for traj in trajectories:
             traj["observations"] = np.array(traj["observations"], dtype=np.float32)
-            traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
-            traj["actions"] = np.array(traj["actions"], dtype=np.float32)
+            traj["rewards"]      = np.array(traj["rewards"], dtype=np.float32)
+            traj["actions"]      = np.array(traj["actions"], dtype=np.float32)
 
             states.append(traj["observations"])
             traj_lens.append(len(traj["observations"]))
@@ -315,12 +343,9 @@ class Experiment:
 
         # Print dataset statistics
         print("=" * 50)
-        print(f"Dataset for Zone {self.zone_index} loaded successfully")
+        print(f"Dataset for Zone {load_zone} loaded successfully from {dataset_path}")
         print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
         print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
-        print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
-        print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
-        print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
         print("=" * 50)
 
         # Sort and filter trajectories by return
@@ -336,6 +361,7 @@ class Experiment:
         trajectories = [trajectories[ii] for ii in sorted_inds]
 
         return trajectories, state_mean, state_std
+
 
 
     def _augment_trajectories(
@@ -654,12 +680,14 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     utils.set_seed_everywhere(main_seed)
     
     print(f'episode calc check: {variant["max_online_iters"] }')
+    print(f"Evaluation: {variant['evaluation']}")
     experiment = Experiment(variant, environment, chargers, routes, environment.state_dim, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
     experiment()
     
     metrics = experiment.metrics
+
 
 
     return experiment.get_model_weights().detach().cpu(), [], [], metrics, experiment.final_buffer

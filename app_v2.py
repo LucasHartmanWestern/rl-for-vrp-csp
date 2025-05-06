@@ -137,7 +137,8 @@ def train_rl_vrp_csp(args):
             variant = c
         elif algorithm_dm == 'ODT': # transformer based
             num_episodes = c['nn_hyperparameters']['num_episodes']
-            variant = c        
+            variant = c
+            variant["odt_hyperparameters"]["evaluation"] = args.eval
         else:
             variant = None
 
