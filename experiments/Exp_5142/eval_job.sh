@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=Exp_5142_eval
-#SBATCH --output=experiments/Exp_5142/eval_output.log
-#SBATCH --error=experiments/Exp_5142/eval_error.log
+#SBATCH --output=experiments/Exp_5142/output.log
+#SBATCH --error=experiments/Exp_5142/error.log
 #SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -14,11 +14,13 @@
 echo "Starting evaluation for experiment 5142"
 
 set -e
+
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
+
 export OMP_NUM_THREADS=4
 export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
 export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
 nvidia-cuda-mps-control -d
 
-python app_v2.py -e 5142 -d "/home/epigou/scratch/metrics/Eval/Exp" -eval True
+python app_v2.py -g 0 -e 5142 -d "/home/epigou/scratch/metrics/Eval/Exp" -eval True
