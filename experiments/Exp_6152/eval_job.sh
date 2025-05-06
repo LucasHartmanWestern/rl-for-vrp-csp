@@ -1,26 +1,24 @@
 #!/bin/bash
-#SBATCH --job-name=Exp_6044_eval
-#SBATCH --output=experiments/Exp_6044/output.log
-#SBATCH --error=experiments/Exp_6044/error.log
-#SBATCH -A def-mcapretz
+#SBATCH --job-name=Exp_6152_eval
+#SBATCH --output=experiments/Exp_6152/eval_output.log
+#SBATCH --error=experiments/Exp_6152/eval_error.log
+#SBATCH -A rrg-kgroling
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=90:00:00
-#SBATCH --mem=16G
-
-
+#SBATCH --time=46:00:00
+#SBATCH --mem=22G
+#SBATCH --gpus-per-node=1
 #SBATCH --mail-type=FAIL,TIME_LIMIT
-#SBATCH --mail-user=lhartma8@uwo.ca
+#SBATCH --mail-user=epigou@uwo.ca
 
-echo "Starting evaluation for experiment 6044"
+echo "Starting evaluation for experiment 6152"
 
-set -e  # Exit immediately if a command exits with a non-zero status
-
+set -e
 module load python/3.10 cuda cudnn
 source ~/envs/merl_env/bin/activate
+export OMP_NUM_THREADS=4
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+nvidia-cuda-mps-control -d
 
-# Enable multi-threading
-export OMP_NUM_THREADS=2
-
-python app_v2.py  -e 6044 -d "/home/hartman/scratch/metrics/Exp" -eval True
-    
+python app_v2.py -e 6152 -d "/home/epigou/scratch/metrics/Eval/Exp" -eval True
