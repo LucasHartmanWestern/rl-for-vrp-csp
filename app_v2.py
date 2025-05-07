@@ -20,6 +20,7 @@ import json
 import glob
 import cProfile
 from train_utils import train_route
+from training_processes.worker_environment import worker_environment
 
 from collections import defaultdict
 
@@ -138,6 +139,7 @@ def train_rl_vrp_csp(args):
             variant = c
         elif algorithm_dm in ['CMA', 'DENSER', 'NEAT']: # population based
             num_episodes = c['cma_parameters']['max_generations']
+            population_size = c['cma_parameters']['population_dimension']
             variant = c
         elif algorithm_dm == 'ODT': # transformer based
             num_episodes = c['nn_hyperparameters']['num_episodes']
@@ -197,15 +199,49 @@ def train_rl_vrp_csp(args):
         # Generating sub seeds to run on each environment
         chargers_seeds = rng.integers(low=0, high=10000, size=len(env_c['coords']))
 
-        # Initializing list of enviroments
+        # Initializing list of environments
         environment_list = []
         ev_info = []
         start_time = time.time()
+        workers = []
+        all_workers = []
         for area_idx in range(n_zones):
-            environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx], env_c['coords'][area_idx], device=devices[area_idx], dtype=torch.float32)
+            # Population base init workers with environment setup and communications.
+            # list of workers and comms are sent to each zone
+            if algorithm_dm in ['CMA', 'DENSER', 'NEAT']: # population based
 
-            environment_list.append(environment)
-            ev_info.append(environment.get_ev_info())
+                comms = [] # creating a list of comms for each zone only
+                for pop_idx in range(population_size):
+                    #generating a list of agents by population index
+                    # if agent_by_zone:
+                    #     agents_by_pop = [denser_agents_list[0].population[pop_idx]]
+                    # else:
+                    #     agents_by_pop = [denser_agents_list[car_idx].population[pop_idx]\
+                    #                      for car_idx in range(num_cars)]
+                    parent_comm, child_comm = mp.Pipe()
+                    worker = worker_environment(experiment_number, area_idx, pop_idx,\
+                                                chargers_seeds[area_idx], devices[area_idx],\
+                                                torch.float32)
+                    p = mp.Process(target=worker.run, args=(pop_idx, child_comm))
+                    p.start()
+                    workers.append(p)
+                    comms.append(parent_comm)
+                    all_workers.append(worker)
+
+                # Creating a list of communications with workers and wrapping as an environment list
+                environment_list.append(comms)
+                ev_info.append(worker.get_ev_info())
+
+            
+            elif algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE", "ODT"]: # reinforcement learning
+                environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
+                                               env_c['coords'][area_idx], device=devices[area_idx],\
+                                               dtype=torch.float32)
+    
+                environment_list.append(environment)
+                ev_info.append(environment.get_ev_info())
+            else:
+                raise Exception('No DM algorithm selected for environment setup at app.py')
         
         elapsed_time = time.time() - start_time
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
@@ -235,7 +271,8 @@ def train_rl_vrp_csp(args):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
                 data = get_charger_data()
                 charger_info = np.c_[data['latitude'].to_list(), data['longitude'].to_list()]
-                charger_list = get_charger_list(charger_info, org_lat, org_long, dest_lat, dest_long, env_c['num_of_chargers'])
+                charger_list = get_charger_list(charger_info, org_lat, org_long,\
+                                                dest_lat, dest_long, env_c['num_of_chargers'])
                 chargers[route_id][agent_id] = charger_list
 
         elapsed_time = time.time() - start_time
@@ -293,12 +330,14 @@ def train_rl_vrp_csp(args):
                             os.makedirs(folder)
                         
                         # Run directly without multiprocessing
-                        train_route(ev_info, metrics_base_path, experiment_number, chargers[0], environment_list[0],
-                                   all_routes[0], date, action_dim, global_weights, aggregate_step,
-                                   0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
-                                   local_weights_list, process_rewards, process_metrics, process_output_values,
-                                   None, devices[0], verbose, eval_c['display_training_times'],
-                                   agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[0], process_buffers, weights_to_save, len(chargers))
+                        train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
+                                    environment_list[0], all_routes[0], date, action_dim, global_weights,\
+                                    aggregate_step, 0, algorithm_dm, chargers_seeds[0], seed, args,\
+                                    eval_c['fixed_attributes'], local_weights_list, process_rewards,\
+                                    process_metrics, process_output_values, None, devices[0], verbose,\
+                                    eval_c['display_training_times'], agent_by_zone, variant,\
+                                    eval_c['save_offline_data'], True, old_buffers[0], process_buffers,\
+                                    weights_to_save, len(chargers))
                     else:
                         manager = mp.Manager()
                         local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -317,12 +356,16 @@ def train_rl_vrp_csp(args):
 
                         processes = []
                         for ind, charger_list in enumerate(chargers):
-                            process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                                all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                                ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                                local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                                barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                                agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save, len(chargers)))
+                            process = mp.Process(target=train_route, args=(ev_info, metrics_base_path,\
+                                                experiment_number, charger_list, environment_list[ind],\
+                                                all_routes[ind], date, action_dim, global_weights,\
+                                                aggregate_step, ind, algorithm_dm, chargers_seeds[ind],\
+                                                seed, args, eval_c['fixed_attributes'], local_weights_list,\
+                                                process_rewards, process_metrics, process_output_values,\
+                                                barrier, devices[ind], verbose,\
+                                                eval_c['display_training_times'], agent_by_zone, variant,\
+                                                eval_c['save_offline_data'], True, old_buffers[ind],\
+                                                process_buffers, weights_to_save, len(chargers)))
                             processes.append(process)
                             process.start()
 
@@ -382,6 +425,7 @@ def train_rl_vrp_csp(args):
                     # Stop tracking emissions
                     emissions = tracker.stop()
                     print(f"Total CO₂ emissions: {emissions} kg")
+                        
                     try:
                         # Read the temporary emissions report
                         temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
@@ -507,15 +551,6 @@ def train_rl_vrp_csp(args):
         print(f'directory {metrics_base_path}')
         if not os.path.exists(f'{metrics_base_path}/train'):
             os.makedirs(f'{metrics_base_path}/train')
-
-        # # Save all metrics from training into a file
-        # if eval_c['save_data']:
-        #     evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
-
-        # # Generate the plots for the various metrics
-        # if eval_c['generate_plots']:
-        #     evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
-
         et = time.time() - start_time
         to_print = f"Total time elapsed for this run"+\
             f"- et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
@@ -526,6 +561,10 @@ def train_rl_vrp_csp(args):
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
 
+    # Shutdown all workers environment
+    for comms in environment_list:
+        for comm in comms:
+            comm.send("stop")
     print(f"Experiment times: {exp_times}")
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(f"Experiment times: {exp_times}", file=file)

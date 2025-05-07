@@ -8,7 +8,8 @@ from data_loader import load_config_file
 GRAMMAR = {
     "Network": [["Layer", "Network"], ["Layer"]],
     "Layer": [["dense", "(", "units", ")", "activation"]],
-    "units": [["4"], ["8"], ["16"], ["32"], ["64"], ["128"], ["256"]],
+    # "units": [["4"], ["8"], ["16"], ["32"], ["64"], ["128"], ["256"]],
+    "units": [["4"], ["8"], ["16"], ["32"]],
     "activation": [["relu"], ["tanh"], ["sigmoid"], ["linear"]]
 }
 

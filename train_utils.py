@@ -59,7 +59,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
             from training_processes.train_cma import train_cma as train
 
         elif algorithm_dm == 'DENSER':
-            from training_processes.train_denser import train_denser as train
+            from training_processes.train_denser_v2 import train_denser as train
             global_weights = weights_to_save[ind]
 
         elif algorithm_dm == 'NEAT':
