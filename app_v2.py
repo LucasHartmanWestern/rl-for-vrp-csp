@@ -179,7 +179,7 @@ def train_rl_vrp_csp(args):
 
         #to ask Lucas
         if eval_c['evaluate_on_diff_seed'] or args.eval:
-            seed_options = [1234, 5555, 2020]
+            seed_options = [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6060]
             seed_index = seed_options.index(seed)
             old_seed = seed
             seed = seed_options[(seed_index + 1) % len(seed_options)]
