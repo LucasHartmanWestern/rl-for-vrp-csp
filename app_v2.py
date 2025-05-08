@@ -23,6 +23,8 @@ from train_utils import train_route
 
 from collections import defaultdict
 
+import tracemalloc
+
 warnings.filterwarnings("ignore")
 
 
@@ -34,6 +36,8 @@ mp.set_sharing_strategy('file_system')
 mp.set_start_method('spawn', force=True)
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
+tracemalloc.start()
 
 def train_rl_vrp_csp(args):
 
@@ -293,12 +297,15 @@ def train_rl_vrp_csp(args):
                             os.makedirs(folder)
                         
                         # Run directly without multiprocessing
-                        train_route(ev_info, metrics_base_path, experiment_number, chargers[0], environment_list[0],
-                                   all_routes[0], date, action_dim, global_weights, aggregate_step,
-                                   0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
-                                   local_weights_list, process_rewards, process_metrics, process_output_values,
-                                   None, devices[0], verbose, eval_c['display_training_times'],
-                                   agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[0], process_buffers, weights_to_save, len(chargers))
+                        train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
+                                    copy.deepcopy(environment_list[0]), all_routes[0], date, 
+                                    action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
+                                    chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
+                                    local_weights_list, process_rewards, process_metrics, \
+                                    process_output_values, None, devices[0], verbose, \
+                                    eval_c['display_training_times'], agent_by_zone, variant,\
+                                    eval_c['save_offline_data'], True, old_buffers[0],\
+                                    process_buffers, weights_to_save, len(chargers))
                     else:
                         manager = mp.Manager()
                         local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -317,12 +324,16 @@ def train_rl_vrp_csp(args):
 
                         processes = []
                         for ind, charger_list in enumerate(chargers):
-                            process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                                all_routes[ind], date, action_dim, global_weights, aggregate_step,\
-                                                ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                                local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                                barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                                agent_by_zone, variant, eval_c['save_offline_data'], True, old_buffers[ind], process_buffers, weights_to_save, len(chargers)))
+                            args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
+                                      copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
+                                      action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
+                                      chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
+                                      local_weights_list, process_rewards, process_metrics,\
+                                      process_output_values, barrier, devices[ind], verbose,\
+                                      eval_c['display_training_times'], agent_by_zone, variant,\
+                                      eval_c['save_offline_data'], True, old_buffers[ind], \
+                                      process_buffers, weights_to_save, len(chargers))
+                            process = mp.Process(target=train_route, args=args_tuple)
                             processes.append(process)
                             process.start()
 
@@ -331,6 +342,9 @@ def train_rl_vrp_csp(args):
                         for process in processes:
                             process.join()
 
+                    current, peak = tracemalloc.get_traced_memory()
+                    print(f"Current memory usage: {current / 1024**2:.2f} MB; Peak: {peak / 1024**2:.2f} MB")
+                    
                     rewards = []
                     # for metric in process_metrics:
                     #     metric = metric[0]
@@ -345,15 +359,20 @@ def train_rl_vrp_csp(args):
                     # Aggregate the weights from all local models
                     if algorithm_dm == 'ODT':
                         # Aggregate the weights from all local models
-                        global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
-                                                            federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                        global_weights = get_global_weights(local_weights_list, ev_info,\
+                                                            federated_c['city_multiplier'],\
+                                                            federated_c['zone_multiplier'],\
+                                                            federated_c['model_multiplier'],\
                                                             agent_by_zone, is_odt=True)
-                    elif algorithm_dm == 'DENSER': # Cannot aggregate weights for DENSER because architecture is different between agents
+                    elif algorithm_dm == 'DENSER': 
+                        # Cannot aggregate weights for DENSER because architecture is different between agents
                         pass
                     else:
                         # Aggregate the weights from all local models
-                        global_weights = get_global_weights(local_weights_list, ev_info, federated_c['city_multiplier'],\
-                                                            federated_c['zone_multiplier'], federated_c['model_multiplier'],\
+                        global_weights = get_global_weights(local_weights_list, ev_info,\
+                                                            federated_c['city_multiplier'],\
+                                                            federated_c['zone_multiplier'],\
+                                                            federated_c['model_multiplier'],\
                                                             agent_by_zone)
 
                     save_global_path = f'saved_networks/Exp_{experiment_number}/'
@@ -374,9 +393,12 @@ def train_rl_vrp_csp(args):
                     old_buffers = list(process_buffers)
 
                     with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                        print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n", file=file)
+                        agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count']}"
+                        print(f"\n\n############ Aggregation {agg_print} ############\n\n", file=file)
 
-                    print(f"\n\n############ Aggregation {aggregate_step + 1}/{federated_c['aggregation_count']} ############\n\n",)
+                    print(f"\n\n############ Aggregation {agg_print} ############\n\n",)
+
+
 
                 finally:
                     # Stop tracking emissions
@@ -432,12 +454,15 @@ def train_rl_vrp_csp(args):
                 weights_to_save = [None]
                 
                 # Run directly without multiprocessing
-                train_route(ev_info, metrics_base_path, experiment_number, chargers[0], environment_list[0],
-                           all_routes[0], date, action_dim, global_weights, 0,
-                           0, algorithm_dm, chargers_seeds[0], seed, args, eval_c['fixed_attributes'],
-                           local_weights_list, process_rewards, process_metrics, process_output_values,
-                           None, devices[0], verbose, eval_c['display_training_times'],
-                           agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[0], process_buffers, weights_to_save, len(chargers))
+                train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
+                            copy.deepcopy(environment_list[0]), all_routes[0], date,\
+                            action_dim, global_weights, 0, 0, algorithm_dm,\
+                            chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
+                            local_weights_list, process_rewards, process_metrics,\
+                            process_output_values, None, devices[0], verbose,\
+                            eval_c['display_training_times'], agent_by_zone, variant,\
+                            eval_c['save_offline_data'], False, old_buffers[0],\
+                            process_buffers, weights_to_save, len(chargers))
             else:
                 manager = mp.Manager()
                 local_weights_list = manager.list([None for _ in range(len(chargers))])
@@ -452,12 +477,16 @@ def train_rl_vrp_csp(args):
 
                 processes = []
                 for ind, charger_list in enumerate(chargers):
-                    process = mp.Process(target=train_route, args=(ev_info, metrics_base_path, experiment_number, charger_list, environment_list[ind],\
-                                        all_routes[ind], date, action_dim, global_weights, 0,\
-                                        ind, algorithm_dm, chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                        local_weights_list, process_rewards, process_metrics, process_output_values,\
-                                        barrier, devices[ind], verbose, eval_c['display_training_times'],\
-                                        agent_by_zone, variant, eval_c['save_offline_data'], False, old_buffers[ind], process_buffers, weights_to_save, len(chargers)))
+                    args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
+                                      copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
+                                      action_dim, global_weights, 0, ind, algorithm_dm,\
+                                      chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
+                                      local_weights_list, process_rewards, process_metrics,\
+                                      process_output_values, barrier, devices[ind], verbose,\
+                                      eval_c['display_training_times'], agent_by_zone, variant,\
+                                      eval_c['save_offline_data'], False, old_buffers[ind], \
+                                      process_buffers, weights_to_save, len(chargers))
+                    process = mp.Process(target=train_route, args=args_tuple)
                     processes.append(process)
                     process.start()
 
@@ -492,11 +521,13 @@ def train_rl_vrp_csp(args):
             if not os.path.exists(f'{metrics_base_path}/eval'):
                 os.makedirs(f'{metrics_base_path}/eval')
             # Save all metrics from evaluation into a file
-            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_base_path}/eval/metrics")
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
+                     f"{metrics_base_path}/eval/metrics")
 
             # Generate the plots for the various metrics
             if eval_c['generate_plots']:
-                evaluate(ev_info, None, seed, date, verbose, 'display', num_episodes, f"{metrics_base_path}/eval/metrics")
+                evaluate(ev_info, None, seed, date, verbose, 'display',\
+                         num_episodes, f"{metrics_base_path}/eval/metrics")
 
         if eval_c['fixed_attributes'] != [0, 1] and eval_c['fixed_attributes'] != [1, 0] and eval_c['fixed_attributes'] != [0.5, 0.5]:
             attr_label = 'learned'
@@ -508,24 +539,18 @@ def train_rl_vrp_csp(args):
         if not os.path.exists(f'{metrics_base_path}/train'):
             os.makedirs(f'{metrics_base_path}/train')
 
-        # # Save all metrics from training into a file
-        # if eval_c['save_data']:
-        #     evaluate(ev_info, metrics, seed, date, eval_c['verbose'], 'save', num_episodes, f"{metrics_base_path}/train/metrics")
-
-        # # Generate the plots for the various metrics
-        # if eval_c['generate_plots']:
-        #     evaluate(ev_info, None, seed, date, eval_c['verbose'], 'display', num_episodes, f"{metrics_base_path}/train/metrics")
-
         et = time.time() - start_time
-        to_print = f"Total time elapsed for this run"+\
-            f"- et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
+        print_h = f"{str(int(et // 3600)).zfill(2)}:"
+        print_m_s = f"{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
+        to_print = f"Total time elapsed for this run - et {print_h+print_m_s}"
 
-        exp_times.append({'experiment_number': experiment_number, 'time': f"{str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"})
+        exp_times.append({'experiment_number': experiment_number, 'time': f"{print_h+print_m_s}"})
 
         print(to_print)
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
 
+    tracemalloc.stop()
     print(f"Experiment times: {exp_times}")
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(f"Experiment times: {exp_times}", file=file)

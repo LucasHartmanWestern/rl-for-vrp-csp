@@ -101,10 +101,12 @@ def train_cma(ev_info,
                 initial_weights = global_weights[zone_index][model_indices[agent_idx]]
 
         # Create a new CMA agent with the provided parameters and initial weights
-        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx, initial_weights, experiment_number, device)
+        cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx,\
+                             initial_weights, experiment_number, device)
         cma_agents_list.append(cma_agent)
 
-    avg_output_values = torch.zeros((cma_agents_list[0].max_generation, action_dim), device=device)  # Initialize output values storage
+    # Initialize output values storage
+    avg_output_values = torch.zeros((cma_agents_list[0].max_generation, action_dim), device=device)  
     best_avg = float('-inf')  # Track the best average reward encountered
     best_paths = None  # Store the best paths observed
     metrics = []  # Initialize metrics list to track performance
@@ -159,12 +161,14 @@ def train_cma(ev_info,
                 for car_idx in range(num_cars):
 
                     start_time_step = time.time()
-                    state = environment.reset_agent(car_idx, timestep_counter)  # Reset environment for the car #MAYBE A PROBLEM HERE!
+                    # Reset environment for the car #MAYBE A PROBLEM HERE!
+                    state = environment.reset_agent(car_idx, timestep_counter)  
                     agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                     agent = cma_agents_list[agent_idx]
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
                     car_route = agent.model(state, weights)  # Get the route from the agent's model
-                    environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  # Stack the generated paths in the environment
+                    # Stack the generated paths in the environment
+                    environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  
     
                 # Once all cars have routes, simulate routes in environment and get results
                 sim_done = environment.simulate_routes(timestep_counter)
@@ -182,7 +186,8 @@ def train_cma(ev_info,
  
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
-            agent.es.tell(matrix_solutions[:, agent_idx, :].cpu().numpy(), fitnesses[:, agent_idx].flatten().cpu().numpy())
+            agent.es.tell(matrix_solutions[:, agent_idx, :].cpu().numpy(),\
+                          fitnesses[:, agent_idx].flatten().cpu().numpy())
 
         #--- Start simulate route with best CMA agents
         # Get rewards with best solutions after evolving population
@@ -204,8 +209,9 @@ def train_cma(ev_info,
                 car_route = agent.model(state, weights)  # Generate paths based on best weights
                 environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
-    
-            sim_done = environment.simulate_routes(timestep_counter)  # Simulate the environment with the best solutions
+
+            # Simulate the environment with the best solutions
+            sim_done = environment.simulate_routes(timestep_counter)  
             sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
 
             if timestep_counter == 0:
@@ -248,7 +254,8 @@ def train_cma(ev_info,
         if verbose:
             elapsed_time = time.time() - start_time
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
-                        f'Generation: {generation + 1}/{cma_info.max_generation}) - avg reward {avg_rewards[-1][0]:.3f}'
+                        f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
+                        f'avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, date, elapsed_time)
 
         if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 2): # Save metrics data
@@ -264,17 +271,19 @@ def train_cma(ev_info,
         if avg_reward > best_avg:
             best_avg = avg_reward
             if verbose:
-                to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation} - New Best: {best_avg:.3f}')
+                to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
+                            f' - New Best: {best_avg:.3f}')
                 print_log(to_print, date, None)
-                # print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
-        avg_output_values[generation] = generation_weights.mean(axis=0)  # Store the average weights for the generation
+        # Store the average weights for the generation
+        avg_output_values[generation] = generation_weights.mean(axis=0)  
 
     # Population evolution ends
 
     # Retrieve and print results for the best population after evolution
     sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
-    print(f'Rewards for population evolution: {rewards.mean():.3f} after {cma_info.max_generation} generations')
+    print(f'Rewards for population evolution: {rewards.mean():.3f}'+\
+          f'after {cma_info.max_generation} generations')
 
     # Save the trained models to disk
     folder_path = 'saved_networks'
@@ -302,6 +311,8 @@ def train_cma(ev_info,
 
     trajectories = []
     weights_list = [agent.get_weights() for agent in cma_agents_list]
+
+    environment = None
         
     return weights_list, avg_rewards, avg_output_values, metrics, None
 
