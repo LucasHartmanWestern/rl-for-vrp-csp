@@ -342,6 +342,11 @@ def train_rl_vrp_csp(args):
                         for process in processes:
                             process.join()
 
+                        for p in processes:
+                            if p.is_alive():
+                                p.terminate()  # Just in case
+
+                    
                     current, peak = tracemalloc.get_traced_memory()
                     print(f"Current memory usage: {current / 1024**2:.2f} MB; Peak: {peak / 1024**2:.2f} MB")
                     

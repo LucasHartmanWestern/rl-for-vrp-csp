@@ -95,7 +95,8 @@ class CMAAgent:
         self.model_type = model_type
         self.states = []
         self.actions = []
-        self.weights_result = []
+        self.gen = 0
+        self.weights_result = torch.zeros((self.max_generation,len(initial_weights)), device=device)
 
     def cma_model(self, state, weights):
         """
@@ -118,6 +119,7 @@ class CMAAgent:
         self.es = None
         es = cma.CMAEvolutionStrategy(last_weights, self.initial_sigma, self.cma_config)
         self.es = es
+        last_weights = None
     
     def get_solutions(self):
         """
@@ -136,7 +138,8 @@ class CMAAgent:
             ndarray: The best weights found during optimization.
         """
         weights = torch.from_numpy(self.es.best.x).to(device=self.device)
-        self.weights_result.append(weights)
+        self.weights_result[self.gen] = weights
+        self.gen =+ 1
         return weights
 
     def get_weights(self):
@@ -147,7 +150,7 @@ class CMAAgent:
             dict: A dictionary where keys are weight names and values are the corresponding weights.
         """
         weights = []
-        weights_last_step = self.weights_result[-1]
+        weights_last_step = self.weights_result[self.gen-1,:]
         keys = [f'Weight {w}' for w in range(len(weights_last_step))]
         weights_step = dict(zip(keys, torch.tensor(weights_last_step)))
 

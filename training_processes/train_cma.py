@@ -10,8 +10,9 @@ from data_loader import load_config_file
 from agents.cma_agent import CMAAgent
 from evaluation import evaluate
 
-
+import tracemalloc
 from merl_env._pathfinding import haversine
+
 
 def train_cma(ev_info, 
               metrics_base_path,
@@ -65,6 +66,7 @@ def train_cma(ev_info,
         metrics (list): List of performance metrics gathered during training.
         trajectories (list): Saved trajectories for further analysis.
     """
+    tracemalloc.start()
     start_time = time.time()  # Start timing the training process
     avg_rewards = []  # List to store average rewards for each generation
 
@@ -312,8 +314,15 @@ def train_cma(ev_info,
     trajectories = []
     weights_list = [agent.get_weights() for agent in cma_agents_list]
 
+    # Clean variables
     environment = None
-        
+    cma_agents_list = None
+    # Clean up resources (e.g., GPU memory)
+    torch.cuda.empty_cache()
+    current, peak = tracemalloc.get_traced_memory()
+    print(f"Current memory usage on CMA training: {current / 1024**2:.2f} MB; Peak: {peak / 1024**2:.2f} MB")
+    tracemalloc.stop()
+    
     return weights_list, avg_rewards, avg_output_values, metrics, None
 
 
