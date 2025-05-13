@@ -61,7 +61,8 @@ class CMAAgent:
         if model_type == 'optimizer':
             # Optimizer model does not use state information, directly optimizes weights
             initial_weights = rng.random(action_dimension)
-            bounds = [0, 1]
+            # bounds = [0, 1]
+            # bounds = [0, INF_THRESHOLD]
             self.model = self.cma_model
 
         elif model_type == 'NN_basic':
@@ -79,7 +80,7 @@ class CMAAgent:
         cma_config = {
             'popsize': self.population_size,
             'maxiter': self.max_generation,
-            'bounds': bounds,
+            # 'bounds': bounds,
             'seed': seed
         }
         es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma, cma_config)
@@ -135,7 +136,7 @@ class CMAAgent:
         """
         solutions = torch.tensor(self.es.ask(), device=self.device, dtype=self.dtype)
         # print(f'solutions shape {solutions.shape}')
-        # solutions[1,1] = INF_THRESHOLD+10
+        # solutions[1,1] = INF_THRESHOLD+1
         # Mask for values exceeding threshold
         self.mask = solutions > INF_THRESHOLD
         # self.restore_solution = False
@@ -193,7 +194,9 @@ class CMAAgent:
             reward (ndarray): The fitness values associated with the solutions of the current generation.
         """
         if self.mask.any():
-            solutions[self.mask] = self.map_solutions[self.mask]
+            # solutions[self.mask] = self.map_solutions[self.mask]
+            solutions[self.mask] = INF_THRESHOLD
+
         
         self.es.tell(solutions.cpu().numpy(),reward.cpu().numpy())
 
