@@ -4,9 +4,10 @@ import cma
 import numpy as np
 import torch
 import pickle
+import copy
 
 from data_loader import load_config_file
-
+INF_THRESHOLD = 1e+07
 
 class CMAAgent:
     """
@@ -29,7 +30,7 @@ class CMAAgent:
         weights_result (list): List to store the resulting weights after optimization.
     """
 
-    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number,device):
+    def __init__(self, state_dimension, action_dimension, num_cars, seed, agent_index, global_weights, experiment_number, device, dtype):
         """
         Initializes the CMAAgent with configuration and parameters for the CMA-ES algorithm.
 
@@ -85,6 +86,7 @@ class CMAAgent:
 
         # Store relevant parameters and objects for the agent
         self.device = device
+        self.dtype = dtype
         self.es = es
         self.weights = []
         self.in_size = state_dimension
@@ -96,7 +98,10 @@ class CMAAgent:
         self.states = []
         self.actions = []
         self.gen = 0
-        self.weights_result = torch.zeros((self.max_generation,len(initial_weights)), device=device)
+        self.saved_solutions = []
+        self.restore_solution =  False
+        self.weights_result = torch.zeros((self.max_generation,len(initial_weights)),\
+                                          device=device, dtype=dtype)
 
     def cma_model(self, state, weights):
         """
@@ -128,7 +133,31 @@ class CMAAgent:
         Returns:
             ndarray: A set of candidate solutions for the current generation.
         """
-        return torch.tensor(self.es.ask(), device=self.device)
+        solutions = torch.tensor(self.es.ask(), device=self.device, dtype=self.dtype)
+        # print(f'solutions shape {solutions.shape}')
+        # solutions[1,1] = INF_THRESHOLD+10
+        # Mask for values exceeding threshold
+        self.mask = solutions > INF_THRESHOLD
+        # self.restore_solution = False
+
+        if self.mask.any():
+            self.map_solutions = torch.zeros((solutions.shape), dtype=self.dtype)
+            self.map_solutions[self.mask] = solutions[self.mask]
+            solutions[self.mask] = float('inf')
+            print(f'modifying inf solutions with mask {self.mask} and\n saving values {self.map_solutions}')
+            # else:
+        #     self.saved_solutions = solutions
+
+            # # Store original values and positions for restoration later
+            # for i in range(solutions.shape[0]):
+            #     # if mask[i].any():
+            #     #     print(f'mask i {mask[i]}')
+            #     #     self.restore_map[i] = solutions[i].clone()
+            #     #     print(f'restore map {self.restore_map}')
+            #     #     solutions[i][mask[i]] = float('inf')
+            #     print()
+        
+        return solutions
 
     def get_best_solutions(self):
         """
@@ -156,14 +185,18 @@ class CMAAgent:
 
         return weights_step
 
-    def tell(self, reward):
+    def tell(self, solutions, reward):
         """
         Informs the CMA-ES algorithm about the fitness (reward) of the current generation's solutions.
 
         Parameters:
             reward (ndarray): The fitness values associated with the solutions of the current generation.
         """
-        self.es.tell(self.solutions, reward.cpu())
+        if self.mask.any():
+            solutions[self.mask] = self.map_solutions[self.mask]
+        
+        self.es.tell(solutions.cpu().numpy(),reward.cpu().numpy())
+
 
     def save_model(self, fname):
         """

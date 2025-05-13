@@ -104,7 +104,7 @@ def train_cma(ev_info,
 
         # Create a new CMA agent with the provided parameters and initial weights
         cma_agent = CMAAgent(state_dimension, action_dim, num_cars, seed, agent_idx,\
-                             initial_weights, experiment_number, device)
+                             initial_weights, experiment_number, device, dtype)
         cma_agents_list.append(cma_agent)
 
     # Initialize output values storage
@@ -172,7 +172,7 @@ def train_cma(ev_info,
                     # Stack the generated paths in the environment
                     environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  
     
-                # Once all cars have routes, simulate routes in environment and get results
+                # Once all cars have routes, simulate routes in the environment and get results
                 sim_done = environment.simulate_routes(timestep_counter)
                 _, _, _, _, rewards_pop, _ = environment.get_results()  # Retrieve rewards
                 # reward_timestep += rewards_pop
@@ -188,8 +188,7 @@ def train_cma(ev_info,
  
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
-            agent.es.tell(matrix_solutions[:, agent_idx, :].cpu().numpy(),\
-                          fitnesses[:, agent_idx].flatten().cpu().numpy())
+            agent.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
 
         #--- Start simulate route with best CMA agents
         # Get rewards with best solutions after evolving population
