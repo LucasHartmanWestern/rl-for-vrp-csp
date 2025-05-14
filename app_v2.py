@@ -23,8 +23,6 @@ from train_utils import train_route
 
 from collections import defaultdict
 
-import tracemalloc
-
 warnings.filterwarnings("ignore")
 
 
@@ -36,8 +34,6 @@ mp.set_sharing_strategy('file_system')
 mp.set_start_method('spawn', force=True)
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-
-tracemalloc.start()
 
 def train_rl_vrp_csp(args):
 
@@ -206,16 +202,19 @@ def train_rl_vrp_csp(args):
         ev_info = []
         start_time = time.time()
         for area_idx in range(n_zones):
-            environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx], env_c['coords'][area_idx], device=devices[area_idx], dtype=torch.float32)
+            environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
+                                           env_c['coords'][area_idx], device=devices[area_idx],\
+                                           dtype=torch.float32)
 
             environment_list.append(environment)
             ev_info.append(environment.get_ev_info())
         
         elapsed_time = time.time() - start_time
+        to_print = f"Get EV Info: - {int(elapsed_time // 3600)}h,"+\
+                    f"{int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s"
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
-
-        print(f"Get EV Info: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+            print(to_print, file=file)
+        print(to_print)
 
         start_time = time.time()
 
@@ -225,11 +224,11 @@ def train_rl_vrp_csp(args):
             all_routes[index] = get_org_dest_coords((city_lat, city_long), env_c['radius'], array_org_angle)
 
         elapsed_time = time.time() - start_time
-
+        to_print = f"Get Routes: - {int(elapsed_time // 3600)}h, "+\
+                    f"{int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s"
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
-
-        print(f"Get Routes: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+            print(to_print, file=file)
+        print(to_print)
 
         start_time = time.time()
 
@@ -239,14 +238,16 @@ def train_rl_vrp_csp(args):
             for agent_id, (org_lat, org_long, dest_lat, dest_long) in enumerate(route):
                 data = get_charger_data()
                 charger_info = np.c_[data['latitude'].to_list(), data['longitude'].to_list()]
-                charger_list = get_charger_list(charger_info, org_lat, org_long, dest_lat, dest_long, env_c['num_of_chargers'])
+                charger_list = get_charger_list(charger_info, org_lat, org_long,\
+                                                dest_lat, dest_long, env_c['num_of_chargers'])
                 chargers[route_id][agent_id] = charger_list
 
         elapsed_time = time.time() - start_time
+        to_print = f"Get Chargers: - {int(elapsed_time // 3600)}h, "+\
+                    f"{int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s"
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
-            print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s", file=file)
-
-        print(f"Get Chargers: - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+            print(to_print, file=file)
+        print(to_print)
 
         # Store carbon emissions data
         emission_output_dir = f"{metrics_base_path}/{'train' if run_mode == 'Training' else 'eval'}"
@@ -346,10 +347,6 @@ def train_rl_vrp_csp(args):
                             if p.is_alive():
                                 p.terminate()  # Just in case
 
-                    
-                    current, peak = tracemalloc.get_traced_memory()
-                    print(f"Current memory usage: {current / 1024**2:.2f} MB; Peak: {peak / 1024**2:.2f} MB")
-                    
                     rewards = []
                     # for metric in process_metrics:
                     #     metric = metric[0]
@@ -555,7 +552,6 @@ def train_rl_vrp_csp(args):
         with open(f'logs/{date}-training_logs.txt', 'a') as file:
             print(to_print, file=file)
 
-    tracemalloc.stop()
     print(f"Experiment times: {exp_times}")
     with open(f'logs/{date}-training_logs.txt', 'a') as file:
         print(f"Experiment times: {exp_times}", file=file)
