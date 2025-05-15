@@ -61,7 +61,7 @@ class CMAAgent:
         if model_type == 'optimizer':
             # Optimizer model does not use state information, directly optimizes weights
             initial_weights = rng.random(action_dimension)
-            # bounds = [0, 1]
+            bounds = [0, 1]
             # bounds = [0, INF_THRESHOLD]
             self.model = self.cma_model
 
@@ -80,7 +80,7 @@ class CMAAgent:
         cma_config = {
             'popsize': self.population_size,
             'maxiter': self.max_generation,
-            # 'bounds': bounds,
+            'bounds': bounds,
             'seed': seed
         }
         es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma, cma_config)

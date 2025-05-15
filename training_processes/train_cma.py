@@ -90,6 +90,8 @@ def train_cma(ev_info,
     num_cars = environment.num_cars
     num_agents = 1 if agent_by_zone else num_cars  # Determine number of agents based on assignment mode
 
+    run_mode = 'Evaluating' if args.eval else "Training"
+    log_path = f'logs/{date}-{run_mode}_logs.txt'
     # Initialize CMA agents
     cma_agents_list = []
 
@@ -257,7 +259,7 @@ def train_cma(ev_info,
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
                         f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
                         f'avg reward {avg_rewards[-1][0]:.3f}'
-            print_log(to_print, date, elapsed_time)
+            print_log(to_print, log_path, elapsed_time)
 
         if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 2): # Save metrics data
             # Create metrics path if it does not exist
@@ -274,7 +276,7 @@ def train_cma(ev_info,
             if verbose:
                 to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
                             f' - New Best: {best_avg:.3f}')
-                print_log(to_print, date, None)
+                print_log(to_print, log_path, None)
 
         # Store the average weights for the generation
         avg_output_values[generation] = generation_weights.mean(axis=0)  
@@ -284,7 +286,7 @@ def train_cma(ev_info,
     # Retrieve and print results for the best population after evolution
     sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
     print(f'Rewards for population evolution: {rewards.mean():.3f}'+\
-          f'after {cma_info.max_generation} generations')
+          f' after {cma_info.max_generation} generations')
 
     # Save the trained models to disk
     folder_path = 'saved_networks'
@@ -298,14 +300,14 @@ def train_cma(ev_info,
     elapsed_time = time.time() - start_time  # Calculate total elapsed time for training
     # if verbose:
     #     to_print = (f' Finish Zone: {zone_index + 1} Best reward: {best_avg:.3f}')
-    #     print_log(to_print, date, elapsed_time)
+    #     print_log(to_print, log_path, elapsed_time)
     
 
 
     ########### STORE EXPERIENCES ########
 
     if verbose and trained:
-        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+        with open(f'logs/{date}-{run_mode}_logs.txt', 'a') as file:
             print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
 
         print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
@@ -325,7 +327,7 @@ def train_cma(ev_info,
     return weights_list, avg_rewards, avg_output_values, metrics, None
 
 
-def print_log(label, date, et):
+def print_log(label, log_path, et):
     """
     Prints log messages to the console and a file.
 
@@ -338,7 +340,7 @@ def print_log(label, date, et):
         to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
     else:
         to_print = label
-    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+    with open(log_path, 'a') as file:
         print(to_print, file=file)
     print(to_print)
 
