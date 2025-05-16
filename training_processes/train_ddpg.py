@@ -55,11 +55,11 @@ def train_ddpg(ev_info, metrics_base_path, experiment_number, chargers, environm
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eval_c = load_config_file(config_fname)['eval_config']
 
-    epsilon = nn_c['epsilon'] if train_model else 0
+    epsilon = nn_c['epsilon'] if not args.eval else 0
     epsilon_decay =  nn_c['epsilon_decay']
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes'] if not args.eval else 100
     eps_per_save = int(nn_c['eps_per_save'])
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])

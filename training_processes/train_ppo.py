@@ -63,15 +63,15 @@ def train_ppo(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes'] if not args.eval else 100
     eps_per_save = int(nn_c['eps_per_save'])
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count']
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else 1
 
 
-    epsilon = nn_c['epsilon'] if train_model else 0
+    epsilon = nn_c['epsilon'] if not args.eval else 0
 
     target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
 

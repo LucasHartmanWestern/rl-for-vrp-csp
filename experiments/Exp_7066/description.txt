@@ -1,7 +1,7 @@
 
 ### Experiment 7066: ###
 --------------------------------
-Seed: 1234
+Seed: 3702
 Model: REINFORCE
 Season: autumn
 Number of cars: 100

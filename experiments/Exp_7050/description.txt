@@ -1,7 +1,7 @@
 
 ### Experiment 7050: ###
 --------------------------------
-Seed: 2020
+Seed: 4040
 Model: REINFORCE
 Season: spring
 Number of cars: 100

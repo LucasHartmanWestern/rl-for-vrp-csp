@@ -646,9 +646,9 @@ class Experiment:
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
               dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
 
-    num_episodes = variant['nn_hyperparameters']['num_episodes']
+    num_episodes = variant['nn_hyperparameters']['num_episodes'] if not args.eval else 100
     arwt = variant['nn_hyperparameters']['average_rewards_when_training']
-    num_aggs = variant['federated_learning_settings']['aggregation_count']
+    num_aggs = variant['federated_learning_settings']['aggregation_count'] if not args.eval else 1
     variant = variant['odt_hyperparameters']
     variant["max_online_iters"] = num_episodes
     utils.set_seed_everywhere(main_seed)

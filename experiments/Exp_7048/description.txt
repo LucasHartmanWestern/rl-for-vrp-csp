@@ -1,7 +1,7 @@
 
 ### Experiment 7048: ###
 --------------------------------
-Seed: 1234
+Seed: 2468
 Model: REINFORCE
 Season: spring
 Number of cars: 100

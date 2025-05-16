@@ -4,13 +4,10 @@
 #SBATCH --error=experiments/Exp_6084/error.log
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=20:00:00
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=5
+#SBATCH --time=11:20:00
+#SBATCH --mem=6G
 
-
-#SBATCH --mail-type=FAIL,TIME_LIMIT
-#SBATCH --mail-user=lhartma8@uwo.ca
 
 echo "Starting evaluation for experiment 6084"
 

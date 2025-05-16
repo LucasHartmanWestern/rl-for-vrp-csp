@@ -1,7 +1,7 @@
 
 ### Experiment 7068: ###
 --------------------------------
-Seed: 2020
+Seed: 6060
 Model: REINFORCE
 Season: autumn
 Number of cars: 100

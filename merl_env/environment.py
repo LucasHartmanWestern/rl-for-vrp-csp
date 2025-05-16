@@ -23,20 +23,34 @@ DEBUG = False
 
 # Predefined list of supported cities with their coordinates and WeatherStats URLs
 supported_cities = [
-    {"name": "Charlottetown", "lat": 46.2382, "lon": -63.1311, "url": "https://charlottetown.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Edmonton", "lat": 53.5461, "lon": -113.4938, "url": "https://edmonton.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Fredericton", "lat": 45.9636, "lon": -66.6431, "url": "https://fredericton.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Halifax (Shearwater)", "lat": 44.6488, "lon": -63.5752, "url": "https://halifax.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Iqaluit", "lat": 63.7467, "lon": -68.5170, "url": "https://iqaluit.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Ottawa (Kanata - Orléans)", "lat": 45.4215, "lon": -75.6972, "url": "https://ottawa.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Québec", "lat": 46.8139, "lon": -71.2082, "url": "https://quebec.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Regina", "lat": 50.4452, "lon": -104.6189, "url": "https://regina.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "St. John's", "lat": 47.5615, "lon": -52.7126, "url": "https://stjohns.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Toronto", "lat": 43.65107, "lon": -79.347015, "url": "https://toronto.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Victoria", "lat": 48.4284, "lon": -123.3656, "url": "https://victoria.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Whitehorse", "lat": 60.7212, "lon": -135.0568, "url": "https://whitehorse.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Winnipeg", "lat": 49.8951, "lon": -97.1384, "url": "https://winnipeg.weatherstats.ca/data/temperature-daily.json"},
-    {"name": "Yellowknife", "lat": 62.4540, "lon": -114.3718, "url": "https://yellowknife.weatherstats.ca/data/temperature-daily.json"}
+    {"name": "Charlottetown", "lat": 46.2382, "lon": -63.1311,\
+     "url": "https://charlottetown.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Edmonton", "lat": 53.5461, "lon": -113.4938,\
+     "url": "https://edmonton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Fredericton", "lat": 45.9636, "lon": -66.6431,\
+     "url": "https://fredericton.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Halifax (Shearwater)", "lat": 44.6488, "lon": -63.5752,\
+     "url": "https://halifax.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Iqaluit", "lat": 63.7467, "lon": -68.5170,\
+     "url": "https://iqaluit.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Ottawa (Kanata - Orléans)", "lat": 45.4215,\
+     "lon": -75.6972, "url": "https://ottawa.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Québec", "lat": 46.8139, "lon": -71.2082,\
+     "url": "https://quebec.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Regina", "lat": 50.4452, "lon": -104.6189,\
+     "url": "https://regina.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "St. John's", "lat": 47.5615, "lon": -52.7126,\
+     "url": "https://stjohns.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Toronto", "lat": 43.65107, "lon": -79.347015,\
+     "url": "https://toronto.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Victoria", "lat": 48.4284, "lon": -123.3656,\
+     "url": "https://victoria.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Whitehorse", "lat": 60.7212, "lon": -135.0568,\
+     "url": "https://whitehorse.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Winnipeg", "lat": 49.8951, "lon": -97.1384,\
+     "url": "https://winnipeg.weatherstats.ca/data/temperature-daily.json"},
+    {"name": "Yellowknife", "lat": 62.4540, "lon": -114.3718,\
+     "url": "https://yellowknife.weatherstats.ca/data/temperature-daily.json"}
 ]
 
 def get_closest_city(lat: float, lon: float) -> dict:
@@ -224,7 +238,8 @@ class EnvironmentClass:
         self.num_cars = config['num_of_cars']
         self.num_chargers = config['num_of_chargers']
         self.step_size = config['step_size']
-        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70, dtype=float, device=self.device)
+        self.decrease_rates = torch.tensor(self.info['usage_per_hour'] / 70,\
+                                           dtype=float, device=self.device)
         self.increase_rate = config['increase_rate'] / 60
         self.max_steps = config['max_sim_steps']
         self.max_mini_steps = config['max_mini_sim_steps']
@@ -303,9 +318,11 @@ class EnvironmentClass:
         capacity, stops, and battery levels.
         """
         starting_charge_array = np.array(self.info['starting_charge'], copy=True)
-        starting_battery_level = torch.tensor(starting_charge_array, dtype=self.dtype, device=self.device)
+        starting_battery_level = torch.tensor(starting_charge_array,\
+                                              dtype=self.dtype, device=self.device)
 
-        tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in self.routes], device=self.device)
+        tokens = torch.tensor([[o_lat, o_lon] for (o_lat, o_lon, d_lat, d_lon) in self.routes],\
+                              device=self.device)
 
         destinations = np.array([[d_lat, d_lon] for (o_lat, o_lon, d_lat, d_lon) in self.routes])
         destinations = torch.tensor(destinations, dtype=self.dtype, device=self.device)
@@ -345,7 +362,8 @@ class EnvironmentClass:
                             station_ids.append(charger_id)
                             station_index = len(station_ids) + destinations.shape[0]
                             # Lat and long of charging station
-                            stop = [self.unique_chargers[path[step_index]][1], self.unique_chargers[path[step_index]][2]]                        
+                            stop = [self.unique_chargers[path[step_index]][1],\
+                                    self.unique_chargers[path[step_index]][2]]                        
                             charging_stations.append(stop)
 
                         stops[agent_index][step_index] = station_index
@@ -356,9 +374,10 @@ class EnvironmentClass:
         charging_stations = np.array(charging_stations)
 
         if len(charging_stations) != 0:
-            destinations = torch.vstack((destinations, torch.tensor(charging_stations, dtype=self.dtype, device=self.device)))
-
-        capacity = torch.ones(len(charging_stations), dtype=self.dtype, device=self.device) * 10  # Dummy capacity of 10 cars for every station
+            destinations = torch.vstack((destinations, torch.tensor(charging_stations,\
+                                                                    dtype=self.dtype, device=self.device)))
+        # Dummy capacity of 10 cars for every station
+        capacity = torch.ones(len(charging_stations), dtype=self.dtype, device=self.device) * 10  
 
         actions = torch.zeros((tokens.shape[0], destinations.shape[0]), device=self.device)
         move = torch.ones(tokens.shape[0], device=self.device)
@@ -572,14 +591,17 @@ class EnvironmentClass:
             distance_mult_tensor = dist_slice
         else:
             # Create tensors if using fixed attributes
-            traffic_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[0], device=self.device, dtype=self.dtype)
-            distance_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[1], device=self.device, dtype=self.dtype)
+            traffic_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[0],\
+                                             device=self.device, dtype=self.dtype)
+            distance_mult_tensor = torch.full((num_nodes_to_update,), fixed_attributes[1],\
+                                              device=self.device, dtype=self.dtype)
 
         # Make sure all tensors are on the same device
         unique_traffic_tensor = torch.from_numpy(self.agent.unique_traffic[:num_nodes_to_update, 1]).to(device=self.device, dtype=self.dtype)
         graph_tensor = torch.from_numpy(graph).to(device=self.device, dtype=self.dtype) # Work with graph as tensor
         
-        graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor + unique_traffic_tensor * traffic_mult_tensor
+        graph_tensor[:, :num_nodes_to_update] = graph_tensor[:, :num_nodes_to_update] * distance_mult_tensor +\
+                                                unique_traffic_tensor * traffic_mult_tensor
         graph = graph_tensor.cpu().detach().numpy()
 
         path = dijkstra(graph, self.agent.idx)
@@ -618,47 +640,52 @@ class EnvironmentClass:
             agent_chargers = self.chargers[0, agent_idx, :]
         else:
             agent_chargers = self.chargers[agent_idx, :, 0]
-        #Update needed: following lines should be optimized to work directly on device not as a list
-        agent_unique_chargers = torch.tensor([charger for charger in self.unique_chargers if charger[0] in agent_chargers], dtype=self.dtype, device=self.device)
-        agent_unique_traffic = torch.tensor([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers], device=self.device)
+
+        # OLD COPY:
+        agent_unique_chargers = [charger for charger in self.unique_chargers if charger[0] in agent_chargers]
+        agent_unique_traffic = np.array([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers])
+        #NEW COPY: Update needed: following lines should be optimized to work directly on device not as a list
+        # agent_unique_chargers = torch.tensor([charger for charger in self.unique_chargers if charger[0] in agent_chargers], dtype=self.dtype, device=self.device)
+        # agent_unique_traffic = torch.tensor([[t[0], t[1]] for t in self.traffic if t[0] in agent_chargers], device=self.device)
 
         # Get distances from origin to each charging station
         org_lat, org_long, dest_lat, dest_long = self.routes[agent_idx]
-        #Update needed: following lines should be optimized to work directly on device not as a list
-        dists = torch.tensor([haversine(org_lat, org_long, charge_lat.cpu(), charge_long.cpu()) for (id, charge_lat, charge_long) in agent_unique_chargers], device=self.device)
+        #OLD COPY:
+        dists = np.array([haversine(org_lat, org_long, charge_lat, charge_long) for (id, charge_lat, charge_long) in agent_unique_chargers])
+        #NEW COPY: Update needed: following lines should be optimized to work directly on device not as a list
+        # dists = torch.tensor([haversine(org_lat, org_long, charge_lat.cpu(), charge_long.cpu()) for (id, charge_lat, charge_long) in agent_unique_chargers], device=self.device)
         route_dist = haversine(org_lat, org_long, dest_lat, dest_long)
 
 
-        # Traffic level and distance of each station plus total charger num, total distance,
-        # number of EVs, car model index, and temperature
-        # state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
-        #                    np.array([self.num_chargers * 3]), np.array([route_dist]),
-        #                    np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-        #                    np.array([self.temperature]), np.array([timestep_counter])))
-        #Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
+        # OLD COPY:
+        state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
+                           np.array([self.num_chargers * 3]), np.array([route_dist]),
+                           np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
+                           np.array([self.temperature]), np.array([timestep_counter])))
+        # Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
         # performing unnecesary repetitions of the state creation
-        state = torch.cat((
-            torch.cat((agent_unique_traffic[:, 1], dists), dim=0).reshape(-1),
-            torch.tensor([self.num_chargers * 3], device=self.device, dtype=self.dtype),
-            torch.tensor([route_dist], device=self.device, dtype=self.dtype),
-            torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
-            torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
-            torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
-            torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
+        # state = torch.cat((
+        #     torch.cat((agent_unique_traffic[:, 1], dists), dim=0).reshape(-1),
+        #     torch.tensor([self.num_chargers * 3], device=self.device, dtype=self.dtype),
+        #     torch.tensor([route_dist], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
+        #     torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
+        #     torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
         
         # Normalize the state values
-        state = (state - torch.mean(state)) / torch.std(state)
+        state = (state - np.mean(state)) / np.std(state)
 
         # Round the state values to 3 decimal places
         # state = torch.round(state, 3)
-        state = torch.round(state * 1000) / 1000
+        state = np.round(state * 1000) / 1000
 
 
         # Storing agent info
         #Update needed: unique chargers and traffic set to be on cpu for now, but should work no current device
         self.agent = agent_info(agent_idx, agent_chargers, self.routes[agent_idx],
-                                agent_unique_chargers.cpu().numpy(), agent_unique_traffic.cpu().numpy())
-        return state.to(dtype=self.dtype)
+                                agent_unique_chargers, agent_unique_traffic)
+        return state
 
     def init_routing(self):
         # Clearing paths

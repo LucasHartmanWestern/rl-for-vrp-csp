@@ -1,7 +1,7 @@
 
 ### Experiment 7032: ###
 --------------------------------
-Seed: 2020
+Seed: 6060
 Model: DQN
 Season: autumn
 Number of cars: 100

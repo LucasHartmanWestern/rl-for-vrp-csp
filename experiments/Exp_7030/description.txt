@@ -1,7 +1,7 @@
 
 ### Experiment 7030: ###
 --------------------------------
-Seed: 1234
+Seed: 3702
 Model: DQN
 Season: autumn
 Number of cars: 100
