@@ -500,7 +500,7 @@ def train_rl_vrp_csp(args):
 def print_log(log_path, with_log=True):
     def print_l(to_print):
         if with_log:
-            with open(log_path, 'a') as file:
+            with open(log_path, 'a', encoding='utf-8') as file:
                 print(to_print, file=file)
         print(to_print)
 

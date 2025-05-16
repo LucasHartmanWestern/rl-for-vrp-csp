@@ -325,9 +325,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         car_dones = [item for sublist in dones for item in sublist]
 
         for d in range(len(distributions_unmodified)):
-            
-            if d == 0:
-                print(f"i: {i} - Reward: {rewards[d]}")
 
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
                             states[(d + num_cars) if d + num_cars < len(states) else d],
