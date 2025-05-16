@@ -57,11 +57,11 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     # For policy gradient, discount factor might still be used in returns
     discount_factor = nn_c['discount_factor'] if 'discount_factor' in nn_c else 0.99
     learning_rate = nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes'] if not args.eval else 100
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count'] if 'aggregation_count' in federated_c else 1
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else 1
 
-    epsilon = nn_c['epsilon'] if train_model else 0
+    epsilon = nn_c['epsilon'] if not args.eval else 0
     target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
     epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
