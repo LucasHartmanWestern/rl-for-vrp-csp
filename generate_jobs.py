@@ -47,7 +47,7 @@ def create_job(args):
             algorithm_time_mapping = {
                 'DQN': (45 / 6000) / 5, # 45 hours / 6k episodes / 5 zones
                 'PPO': (80 / 6000) / 5, # 80 hours / 6k episodes / 5 zones
-                'CMA': (8.5 / 6000) / 5, # 16 hours / 10k generations 4 zones
+                'CMA': (100 / 10000) / 4, # 16 hours / 10k generations 4 zones
                 'ODT': (14 / 2000) , # 15 hours for 2k episodes, 5 zones
             }
         
@@ -56,7 +56,10 @@ def create_job(args):
                     total_episodes = num_generations * num_aggregations
                     mem_size = "6G"
                     num_cpus = len(config['environment_settings']['coords']) + 1
-                    calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
+                    if args.eval:
+                        calculated_time = algorithm_time_mapping[algorithm] * 100 * len(config['environment_settings']['coords']) * 1.5
+                    else:
+                        calculated_time = algorithm_time_mapping[algorithm] * total_episodes * len(config['environment_settings']['coords'])
                 elif algorithm == 'ODT':
                     mem_size = "35G"
                     num_cpus = len(config['environment_settings']['coords'])
