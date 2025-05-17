@@ -92,6 +92,9 @@ def train_cma(ev_info,
 
     run_mode = 'Evaluating' if args.eval else "Training"
     log_path = f'logs/{date}-{run_mode}_logs.txt'
+    #Setting max generations
+    max_generation = cma_info.max_generation if run_mode == "Training" else 100
+    
     # Initialize CMA agents
     cma_agents_list = []
 
@@ -133,7 +136,7 @@ def train_cma(ev_info,
 
 
     # Evolution process: Loop over generations to evolve the population
-    for generation in range(cma_info.max_generation):
+    for generation in range(max_generation):
         # CMA matrix able to work with 120 K dimensions but no more than that
         # Resetting the matrix if it goes beyond 120K 
         # Matrix has reached max limit? then, restart cma-es model
