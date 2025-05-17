@@ -92,8 +92,6 @@ def train_cma(ev_info,
 
     run_mode = 'Evaluating' if args.eval else "Training"
     log_path = f'logs/{date}-{run_mode}_logs.txt'
-    #Setting max generations
-    max_generation = cma_info.max_generation if run_mode == "Training" else 100
     
     # Initialize CMA agents
     cma_agents_list = []
@@ -124,7 +122,9 @@ def train_cma(ev_info,
 
     cma_info = cma_agents_list[0]  # Retrieve information from the first CMA agent
     population_size = cma_info.population_size  # Size of the population for evolution
-
+    #Setting max generations
+    max_generation = cma_info.max_generation if run_mode == "Training" else 100
+    
     generation_weights = torch.empty((num_agents, action_dim),device=device)  # Storage for weights per generation
 
     # Save the current state of the environment for later restoration during evolution
