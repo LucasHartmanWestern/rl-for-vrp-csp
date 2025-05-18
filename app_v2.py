@@ -25,7 +25,7 @@ from data_loader import *
 from visualize import *
 from merl_env.environment import EnvironmentClass
 from federated_learning import get_global_weights
-from evaluation import evaluate
+from evaluation import evaluate, clear_metrics
 from train_utils import train_route
 
 # Setting for multiprocessing using pytorch
@@ -127,6 +127,10 @@ def train_rl_vrp_csp(args):
 
     # Creating metric directory to save results from experiments
     metrics_base_path = f'{data_dir}_{experiment_number}'
+
+    print("Removing previous metrics if they exist")
+    clear_metrics(f"{metrics_base_path}/{'eval' if args.eval else 'train'}/metrics")
+
     sub_dir = '/train' if run_mode == 'Training' else '/eval'
     metrics_with_sub_dir = metrics_base_path + sub_dir
     if os.path.exists(metrics_with_sub_dir):
@@ -238,6 +242,9 @@ def train_rl_vrp_csp(args):
     if run_mode == "Training":
         print_l(f"Training using {algorithm_dm} - Seed {seed}", )
 
+        print(f"CHARGERS: {len(chargers)}")
+
+        metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
@@ -270,8 +277,6 @@ def train_rl_vrp_csp(args):
                     process_output_values = []
                     process_metrics = []
                     process_buffers = [None]
-                    
-
                     
                     # Run directly without multiprocessing
                     train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
@@ -319,6 +324,16 @@ def train_rl_vrp_csp(args):
                             p.terminate()  # Just in case
 
                 rewards = []
+                for metric in process_metrics:
+                    metric = metric[0]
+                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                        f" for aggregation: {metric['aggregation']+1}"
+                    print_l(to_print)
+
+                metrics.extend(process_metrics)
+
+                evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
+                 f"{metrics_base_path}/train/metrics", True)
 
                 print("Join Weights")
 
@@ -432,6 +447,8 @@ def train_rl_vrp_csp(args):
             # Barrier for synchronization
             barrier = mp.Barrier(len(chargers))
 
+            print(f"CHARGERS: {len(chargers)}")
+
             processes = []
             for ind, charger_list in enumerate(chargers):
                 args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
@@ -478,12 +495,12 @@ def train_rl_vrp_csp(args):
 
         # Save all metrics from evaluation into a file
         evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                 f"{metrics_base_path}/eval/metrics")
+                 f"{metrics_base_path}/eval/metrics", True)
 
         # Generate the plots for the various metrics
         if eval_c['generate_plots']:
             evaluate(ev_info, None, seed, date, verbose, 'display',\
-                     num_episodes, f"{metrics_base_path}/eval/metrics")
+                     num_episodes, f"{metrics_base_path}/eval/metrics", True)
 
     flag_a = eval_c['fixed_attributes'] != [0, 1]
     flag_b = eval_c['fixed_attributes'] != [1, 0]
