@@ -469,7 +469,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             print(to_print)
 
-        if ((i + 1) % eps_per_save == 0 and train_model) or (i == num_episodes - 1):
+        if ((i + 1) % eps_per_save == 0) or (i == num_episodes - 1):
             metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
             if not os.path.exists(metrics_path):
                 os.makedirs(metrics_path)
