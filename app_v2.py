@@ -324,16 +324,16 @@ def train_rl_vrp_csp(args):
                             p.terminate()  # Just in case
 
                 rewards = []
-                for metric in process_metrics:
-                    metric = metric[0]
-                    to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                        f" for aggregation: {metric['aggregation']+1}"
-                    print_l(to_print)
+                # for metric in process_metrics:
+                #     metric = metric[0]
+                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                #         f" for aggregation: {metric['aggregation']+1}"
+                #     print_l(to_print)
 
-                metrics.extend(process_metrics)
+                # metrics.extend(process_metrics)
 
-                evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                 f"{metrics_base_path}/train/metrics", True)
+                # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
+                #  f"{metrics_base_path}/train/metrics", True)
 
                 print("Join Weights")
 
@@ -470,11 +470,11 @@ def train_rl_vrp_csp(args):
                 process.join()
 
         rewards = []
-        for metric in process_metrics:
-            metric = metric[0]
-            to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                f" for aggregation: {metric['aggregation']+1}"
-            print_l(to_print)
+        # for metric in process_metrics:
+        #     metric = metric[0]
+        #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+        #         f" for aggregation: {metric['aggregation']+1}"
+        #     print_l(to_print)
 
         # Extend the main lists with the contents of the process lists
         sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -493,14 +493,14 @@ def train_rl_vrp_csp(args):
             fixed_attributes = eval_c['fixed_attributes']
             attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-        # Save all metrics from evaluation into a file
-        evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                 f"{metrics_base_path}/eval/metrics", True)
+        # # Save all metrics from evaluation into a file
+        # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
+        #          f"{metrics_base_path}/eval/metrics", True)
 
-        # Generate the plots for the various metrics
-        if eval_c['generate_plots']:
-            evaluate(ev_info, None, seed, date, verbose, 'display',\
-                     num_episodes, f"{metrics_base_path}/eval/metrics", True)
+        # # Generate the plots for the various metrics
+        # if eval_c['generate_plots']:
+        #     evaluate(ev_info, None, seed, date, verbose, 'display',\
+        #              num_episodes, f"{metrics_base_path}/eval/metrics", True)
 
     flag_a = eval_c['fixed_attributes'] != [0, 1]
     flag_b = eval_c['fixed_attributes'] != [1, 0]
