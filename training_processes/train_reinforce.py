@@ -59,7 +59,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     learning_rate = nn_c['learning_rate']
     num_episodes = nn_c['num_episodes']
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count']
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else federated_c['aggregation_count_eval']
 
     epsilon = nn_c['epsilon']
     target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3

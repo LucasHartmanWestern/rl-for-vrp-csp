@@ -406,101 +406,155 @@ def train_rl_vrp_csp(args):
             plot_aggregate_output_values_per_route(loaded_output_values)
 
     elif run_mode == "Evaluating":
-        metrics = []  # Used to track all metrics
-        rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-        output_values = []  # Array of [(episode_avg_output_values, episode_number,
-                            #aggregation_num, route_index, seed)]
-        old_buffers = [None for _ in range(len(chargers))] # Hold the buffers previous aggregation step
-        
+        print_l(f"Evaluating using {algorithm_dm} - Seed {seed}", )
+
         print_l(f"Loading saved models - Seed {seed}")
         global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
-        # Check if we have only one zone - if so, don't use multiprocessing
-        if len(chargers) == 1:
-            print("Only one zone detected, running without multiprocessing")
-            local_weights_list = [None]
-            process_rewards = []
-            process_output_values = []
-            process_metrics = []
-            process_buffers = [None]
-            weights_to_save = [None]
-            
-            # Run directly without multiprocessing
-            train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
-                        copy.deepcopy(environment_list[0]), all_routes[0], date,\
-                        action_dim, global_weights, 0, 0, algorithm_dm,\
-                        chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
-                        local_weights_list, process_rewards, process_metrics,\
-                        process_output_values, None, devices[0], verbose,\
-                        eval_c['display_training_times'], agent_by_zone, variant,\
-                        eval_c['save_offline_data'], False, old_buffers[0],\
-                        process_buffers, weights_to_save, len(chargers))
-        else:
-            manager = mp.Manager()
-            local_weights_list = manager.list([None for _ in range(len(chargers))])
-            process_rewards = manager.list()
-            process_output_values = manager.list()
-            process_metrics = manager.list()
-            process_buffers = manager.list([None for _ in range(len(chargers))])
-            weights_to_save = manager.list([None for _ in range(len(chargers))])
+        metrics = []
+        rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
+        output_values = []  # Array of [(episode_avg_output_values, episode_number,
+                            #aggregation_num, route_index, seed)]
+        old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
 
-            # Barrier for synchronization
-            barrier = mp.Barrier(len(chargers))
+        # Initialize weights_to_save as a manager list to persist between aggregations
+        manager = mp.Manager()
+        weights_to_save = manager.list([None for _ in range(len(chargers))])
 
-            print(f"CHARGERS: {len(chargers)}")
+        for aggregate_step in range(federated_c['aggregation_count_eval']):
+            try:
+                # Start tracking emissions
+                tracker = EmissionsTracker(
+                    output_dir=emission_output_dir,
+                    save_to_file=f"emissions.csv",  # Temporary file
+                    tracking_mode='process',
+                    allow_multiple_runs=True,
+                    log_level='error'
+                )
+                tracker.start()
 
-            processes = []
-            for ind, charger_list in enumerate(chargers):
-                args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
+                # Check if we have only one zone - if so, don't use multiprocessing
+                agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count_eval']}"
+                print_l(f"\n\n############ Aggregation {agg_print} ############\n\n",)
+                if len(chargers) == 1:
+                    print("Only one zone detected, running without multiprocessing")
+                    local_weights_list = [None]
+                    process_rewards = []
+                    process_output_values = []
+                    process_metrics = []
+                    process_buffers = [None]
+                    
+                    # Run directly without multiprocessing
+                    train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
+                                copy.deepcopy(environment_list[0]), all_routes[0], date, 
+                                action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
+                                chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
+                                local_weights_list, process_rewards, process_metrics, \
+                                process_output_values, None, devices[0], verbose, \
+                                eval_c['display_training_times'], agent_by_zone, variant,\
+                                eval_c['save_offline_data'], True, old_buffers[0],\
+                                process_buffers, weights_to_save, len(chargers))
+                else:
+                    manager = mp.Manager()
+                    local_weights_list = manager.list([None for _ in range(len(chargers))])
+                    process_rewards = manager.list()
+                    process_output_values = manager.list()
+                    process_metrics = manager.list()
+                    process_buffers = manager.list([None for _ in range(len(chargers))])
+
+                    # Barrier for synchronization
+                    barrier = mp.Barrier(len(chargers))
+
+                    processes = []
+                    for ind, charger_list in enumerate(chargers):
+                        args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
-                                  action_dim, global_weights, 0, ind, algorithm_dm,\
+                                  action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
                                   local_weights_list, process_rewards, process_metrics,\
                                   process_output_values, barrier, devices[ind], verbose,\
                                   eval_c['display_training_times'], agent_by_zone, variant,\
-                                  eval_c['save_offline_data'], False, old_buffers[ind], \
+                                  eval_c['save_offline_data'], True, old_buffers[ind], \
                                   process_buffers, weights_to_save, len(chargers))
-                process = mp.Process(target=train_route, args=args_tuple)
-                processes.append(process)
-                process.start()
+                        process = mp.Process(target=train_route, args=args_tuple)
+                        processes.append(process)
+                        process.start()
 
-            print("Join Processes")
+                    print("Join Processes")
 
-            for process in processes:
-                process.join()
+                    for process in processes:
+                        process.join()
 
-        rewards = []
-        # for metric in process_metrics:
-        #     metric = metric[0]
-        #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-        #         f" for aggregation: {metric['aggregation']+1}"
-        #     print_l(to_print)
+                    for p in processes:
+                        if p.is_alive():
+                            p.terminate()  # Just in case
 
-        # Extend the main lists with the contents of the process lists
-        sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
-        print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
-        rewards.extend(process_rewards)
-        output_values.extend(process_output_values)
-        metrics.extend(process_metrics)
-        old_buffers = list(process_buffers)
+                rewards = []
+                # for metric in process_metrics:
+                #     metric = metric[0]
+                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
+                #         f" for aggregation: {metric['aggregation']+1}"
+                #     print_l(to_print)
 
-        flag_a = eval_c['fixed_attributes'] != [0, 1]
-        flag_b = eval_c['fixed_attributes'] != [1, 0]
-        flag_c = eval_c['fixed_attributes'] != [0.5, 0.5]
-        if flag_a and flag_b and flag_c:
-            attr_label = 'learned'
-        else:
-            fixed_attributes = eval_c['fixed_attributes']
-            attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
+                # metrics.extend(process_metrics)
 
-        # # Save all metrics from evaluation into a file
-        # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-        #          f"{metrics_base_path}/eval/metrics", True)
+                # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
+                #  f"{metrics_base_path}/train/metrics", True)
 
-        # # Generate the plots for the various metrics
-        # if eval_c['generate_plots']:
-        #     evaluate(ev_info, None, seed, date, verbose, 'display',\
-        #              num_episodes, f"{metrics_base_path}/eval/metrics", True)
+                print("Join Weights")
+
+                # Aggregate the weights from all local models
+                if algorithm_dm == 'ODT':
+                    # Aggregate the weights from all local models
+                    global_weights = get_global_weights(local_weights_list, ev_info,\
+                                                        federated_c['city_multiplier'],\
+                                                        federated_c['zone_multiplier'],\
+                                                        federated_c['model_multiplier'],\
+                                                        agent_by_zone, is_odt=True)
+                elif algorithm_dm == 'DENSER': 
+                    # Cannot aggregate weights for DENSER because architecture is different between agents
+                    pass
+                else:
+                    # Aggregate the weights from all local models
+                    global_weights = get_global_weights(local_weights_list, ev_info,\
+                                                        federated_c['city_multiplier'],\
+                                                        federated_c['zone_multiplier'],\
+                                                        federated_c['model_multiplier'],\
+                                                        agent_by_zone)
+
+                # Extend the main lists with the contents of the process lists
+                sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
+                
+                if sorted_list:
+                    print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0], sorted_list[-1]}')
+                else:
+                    print_l("No rewards found for this aggregation step.")
+                rewards.extend(process_rewards)
+                output_values.extend(process_output_values)
+                old_buffers = list(process_buffers)
+
+            finally:
+                # Stop tracking emissions
+                emissions = tracker.stop()
+                print_l(f"Total CO₂ emissions: {emissions} kg")
+                try:
+                    # Read the temporary emissions report
+                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
+
+                    # Remove the temporary emissions file
+                    os.remove(f"{emission_output_dir}/emissions.csv")
+
+                    # Add the aggregate_step column
+                    temp_df['aggregate_step'] = aggregate_step
+
+                    # Determine the write mode based on the aggregate_step
+                    write_mode = 'w' if aggregate_step == 0 else 'a'
+
+                    # Write or append the updated DataFrame to the main CSV
+                    with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
+                        temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
+                except Exception as e:
+                    print_l(f"Error saving emissions report")
 
     flag_a = eval_c['fixed_attributes'] != [0, 1]
     flag_b = eval_c['fixed_attributes'] != [1, 0]

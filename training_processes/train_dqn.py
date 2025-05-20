@@ -69,7 +69,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count']
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else federated_c['aggregation_count_eval']
 
     target_network_update_frequency = nn_c['target_network_update_frequency'] if 'target_network_update_frequency' in nn_c else 25
 
