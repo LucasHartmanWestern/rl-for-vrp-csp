@@ -240,7 +240,7 @@ def train_rl_vrp_csp(args):
 
     print_et('Get Chargers:', start_time)
 
-    print(f'Starting training at {current_datetime.strftime('%Y-%m-%d_%H-%M')}')
+    print(f"Starting training at {current_datetime.strftime('%Y-%m-%d_%H-%M')}")
     
     if run_mode == "Training":
         print_l(f"Training using {algorithm_dm} - Seed {seed}", )
