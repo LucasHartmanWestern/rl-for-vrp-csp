@@ -50,6 +50,7 @@ def train_rl_vrp_csp(args):
     #get current date for experiments
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
+    print(f'Begining date and time {date}')
 
     print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
     print(f"Available GPUs: {torch.cuda.device_count()}")
@@ -239,6 +240,8 @@ def train_rl_vrp_csp(args):
 
     print_et('Get Chargers:', start_time)
 
+    print(f'Starting training at {current_datetime.strftime('%Y-%m-%d_%H-%M')}')
+    
     if run_mode == "Training":
         print_l(f"Training using {algorithm_dm} - Seed {seed}", )
 
