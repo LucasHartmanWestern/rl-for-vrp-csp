@@ -18,7 +18,7 @@ try:
 except ImportError:
     print("Cannot import local files")
 
-
+import tracemalloc
 DEBUG = False
 
 # Predefined list of supported cities with their coordinates and WeatherStats URLs
@@ -255,6 +255,9 @@ class EnvironmentClass:
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
 
+        # tracemalloc.start()
+
+
     def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
         """
         Initialize electric vehicle (EV) information based on the configuration.
@@ -401,7 +404,6 @@ class EnvironmentClass:
         Returns:
             None
         """
-
         # Initialize routing data
         self.init_data()
 
@@ -561,6 +563,9 @@ class EnvironmentClass:
                 - distances_per_car (list): List of distances traveled by each token at each timestep.
                 - simulats (float): Reward for the simulation.
         """
+        # print(f'traffic  results {self.traffic_results.shape}')
+        # print(f'battery level results {self.battery_levels_results.shape}')
+
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
 

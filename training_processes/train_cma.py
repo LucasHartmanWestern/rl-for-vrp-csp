@@ -1,5 +1,6 @@
 # Adapted by Santiago August 9, 2024
 import os
+import sys
 import time
 import copy
 import torch
@@ -11,6 +12,8 @@ from agents.cma_agent import CMAAgent
 from evaluation import evaluate
 
 import tracemalloc
+from data_loader import save_to_csv
+
 from merl_env._pathfinding import haversine
 
 
@@ -92,6 +95,7 @@ def train_cma(ev_info,
 
     run_mode = 'Evaluating' if args.eval else "Training"
     log_path = f'logs/{date}-{run_mode}_logs.txt'
+    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
     
     # Initialize CMA agents
     cma_agents_list = []
@@ -144,6 +148,8 @@ def train_cma(ev_info,
         if max_limit >= 120000:
             for agent in cma_agents_list:
                 agent.cma_restart()
+
+        tracemalloc.start()
         
         # Generate solutions for each agent in the population
         for agent_idx, agent in enumerate(cma_agents_list):
@@ -190,7 +196,11 @@ def train_cma(ev_info,
                 else:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0)
 
- 
+                
+        current, peak = tracemalloc.get_traced_memory()
+        print(f"Current memory usage on CMA training: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
+        # tracemalloc.stop()
+        
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
             agent.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
@@ -203,6 +213,14 @@ def train_cma(ev_info,
         timestep_counter = 0
 
         rewards = []
+        ep_traffic = []
+        ep_batteries = []
+        ep_distances = []
+        station_data = []
+        agent_data = []
+        # Get the model index by using car_models[zone_index][agent_index]
+        car_models = np.column_stack([info['model_type'] for info in ev_info]).T
+        
         while not sim_done:  # Keep going until every EV reachewr its destination
             # environment.cma_copy_store()  # Restore environment to its stored state
             environment.init_routing()
@@ -218,7 +236,8 @@ def train_cma(ev_info,
 
             # Simulate the environment with the best solutions
             sim_done = environment.simulate_routes(timestep_counter)  
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
+            sim_path_results, sim_traffic, sim_battery_levels, sim_distances,\
+                time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
 
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(time_step_rewards,axis=0)
@@ -236,26 +255,71 @@ def train_cma(ev_info,
 
             time_step_time = time.time() - start_time_step
 
-            metric = {
-                "zone": zone_index,
-                "episode": generation,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "paths": sim_path_results,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": time_step_rewards,
-                "best_reward": best_avg,
-                "timestep_real_world_time": time_step_time,
-                "done": sim_done
-            }
-            metrics.append(metric)
-            timestep_counter += 1
+            ep_traffic.append(sim_traffic)
+            ep_batteries.append(sim_battery_levels)
+            ep_distances.append(sim_distances)
+            
+            # metric = {
+            #     "zone": zone_index,
+            #     "episode": generation,
+            #     "timestep": timestep_counter,
+            #     "aggregation": aggregation_num,
+            #     # "paths": sim_path_results,
+            #     "traffic": sim_traffic,
+            #     "batteries": sim_battery_levels,
+            #     "distances": sim_distances,
+            #     "rewards": time_step_rewards,
+            #     "best_reward": best_avg,
+            #     "timestep_real_world_time": time_step_time,
+            #     "done": sim_done
+            # }
+            # metrics.append(metric)
+            
+            #evaluating step in episode
+            for step_ind in range(len(sim_traffic)):
+                for station_ind in range(len(sim_traffic[0])):
+                    station_data.append({
+                                "episode": generation,
+                                "timestep": timestep_counter,
+                                "done": sim_done,
+                                "zone": zone_index + 1,
+                                "aggregation": aggregation_num,
+                                "simulation_step": step_ind,
+                                "station_index": station_ind,
+                                "traffic": sim_traffic[step_ind][station_ind]
+                            })
 
+            # Loop through the agents in each zone
+            for agent_ind, car_model in enumerate(car_models[zone_index]):
+                duration = np.where(np.array(sim_distances).T[agent_ind] == sim_distances[-1][agent_ind])[0][0]
+                agent_data.append({
+                    "episode": generation,
+                    "timestep": timestep_counter,
+                    "done": sim_done,
+                    "zone": zone_index + 1,
+                    "aggregation": aggregation_num,
+                    "agent_index": agent_ind,
+                    "car_model": car_model,
+                    "distance": sim_distances[-1][agent_ind] * 100,
+                    "reward": time_step_rewards[agent_ind],
+                    "duration": duration,
+                    "average_battery": np.average(np.array(sim_battery_levels).T[agent_ind]),
+                    "ending_battery": np.array(sim_battery_levels).T[agent_ind].tolist()[-1],
+                    "starting_battery": np.array(sim_battery_levels).T[agent_ind].tolist()[0],
+                    "timestep_real_world_time": time_step_time
+                    })
+            timestep_counter += 1
+        
+        # Saving data per episode
+        save_to_csv(station_data, f'{metrics_path}/metrics_station_metrics_v2.csv', True)
+        save_to_csv(agent_data, f'{metrics_path}/metrics_agent_metrics_v2.csv', True)
+        station_data = None
+        agent_data = None
+        
         avg_reward = episode_rewards.sum(axis=0).mean()
 
-        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  # Store the average reward
+        # Store the average reward
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  
         # Print information at the log and command line
         if verbose:
             elapsed_time = time.time() - start_time
@@ -264,15 +328,22 @@ def train_cma(ev_info,
                         f'avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, log_path, elapsed_time)
 
-        if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 2): # Save metrics data
-            # Create metrics path if it does not exist
-            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-            if not os.path.exists(metrics_path):
-                os.makedirs(metrics_path)
+        # if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 1): # Save metrics data
+        #     current, peak = tracemalloc.get_traced_memory()
+        #     print(f"Current memory before evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
 
-            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
-            metrics = []
+        #     # Create metrics path if it does not exist
+        #     metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+        #     if not os.path.exists(metrics_path):
+        #         os.makedirs(metrics_path)
 
+        #     evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+        #     metrics = []
+        #     current, peak = tracemalloc.get_traced_memory()
+        #     print(f"Current memory after evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
+
+        # current, peak = tracemalloc.get_traced_memory()
+        # print(f"Current memory after evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:
             best_avg = avg_reward
@@ -287,7 +358,8 @@ def train_cma(ev_info,
     # Population evolution ends
 
     # Retrieve and print results for the best population after evolution
-    sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
+    sim_path_results, sim_traffic, sim_battery_levels, sim_distances,\
+                            rewards, arrived_at_final  = environment.get_results()
     print(f'Rewards for population evolution: {rewards.mean():.3f}'+\
           f' after {cma_info.max_generation} generations')
 

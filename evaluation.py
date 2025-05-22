@@ -6,6 +6,8 @@ from data_loader import save_to_csv, read_csv_data
 import mplcursors
 import os
 
+import tracemalloc
+
 def clear_metrics(base_path):
     remove_path = [f'{base_path}_agent_metrics.csv', f'{base_path}_station_metrics.csv']
     for path in remove_path:
@@ -13,7 +15,10 @@ def clear_metrics(base_path):
             os.remove(path)
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False, is_odt=False):
+    
+    
     if purpose == 'save':
+        print(f'Here in save append {append}')
 
         agent_data = []
         station_data = []
@@ -63,7 +68,9 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         })
 
         else:
+            print(f'Here next')
             # Flatten the data
+            
             for episode in metrics:
                 # Loop through sim steps and stations
                 for step_ind in range(len(episode['traffic'])):
