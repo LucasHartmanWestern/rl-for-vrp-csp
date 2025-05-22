@@ -259,21 +259,21 @@ def train_cma(ev_info,
             ep_batteries.append(sim_battery_levels)
             ep_distances.append(sim_distances)
             
-            # metric = {
-            #     "zone": zone_index,
-            #     "episode": generation,
-            #     "timestep": timestep_counter,
-            #     "aggregation": aggregation_num,
-            #     # "paths": sim_path_results,
-            #     "traffic": sim_traffic,
-            #     "batteries": sim_battery_levels,
-            #     "distances": sim_distances,
-            #     "rewards": time_step_rewards,
-            #     "best_reward": best_avg,
-            #     "timestep_real_world_time": time_step_time,
-            #     "done": sim_done
-            # }
-            # metrics.append(metric)
+            metric = {
+                "zone": zone_index,
+                "episode": generation,
+                "timestep": timestep_counter,
+                "aggregation": aggregation_num,
+                # "paths": sim_path_results,
+                "traffic": sim_traffic,
+                "batteries": sim_battery_levels,
+                "distances": sim_distances,
+                "rewards": time_step_rewards,
+                "best_reward": best_avg,
+                "timestep_real_world_time": time_step_time,
+                "done": sim_done
+            }
+            metrics.append(metric)
             
             #evaluating step in episode
             for step_ind in range(len(sim_traffic)):
@@ -328,19 +328,19 @@ def train_cma(ev_info,
                         f'avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, log_path, elapsed_time)
 
-        # if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 1): # Save metrics data
-        #     current, peak = tracemalloc.get_traced_memory()
-        #     print(f"Current memory before evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
+        if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 1): # Save metrics data
+            current, peak = tracemalloc.get_traced_memory()
+            print(f"Current memory before evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
 
-        #     # Create metrics path if it does not exist
-        #     metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-        #     if not os.path.exists(metrics_path):
-        #         os.makedirs(metrics_path)
+            # Create metrics path if it does not exist
+            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+            if not os.path.exists(metrics_path):
+                os.makedirs(metrics_path)
 
-        #     evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
-        #     metrics = []
-        #     current, peak = tracemalloc.get_traced_memory()
-        #     print(f"Current memory after evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+            metrics = []
+            current, peak = tracemalloc.get_traced_memory()
+            print(f"Current memory after evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")
 
         # current, peak = tracemalloc.get_traced_memory()
         # print(f"Current memory after evaluate: {current / 1024*2:.2f} MB; Peak: {peak / 1024*2:.2f} MB")

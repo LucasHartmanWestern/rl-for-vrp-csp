@@ -123,8 +123,8 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
     if purpose == 'display':
 
-        agent_data = read_csv_data(f'{base_path}_agent_metrics.csv')
-        station_data = read_csv_data(f'{base_path}_station_metrics.csv')
+        agent_data = read_csv_data(f'{base_path}_agent_metrics_v1.csv')
+        station_data = read_csv_data(f'{base_path}_station_metrics_v1.csv')
 
         # Draw a map of the last episode
         draw_map_of_last_episode(agent_data, seed)
