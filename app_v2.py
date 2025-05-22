@@ -128,6 +128,8 @@ def train_rl_vrp_csp(args):
     # Creating metric directory to save results from experiments
     metrics_base_path = f'{data_dir}_{experiment_number}'
 
+    print(f"Metrics base path: {metrics_base_path}")
+
     print("Removing previous metrics if they exist")
     clear_metrics(f"{metrics_base_path}/{'eval' if args.eval else 'train'}/metrics")
 
