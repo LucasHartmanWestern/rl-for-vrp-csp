@@ -191,6 +191,22 @@ class Experiment:
                 attn_layers = load_global_weights(f"saved_networks/Exp_{self.experiment_number}/")
                 self.set_attn_layers(self.model, attn_layers.to(self.device))
 
+        # Load previous aggregation’s model if needed
+        if agg_num > 0:
+            prev = agg_num - 1
+        
+            # 1) (Optional) load optimizer/scheduler from the last local checkpoint,
+            #    if you want to continue training exactly where you left off:
+            prev_log = re.sub(r"Agg:\\d+", f"Agg:{prev}", self.logger.log_path)
+            print(f"[federated] loading local checkpoint from {prev_log}")
+            self._load_model(prev_log)
+        
+            # 2) Always overwrite the model’s weights with the federated average
+            global_path = f"saved_networks/Exp_{self.experiment_number}"
+            print(f"[federated] loading aggregated weights from {global_path}")
+            attn_layers = load_global_weights(global_path)
+            self.set_attn_layers(self.model, attn_layers.to(self.device))
+
         # Tracking variables
         self.aug_trajs = []
         self.metrics = []
@@ -270,7 +286,7 @@ class Experiment:
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         adjusted_experiment_number = str(int(self.experiment_number) - 108)
-        #dataset_path = f"/storage_1/epigou_storage/Exp_3000/Exp_4000/data_zone_{self.zone_index + 1}.h5"
+        dataset_path = f"/storage_1/epigou_storage/Exp_3000/Exp_4000/data_zone_{self.zone_index + 1}.h5"
 
 
         #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{load_zone}.h5')
