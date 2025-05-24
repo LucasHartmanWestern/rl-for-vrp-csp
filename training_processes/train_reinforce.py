@@ -57,12 +57,16 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     # For policy gradient, discount factor might still be used in returns
     discount_factor = nn_c['discount_factor'] if 'discount_factor' in nn_c else 0.99
     learning_rate = nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes']
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count'] if 'aggregation_count' in federated_c else 1
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else federated_c['aggregation_count_eval']
 
-    epsilon = nn_c['epsilon'] if train_model else 0
+    epsilon = nn_c['epsilon']
     target_episode_epsilon_frac = nn_c['target_episode_epsilon_frac'] if 'target_episode_epsilon_frac' in nn_c else 0.3
+
+    if eval_c['evaluate_on_diff_zone'] or args.eval:
+        target_episode_epsilon_frac = 0.1
+
     epsilon_decay =  10 ** (-1/((num_episodes * aggregation_count) * target_episode_epsilon_frac))
 
     epsilon = epsilon * epsilon_decay ** (num_episodes * aggregation_num)
@@ -371,7 +375,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
             print(to_print)
 
         # Periodically save metrics if training
-        if ((i + 1) % eps_per_save == 0 and train_model) or (i == num_episodes - 2):
+        if ((i + 1) % eps_per_save == 0) or (i == num_episodes - 1):
             metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
             if not os.path.exists(metrics_path):
                 os.makedirs(metrics_path)

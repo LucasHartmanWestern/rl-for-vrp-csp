@@ -85,11 +85,14 @@ def train_cma(ev_info,
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eps_per_save = int(nn_c['eps_per_save'])
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes'] if not args.eval else 100
 
     num_cars = environment.num_cars
     num_agents = 1 if agent_by_zone else num_cars  # Determine number of agents based on assignment mode
 
+    run_mode = 'Evaluating' if args.eval else "Training"
+    log_path = f'logs/{date}-{run_mode}_logs.txt'
+    
     # Initialize CMA agents
     cma_agents_list = []
 
@@ -119,7 +122,9 @@ def train_cma(ev_info,
 
     cma_info = cma_agents_list[0]  # Retrieve information from the first CMA agent
     population_size = cma_info.population_size  # Size of the population for evolution
-
+    #Setting max generations
+    max_generation = cma_info.max_generation if run_mode == "Training" else 100
+    
     generation_weights = torch.empty((num_agents, action_dim),device=device)  # Storage for weights per generation
 
     # Save the current state of the environment for later restoration during evolution
@@ -131,7 +136,7 @@ def train_cma(ev_info,
 
 
     # Evolution process: Loop over generations to evolve the population
-    for generation in range(cma_info.max_generation):
+    for generation in range(max_generation):
         # CMA matrix able to work with 120 K dimensions but no more than that
         # Resetting the matrix if it goes beyond 120K 
         # Matrix has reached max limit? then, restart cma-es model
@@ -257,7 +262,7 @@ def train_cma(ev_info,
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
                         f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
                         f'avg reward {avg_rewards[-1][0]:.3f}'
-            print_log(to_print, date, elapsed_time)
+            print_log(to_print, log_path, elapsed_time)
 
         if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 2): # Save metrics data
             # Create metrics path if it does not exist
@@ -274,7 +279,7 @@ def train_cma(ev_info,
             if verbose:
                 to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
                             f' - New Best: {best_avg:.3f}')
-                print_log(to_print, date, None)
+                print_log(to_print, log_path, None)
 
         # Store the average weights for the generation
         avg_output_values[generation] = generation_weights.mean(axis=0)  
@@ -284,7 +289,7 @@ def train_cma(ev_info,
     # Retrieve and print results for the best population after evolution
     sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
     print(f'Rewards for population evolution: {rewards.mean():.3f}'+\
-          f'after {cma_info.max_generation} generations')
+          f' after {cma_info.max_generation} generations')
 
     # Save the trained models to disk
     folder_path = 'saved_networks'
@@ -298,14 +303,14 @@ def train_cma(ev_info,
     elapsed_time = time.time() - start_time  # Calculate total elapsed time for training
     # if verbose:
     #     to_print = (f' Finish Zone: {zone_index + 1} Best reward: {best_avg:.3f}')
-    #     print_log(to_print, date, elapsed_time)
+    #     print_log(to_print, log_path, elapsed_time)
     
 
 
     ########### STORE EXPERIENCES ########
 
     if verbose and trained:
-        with open(f'logs/{date}-training_logs.txt', 'a') as file:
+        with open(f'logs/{date}-{run_mode}_logs.txt', 'a') as file:
             print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
 
         print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
@@ -325,7 +330,7 @@ def train_cma(ev_info,
     return weights_list, avg_rewards, avg_output_values, metrics, None
 
 
-def print_log(label, date, et):
+def print_log(label, log_path, et):
     """
     Prints log messages to the console and a file.
 
@@ -338,7 +343,7 @@ def print_log(label, date, et):
         to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
     else:
         to_print = label
-    with open(f'logs/{date}-training_logs.txt', 'a') as file:
+    with open(log_path, 'a') as file:
         print(to_print, file=file)
     print(to_print)
 

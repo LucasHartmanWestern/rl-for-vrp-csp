@@ -61,7 +61,7 @@ class CMAAgent:
         if model_type == 'optimizer':
             # Optimizer model does not use state information, directly optimizes weights
             initial_weights = rng.random(action_dimension)
-            # bounds = [0, 1]
+            bounds = [0, 1]
             # bounds = [0, INF_THRESHOLD]
             self.model = self.cma_model
 
@@ -80,7 +80,7 @@ class CMAAgent:
         cma_config = {
             'popsize': self.population_size,
             'maxiter': self.max_generation,
-            # 'bounds': bounds,
+            'bounds': bounds,
             'seed': seed
         }
         es = cma.CMAEvolutionStrategy(initial_weights, initial_sigma, cma_config)
@@ -135,29 +135,28 @@ class CMAAgent:
             ndarray: A set of candidate solutions for the current generation.
         """
         solutions = torch.tensor(self.es.ask(), device=self.device, dtype=self.dtype)
-        # print(f'solutions shape {solutions.shape}')
-        # solutions[1,1] = INF_THRESHOLD+1
-        # Mask for values exceeding threshold
-        self.mask = solutions > INF_THRESHOLD
-        # self.restore_solution = False
+        # # print(f'solutions shape {solutions.shape}')
+        # # solutions[1,1] = INF_THRESHOLD+1
+        # # Mask for values exceeding threshold
+        # self.mask = solutions > INF_THRESHOLD
+        # # self.restore_solution = False
 
-        if self.mask.any():
-            self.map_solutions = torch.zeros((solutions.shape), dtype=self.dtype)
-            self.map_solutions[self.mask] = solutions[self.mask]
-            solutions[self.mask] = float('inf')
-            print(f'modifying inf solutions with mask {self.mask} and\n saving values {self.map_solutions}')
-            # else:
-        #     self.saved_solutions = solutions
+        # if self.mask.any():
+        #     self.map_solutions = torch.zeros((solutions.shape), dtype=self.dtype)
+        #     self.map_solutions[self.mask] = solutions[self.mask]
+        #     solutions[self.mask] = float('inf')
+        #     print(f'modifying inf solutions with mask {self.mask} and\n saving values {self.map_solutions}')
+        #     # else:
+        # #     self.saved_solutions = solutions
 
-            # # Store original values and positions for restoration later
-            # for i in range(solutions.shape[0]):
-            #     # if mask[i].any():
-            #     #     print(f'mask i {mask[i]}')
-            #     #     self.restore_map[i] = solutions[i].clone()
-            #     #     print(f'restore map {self.restore_map}')
-            #     #     solutions[i][mask[i]] = float('inf')
-            #     print()
-        
+        #     # # Store original values and positions for restoration later
+        #     # for i in range(solutions.shape[0]):
+        #     #     # if mask[i].any():
+        #     #     #     print(f'mask i {mask[i]}')
+        #     #     #     self.restore_map[i] = solutions[i].clone()
+        #     #     #     print(f'restore map {self.restore_map}')
+        #     #     #     solutions[i][mask[i]] = float('inf')
+        #     #     print()
         return solutions
 
     def get_best_solutions(self):
@@ -193,12 +192,11 @@ class CMAAgent:
         Parameters:
             reward (ndarray): The fitness values associated with the solutions of the current generation.
         """
-        if self.mask.any():
-            # solutions[self.mask] = self.map_solutions[self.mask]
-            solutions[self.mask] = INF_THRESHOLD
+        # if self.mask.any():
+        #     # solutions[self.mask] = self.map_solutions[self.mask]
+        #     solutions[self.mask] = INF_THRESHOLD
 
-        
-        self.es.tell(solutions.cpu().numpy(),reward.cpu().numpy())
+        self.es.tell(solutions.cpu().numpy(), reward.cpu().numpy())
 
 
     def save_model(self, fname):

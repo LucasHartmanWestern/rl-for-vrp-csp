@@ -53,7 +53,7 @@ def train_denser(ev_info,
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
     eps_per_save = int(nn_c['eps_per_save'])
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes'] if not args.eval else 100
 
     num_cars = environment.num_cars
     num_agents = 1 if agent_by_zone else num_cars

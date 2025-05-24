@@ -60,16 +60,16 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     eval_c = load_config_file(config_fname)['eval_config']
     federated_c = load_config_file(config_fname)['federated_learning_settings']
 
-    epsilon = nn_c['epsilon'] if train_model else 0
+    epsilon = nn_c['epsilon']
     #epsilon_decay =  nn_c['epsilon_decay']
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
-    num_episodes = nn_c['num_episodes'] if train_model else 1
+    num_episodes = nn_c['num_episodes']
     batch_size   = int(nn_c['batch_size'])
     buffer_limit = int(nn_c['buffer_limit'])
     layers = nn_c['layers']
-    aggregation_count = federated_c['aggregation_count']
+    aggregation_count = federated_c['aggregation_count'] if not args.eval else federated_c['aggregation_count_eval']
 
     target_network_update_frequency = nn_c['target_network_update_frequency'] if 'target_network_update_frequency' in nn_c else 25
 
@@ -325,9 +325,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         car_dones = [item for sublist in dones for item in sublist]
 
         for d in range(len(distributions_unmodified)):
-            
-            if d == 0:
-                print(f"i: {i} - Reward: {rewards[d]}")
 
             buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
                             states[(d + num_cars) if d + num_cars < len(states) else d],
@@ -371,7 +368,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         base_path = f'saved_networks/Experiment {experiment_number}'
 
-        if ((i + 1) % target_network_update_frequency == 0) and i >= batch_size:
+        if ((i + 1) % target_network_update_frequency == 0) and len(buffers[agent_ind]) >= batch_size:
             print(f'Updating target network at episode {i}')
             if agent_by_zone:                
                 soft_update(target_q_networks[0], q_networks[0])
@@ -471,6 +468,13 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 print(to_print, file=file)
 
             print(to_print)
+
+        if ((i + 1) % eps_per_save == 0) or (i == num_episodes - 1):
+            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+            if not os.path.exists(metrics_path):
+                os.makedirs(metrics_path)
+            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
+            metrics = []
 
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 

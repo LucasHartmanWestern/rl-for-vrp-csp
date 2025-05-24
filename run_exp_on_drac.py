@@ -3,26 +3,30 @@ import argparse
 import yaml
 import os
 
-def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False, seed=None):
+def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False, seed=None, aggregation=None):
     for experiment_number in range(start_experiment, end_experiment + 1):
         try:
-            if algorithm:
-                # Load config.yaml file for experiment
-                config_file = os.path.join(f"./experiments/Exp_{experiment_number}", "config.yaml")
-                with open(config_file, 'r') as f:
-                    config = yaml.safe_load(f)
+            # Load config.yaml file for experiment
+            config_file = os.path.join(f"./experiments/Exp_{experiment_number}", "config.yaml")
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
 
+                if algorithm:
                     # Check if the experiment uses the specified algorithm
                     if config.get("algorithm_settings", {}).get("algorithm") != algorithm:
                         print(f"Experiment {experiment_number} does not use algorithm {algorithm}")
                         continue
 
-            if seed:
-                if int(config.get("environment_settings", {}).get("seed")) != int(seed):
-                    print(f"Experiment {experiment_number} does not use seed {seed}")
-                    continue
-                            
-                        
+                if seed:
+                    if int(config.get("environment_settings", {}).get("seed")) != int(seed):
+                        print(f"Experiment {experiment_number} does not use seed {seed}")
+                        continue
+
+                if aggregation:
+                    if int(config.get("federated_learning_settings", {}).get("aggregation_count")) != int(aggregation):
+                        print(f"Experiment {experiment_number} does not use aggregation {aggregation}")
+                        continue
+
         except Exception as e:
             print(f"Error loading config.yaml file for experiment {experiment_number}: {e}")
             continue
@@ -41,6 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('-e','--experiments_list', nargs='*', type=int, default=[], help ='Get the list of experiment to run.')
     parser.add_argument('-a', '--algorithm', type=str, help='Algorithm to run.')
     parser.add_argument('-s', '--seed', type=str, default=None, help='Seed to run.')
+    parser.add_argument('-agg', '--aggregation', type=str, default=None, help='Aggregation count to run.')
     parser.add_argument('-eval', type=bool, default=False, help="Evaluate the model")
     args = parser.parse_args()
 
@@ -52,4 +57,4 @@ if __name__ == "__main__":
     else:
         print(f"Running experiments from {start_experiment} to {end_experiment}")
 
-    run_exp_on_drac(start_experiment, end_experiment, args.algorithm, args.eval, args.seed)
+    run_exp_on_drac(start_experiment, end_experiment, args.algorithm, args.eval, args.seed, args.aggregation)
