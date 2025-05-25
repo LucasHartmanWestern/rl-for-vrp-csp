@@ -250,7 +250,11 @@ class Experiment:
     def _load_model(self, path_prefix):
         if Path(f"{path_prefix}/model.pt").exists():
             with open(f"{path_prefix}/model.pt", "rb") as f:
-                checkpoint = torch.load(f)
+                if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                    map_location = lambda storage, loc: storage.cuda(0)
+                else:
+                    map_location = torch.device('cpu')
+                checkpoint = torch.load(f, map_location=map_location)
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
@@ -264,6 +268,7 @@ class Experiment:
             random.setstate(checkpoint["python"])
             torch.set_rng_state(checkpoint["pytorch"])
             print(f"Model loaded at {path_prefix}/model.pt")
+
 
 
     def _load_dataset(self, env_name):
