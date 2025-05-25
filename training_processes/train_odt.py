@@ -248,13 +248,17 @@ class Experiment:
         self.model_path = f"{path_prefix}/model.pt"
 
     def _load_model(self, path_prefix):
-        if Path(f"{path_prefix}/model.pt").exists():
-            with open(f"{path_prefix}/model.pt", "rb") as f:
+        model_file = Path(f"{path_prefix}/model.pt")
+        if model_file.exists():
+            # load checkpoint onto cuda:0 or CPU
+            with open(model_file, "rb") as f:
                 if torch.cuda.is_available() and torch.cuda.device_count() > 0:
                     map_location = lambda storage, loc: storage.cuda(0)
                 else:
-                    map_location = torch.device('cpu')
+                    map_location = torch.device("cpu")
                 checkpoint = torch.load(f, map_location=map_location)
+    
+            # restore model, optimizer, scheduler, etc.
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
@@ -266,8 +270,19 @@ class Experiment:
             self.total_transitions_sampled = checkpoint["total_transitions_sampled"]
             np.random.set_state(checkpoint["np"])
             random.setstate(checkpoint["python"])
-            torch.set_rng_state(checkpoint["pytorch"])
-            print(f"Model loaded at {path_prefix}/model.pt")
+    
+            
+            pytorch_rng_state = checkpoint.get("pytorch")
+            if pytorch_rng_state is not None:
+                # ensure it's a ByteTensor
+                if not isinstance(pytorch_rng_state, torch.ByteTensor):
+                    pytorch_rng_state = torch.tensor(
+                        pytorch_rng_state, dtype=torch.uint8, device="cpu"
+                    )
+                torch.set_rng_state(pytorch_rng_state)
+    
+            print(f"Model loaded at {model_file}")
+
 
 
 
