@@ -1,8 +1,8 @@
 
-### Experiment 4203: ###
+### Experiment 4095: ###
 --------------------------------
 Seed: 2020
-Model: DENSER
+Model: CMA
 Season: autumn
 Number of cars: 100
 Number of chargers: 1

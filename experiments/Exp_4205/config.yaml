@@ -1,15 +1,12 @@
 algorithm_settings:
   agent_by_zone: false
-  algorithm: DENSER
+  algorithm: ODT
 cma_parameters:
-  crossover_rate: 0.5
   initial_sigma: 0.1
   max_generations: 10000
-  model_type: NN_basic
-  mutation_rate: 0.2
+  model_type: optimizer
   population_dimension: 20
 environment_settings:
-  action_dim: 3
   coords:
   - - 43.02120034946083
     - -81.28349087468504
@@ -19,6 +16,7 @@ environment_settings:
     - -81.30953935839466
   - - 42.9819404397449
     - -81.2508736429095
+  action_dim: 3
   increase_rate: 12500
   max_charge:
   - 170000
@@ -54,12 +52,12 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 1
+  aggregation_count: 0
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  average_rewards_when_training: true
+  average_rewards_when_training: false
   batch_size: 75
   buffer_limit: 150
   city_multiplier: 0.15
@@ -81,35 +79,30 @@ nn_hyperparameters:
 odt_hyperparameters:
   K: 10
   activation_function: relu
-  approximate_entropy_samples: 1000
-  batch_size: 256
-  dataset: '[10seeds]-100-3-3-100-North-East'
-  device: cuda:1
+  batch_size: 32
   dropout: 0.1
-  embed_dim: 128
-  env: hopper
-  eval_context: 5
-  eval_only: false
+  embed_dim: 512
+  eval_context_length: 5
+  eval_interval: 1
+  eval_rtg: -60
+  evaluation: false
+  exp_name: 4205
+  experiment_number: 4097
+  init_temperature: 0.1
   learning_rate: 0.0001
-  log_to_wandb: true
-  max_iters: 2
-  mode: normal
-  model_type: dt
-  n_head: 1
-  n_layer: 3
+  log_to_tb: true
+  max_online_iters: 10000
+  max_pretrain_iters: 1
+  n_head: 4
+  n_layer: 4
   num_eval_episodes: 1
-  num_steps_per_iter: 300
-  online_buffer_size: 1001
-  online_training: true
-  pct_traj: 1.0
-  pretrained_model: /storage_1/epigou_storage/offline_networks/dt_0[10seeds]-100-3-3-100-North-East-620076.pt
-  remove_pos_embs: false
-  save_model: false
-  stochastic: true
-  stochastic_tanh: true
-  target_entropy: true
-  use_action_means: true
-  use_entropy: false
+  num_online_rollouts: 1
+  num_updates_per_online_iter: 25
+  num_updates_per_pretrain_iter: 500
+  online_rtg: -60
+  ordering: 0
+  persist_buffers: true
+  replay_size: 500
+  save_dir: ./exp
   warmup_steps: 10000
-  weight_decay: 0.0001
-  zone_index: 1
+  weight_decay: 0.0005

@@ -10,8 +10,8 @@ environment_settings:
   coords:
   - - 43.02120034946083
     - -81.28349087468504
-  # - - 42.95923445066671
-  #   - -81.26016049362336
+  - - 42.95923445066671
+    - -81.26016049362336
   - - 42.98111190139387
     - -81.30953935839466
   - - 42.9819404397449
@@ -31,7 +31,7 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 1
   radius: 20
-  season: winter
+  season: autumn
   seed: 2020
   starting_charge: 6000
   step_size: 0.01
@@ -52,7 +52,7 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 2
+  aggregation_count: 4
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
@@ -73,7 +73,7 @@ nn_hyperparameters:
   log_std_decay_rate: 0.01
   max_num_timesteps: 300
   model_multiplier: 0.5
-  num_episodes: 2000
+  num_episodes: 1000
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
@@ -91,7 +91,7 @@ odt_hyperparameters:
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true
-  max_online_iters: 2000
+  max_online_iters: 1000
   max_pretrain_iters: 1
   n_head: 4
   n_layer: 4

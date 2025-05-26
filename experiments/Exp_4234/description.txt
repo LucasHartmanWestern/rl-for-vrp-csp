@@ -1,8 +1,8 @@
 
-### Experiment 4234: ###
+### Experiment 4018: ###
 --------------------------------
 Seed: 1234
-Model: NEAT
+Model: DQN
 Season: autumn
 Number of cars: 100
 Number of chargers: 1

@@ -1,8 +1,8 @@
 
-### Experiment 4208: ###
+### Experiment 4100: ###
 --------------------------------
 Seed: 5555
-Model: DENSER
+Model: CMA
 Season: summer
 Number of cars: 100
 Number of chargers: 1

@@ -1,15 +1,12 @@
 algorithm_settings:
   agent_by_zone: false
-  algorithm: NEAT
+  algorithm: ODT
 cma_parameters:
-  crossover_rate: 0.5
   initial_sigma: 0.1
   max_generations: 200
-  model_type: NN_basic
-  mutation_rate: 0.2
+  model_type: optimizer
   population_dimension: 20
 environment_settings:
-  action_dim: 3
   coords:
   - - 43.02120034946083
     - -81.28349087468504
@@ -19,6 +16,7 @@ environment_settings:
     - -81.30953935839466
   - - 42.9819404397449
     - -81.2508736429095
+  action_dim: 3
   increase_rate: 12500
   max_charge:
   - 170000
@@ -54,12 +52,12 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 50
+  aggregation_count: 20
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  average_rewards_when_training: true
+  average_rewards_when_training: false
   batch_size: 75
   buffer_limit: 150
   city_multiplier: 0.15
@@ -79,16 +77,17 @@ nn_hyperparameters:
   num_epochs: 10
   zone_multiplier: 0.35
 odt_hyperparameters:
-  K: 20
+  K: 10
   activation_function: relu
-  batch_size: 128
+  batch_size: 32
   dropout: 0.1
   embed_dim: 512
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  exp_name: 4143
-  experiment_number: 4023
+  evaluation: false
+  exp_name: 4216
+  experiment_number: 4108
   init_temperature: 0.1
   learning_rate: 0.0001
   log_to_tb: true

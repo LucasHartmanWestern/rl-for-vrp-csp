@@ -1,8 +1,8 @@
 
-### Experiment 4233: ###
+### Experiment 4017: ###
 --------------------------------
 Seed: 2020
-Model: NEAT
+Model: DQN
 Season: winter
 Number of cars: 100
 Number of chargers: 1

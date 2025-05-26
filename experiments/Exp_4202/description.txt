@@ -1,8 +1,8 @@
 
-### Experiment 4202: ###
+### Experiment 4094: ###
 --------------------------------
 Seed: 5555
-Model: DENSER
+Model: CMA
 Season: autumn
 Number of cars: 100
 Number of chargers: 1

@@ -1,8 +1,8 @@
 
-### Experiment 4193: ###
+### Experiment 4085: ###
 --------------------------------
 Seed: 5555
-Model: DENSER
+Model: CMA
 Season: winter
 Number of cars: 100
 Number of chargers: 1

@@ -1,8 +1,8 @@
 
-### Experiment 4251: ###
+### Experiment 4035: ###
 --------------------------------
 Seed: 2020
-Model: NEAT
+Model: DQN
 Season: summer
 Number of cars: 100
 Number of chargers: 1
