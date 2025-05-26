@@ -176,36 +176,24 @@ class Experiment:
 
         # Load previous aggregation’s model if needed
         if agg_num > 0:
-            prev = agg_num - 1
-            if variant.get('evaluation', False):
-                num_zones = variant.get('num_zones', 4)
-                next_zone = (self.zone_index + 1) % num_zones
-                prev_path = os.path.join(self.save_dir, f"Agg:{prev}-Zone:{next_zone+1}")
-                print(f"[eval] reload from {prev_path}")
-                self._load_model(prev_path)
-                self.save_attn_layers(self.model, self.device)
-            else:
-                prev_log = re.sub(r"Agg:\\d+", f"Agg:{prev}", self.logger.log_path)
-                print(f"[federated] loading from {prev_log}")
-                self._load_model(prev_log)
-                attn_layers = load_global_weights(f"saved_networks/Exp_{self.experiment_number}/")
-                self.set_attn_layers(self.model, attn_layers.to(self.device))
-
-        # Load previous aggregation’s model if needed
-        if agg_num > 0:
-            prev = agg_num - 1
-        
-            # 1) (Optional) load optimizer/scheduler from the last local checkpoint,
-            #    if you want to continue training exactly where you left off:
-            prev_log = re.sub(r"Agg:\\d+", f"Agg:{prev}", self.logger.log_path)
+            prev_log = re.sub(r"Agg:\\d+", f"Agg:{agg_num-1}", self.logger.log_path)
             print(f"[federated] loading local checkpoint from {prev_log}")
-            self._load_model(prev_log)
+            # load model + counters/RNG, skip optimizer
+            self._load_model(prev_log, load_optimizer=False)
         
-            # 2) Always overwrite the model’s weights with the federated average
             global_path = f"saved_networks/Exp_{self.experiment_number}"
-            print(f"[federated] loading aggregated weights from {global_path}")
+            print(f"[federated] applying aggregated weights from {global_path}")
             attn_layers = load_global_weights(global_path)
             self.set_attn_layers(self.model, attn_layers.to(self.device))
+            # 1) Reset LR scheduler epoch counter:
+            self.scheduler.last_epoch = -1
+        
+            # 2) Zero out any momentum buffers in the optimizer:
+            for group in self.optimizer.param_groups:
+                for p in group['params']:
+                    state = self.optimizer.state[p]
+                    if 'momentum_buffer' in state:
+                        state['momentum_buffer'].zero_()
 
         # Tracking variables
         self.aug_trajs = []
@@ -247,41 +235,51 @@ class Experiment:
             print(f"Model saved at {path_prefix}/pretrain_model.pt")
         self.model_path = f"{path_prefix}/model.pt"
 
-    def _load_model(self, path_prefix):
+    # in train_odt.py, update this definition:
+    def _load_model(self, path_prefix, load_optimizer=True):
         model_file = Path(f"{path_prefix}/model.pt")
-        if model_file.exists():
-            # load checkpoint onto cuda:0 or CPU
-            with open(model_file, "rb") as f:
-                if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-                    map_location = lambda storage, loc: storage.cuda(0)
-                else:
-                    map_location = torch.device("cpu")
-                checkpoint = torch.load(f, map_location=map_location)
+        if not model_file.exists():
+            return
     
-            # restore model, optimizer, scheduler, etc.
-            self.model.load_state_dict(checkpoint["model_state_dict"])
+        # 1) load checkpoint onto cuda:0 or CPU
+        with open(model_file, "rb") as f:
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                map_location = lambda storage, loc: storage.cuda(0)
+            else:
+                map_location = torch.device("cpu")
+            checkpoint = torch.load(f, map_location=map_location)
+    
+        # 2) always restore model weights
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+    
+        # 3) restore optimizer & scheduler only if requested
+        if load_optimizer:
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
             self.log_temperature_optimizer.load_state_dict(
                 checkpoint["log_temperature_optimizer_state_dict"]
             )
-            self.pretrain_iter = checkpoint["pretrain_iter"]
-            self.online_iter = checkpoint["online_iter"]
-            self.total_transitions_sampled = checkpoint["total_transitions_sampled"]
-            np.random.set_state(checkpoint["np"])
-            random.setstate(checkpoint["python"])
     
-            
-            pytorch_rng_state = checkpoint.get("pytorch")
-            if pytorch_rng_state is not None:
-                # ensure it's a ByteTensor
-                if not isinstance(pytorch_rng_state, torch.ByteTensor):
-                    pytorch_rng_state = torch.tensor(
-                        pytorch_rng_state, dtype=torch.uint8, device="cpu"
-                    )
-                torch.set_rng_state(pytorch_rng_state)
+        # 4) always restore counters
+        self.pretrain_iter = checkpoint["pretrain_iter"]
+        self.online_iter = checkpoint["online_iter"]
+        self.total_transitions_sampled = checkpoint["total_transitions_sampled"]
     
-            print(f"Model loaded at {model_file}")
+        # 5) always restore numpy & python RNG
+        np.random.set_state(checkpoint["np"])
+        random.setstate(checkpoint["python"])
+    
+        # 6) fix & restore PyTorch RNG
+        pytorch_rng_state = checkpoint.get("pytorch")
+        if pytorch_rng_state is not None:
+            if not isinstance(pytorch_rng_state, torch.ByteTensor):
+                pytorch_rng_state = torch.tensor(
+                    pytorch_rng_state, dtype=torch.uint8, device="cpu"
+                )
+            torch.set_rng_state(pytorch_rng_state)
+    
+        print(f"Model loaded at {model_file}")
+
 
 
 
@@ -306,10 +304,10 @@ class Experiment:
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         adjusted_experiment_number = str(int(self.experiment_number) - 108)
-        dataset_path = f"/storage_1/epigou_storage/Exp_3000/Exp_4000/data_zone_{self.zone_index + 1}.h5"
+        #dataset_path = f"/storage_1/epigou_storage/Exp_3000/Exp_4000/data_zone_{self.zone_index + 1}.h5"
 
 
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{load_zone}.h5')
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{load_zone}.h5')
 
         # dataset_path = os.path.join(
         #     base_dir,
