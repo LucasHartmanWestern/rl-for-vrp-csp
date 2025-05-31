@@ -209,7 +209,7 @@ class EnvironmentClass:
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, seed: int, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, seed: int, sub_seed: int, zone: int, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
@@ -217,12 +217,14 @@ class EnvironmentClass:
             config_fname (str): Path to the configuration file.
             seed (int): Seed for getting the temp
             sub_seed (int): Seed for random number generator.
-            zone_coords (list): Coordinates of the center of the zone.
+            zone (int): Zone index.
             device (torch.device): Device to run tensor operations (CPU or CUDA).
             dtype (torch.dtype): Data type for tensors.
         """
         self.device = device
         self.dtype = dtype
+        self.zone_idx = zone + 1
+        self.aggregation_num = None
 
         # Load configuration parameters for the environment
         config = load_config_file(config_fname)['environment_settings']
@@ -230,7 +232,7 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        self.temperature = get_temperature(config['season'], zone_coords, rng, seed)
+        self.temperature = get_temperature(config['season'], config['coords'][zone], rng, seed)
 
         self.init_ev_info(config, self.temperature, rng)
 
@@ -254,6 +256,9 @@ class EnvironmentClass:
 
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
+
+        # Get the model index by using car_models[zone_index][agent_index]
+        self.car_models = np.column_stack([info['model_type'] for info in self.info]).T
 
         # tracemalloc.start()
 
@@ -312,6 +317,9 @@ class EnvironmentClass:
             np.ndarray: Array containing EV information.
         """
         return self.info
+
+    def set_aggregation(self, aggregation_num):
+        self.aggregation_num = aggregation_num
 
     def init_data(self):
         """
@@ -396,7 +404,7 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self, timestep: int):
+    def simulate_routes(self):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -533,7 +541,7 @@ class EnvironmentClass:
         energy_used = energy_used.cpu().numpy() * self.energy_scale
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
-        reward_scale = (timestep + 1) if self.reward_version == 2 else 1
+        reward_scale = (self.timestep + 1) if self.reward_version == 2 else 1
         self.simulation_reward = -((distance_factor + peak_traffic + energy_used) / (reward_scale))
 
         # Save results in class
@@ -546,12 +554,13 @@ class EnvironmentClass:
         self.distances_results = distances_per_car.numpy()
         self.arrived_at_final = arrived_at_final
 
+        self.done = done
         return done
 
     def get_odt_info(self):
         return self.arrived_at_final[0,:]
 
-    def get_results(self) -> tuple:
+    def get_full_results(self) -> tuple:
         """
         Get the results of the simulation.
 
@@ -568,6 +577,55 @@ class EnvironmentClass:
 
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
+
+    def get_rewards(self, timestep_time, only_reward=False) -> np.array:
+        """
+        Get the results of the simulation.
+
+        Returns:
+            float array: with all the rewards for the episode 
+        """
+        if not only_reward:
+            #evaluating step in episode
+            for step_ind in range(len(self.traffic_results)):
+                for station_ind in range(len(self.traffic_results[0])):
+                    self.station_data.append({
+                                "episode": self.episode,
+                                "timestep": self.timestep,
+                                "done": self.done,
+                                "zone": self.zone_idx,
+                                "aggregation": self.aggregation_num,
+                                "simulation_step": step_ind,
+                                "station_index": station_ind,
+                                "traffic": self.traffic_results[step_ind][station_ind]
+                            })
+
+            # Loop through the agents in each zone
+            #Get the model index by using car_models[zone_index][agent_index]
+            # print(f' car models {self.car_models[self.zone_idx-1]} zone {self.zone_idx}')
+            for agent_ind, car_model in enumerate(self.car_models[self.zone_idx-1]):
+                duration = np.where(np.array(self.distances_results).T[agent_ind] == self.distances_results[-1][agent_ind])[0][0]
+                self.agent_data.append({
+                    "episode": self.episode,
+                    "timestep": self.timestep,
+                    "done": self.done,
+                    "zone": self.zone_idx,
+                    "aggregation": self.aggregation_num,
+                    "agent_index": agent_ind,
+                    "car_model": car_model,
+                    "distance": self.distances_results[-1][agent_ind] * 100,
+                    "reward": self.simulation_reward[agent_ind],
+                    "duration": duration,
+                    "average_battery": np.average(np.array(self.battery_levels_results).T[agent_ind]),
+                    "ending_battery": np.array(self.battery_levels_results).T[agent_ind].tolist()[-1],
+                    "starting_battery": np.array(self.battery_levels_results).T[agent_ind].tolist()[0],
+                    "timestep_real_world_time": timestep_time
+                    })
+
+
+        
+
+        return self.simulation_reward
 
     def generate_paths(self, distribution, fixed_attributes: list, agent_index: int):
         """
@@ -631,7 +689,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, timestep_counter: int, is_odt=False, is_madt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -666,7 +724,7 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-                           np.array([self.temperature]), np.array([timestep_counter])))
+                           np.array([self.temperature]), np.array([self.timestep])))
         # Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
         # performing unnecesary repetitions of the state creation
         # state = torch.cat((
@@ -676,7 +734,7 @@ class EnvironmentClass:
         #     torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
         #     torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
         #     torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
-        #     torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
+        #     torch.tensor([self.timestep], device=self.device, dtype=self.dtype)), dim=0)
         
         # Normalize the state values
         state = (state - np.mean(state)) / np.std(state)
@@ -698,6 +756,8 @@ class EnvironmentClass:
         self.historical_charges_needed.append(self.charges_needed)
         self.charges_needed = []
         self.local_paths = []
+
+        self.timestep += 1
 
         # Update starting routes
         if self.tokens != None:
@@ -724,7 +784,7 @@ class EnvironmentClass:
             self.info['starting_charge'] = self.new_starting_battery.cpu()
 
 
-    def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray):
+    def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray, reset_ep_counter: bool =True):
         """
         Reset the episode with new chargers, routes, and unique chargers.
 
@@ -739,6 +799,9 @@ class EnvironmentClass:
         self.local_paths = []
         self.tokens = None
 
+        if reset_ep_counter:
+            self.episode = -1
+
         traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
         traffic[:, 0] = unique_chargers['id']
 
@@ -748,6 +811,18 @@ class EnvironmentClass:
         self.unique_chargers = unique_chargers  # [(charger id, charger latitude, charger longitude),...]
         self.chargers = chargers  # [[[charger id, charger latitude, charger longitude],...],...] (chargers[agent index][charger index][charger property index])
         self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
+
+        # Registers data station and agents
+        self.station_data = []
+        self.agent_data = []
+        # Reseting timestep
+        self.timestep = -1
+
+        # Increasing +1 episode counter
+        self.episode += 1
+
+    def get_data(self):
+        return self.station_data, self.agent_data
 
     def cma_store(self):
         self.store_paths = copy.deepcopy(self.paths)

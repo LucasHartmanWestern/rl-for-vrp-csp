@@ -210,8 +210,7 @@ def train_rl_vrp_csp(args):
     start_time = time.time()
     for area_idx in range(n_zones):
         environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
-                                       env_c['coords'][area_idx], device=devices[area_idx],\
-                                       dtype=torch.float32)
+                                       area_idx, device=devices[area_idx], dtype=torch.float32)
 
         environment_list.append(environment)
         ev_info.append(environment.get_ev_info())
