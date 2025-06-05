@@ -18,8 +18,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
     
     
     if purpose == 'save':
-        print(f'Here in save append {append}')
-
         agent_data = []
         station_data = []
 
@@ -68,7 +66,6 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
                         })
 
         else:
-            print(f'Here next')
             # Flatten the data
             
             for episode in metrics:
