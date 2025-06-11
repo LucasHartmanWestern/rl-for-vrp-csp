@@ -1,7 +1,6 @@
 import torch
 import time
 
-#Delete odt param once federated learning is implemented
 def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone, is_odt=False):
 
     """
@@ -18,6 +17,7 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
     Returns:
         list: A 2D list (zones x models) containing the global weights for each zone-model pair.
     """ 
+
     start_time = time.time()
     max_model_index = 0
 
@@ -26,8 +26,7 @@ def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, 
 
     print(f"Num of Models: {max_model_index + 1} - Num of Zones: {len(zone_weights)}")
 
-
-    #If ODT weights
+    # If ODT weights are used, we need to average the attention layers
     if isinstance(zone_weights[0], torch.Tensor):
         zone_weights = list(zone_weights)
         stacked_layers = torch.stack(zone_weights)  # Shape: [num_saved_layers, attn_number, dim1, dim2]      

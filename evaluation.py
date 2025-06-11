@@ -7,12 +7,35 @@ import mplcursors
 import os
 
 def clear_metrics(base_path):
+    """
+    Clear the metrics for a given base path
+
+    Parameters:
+        base_path (str): Base path to clear the metrics for
+    """
+
     remove_path = [f'{base_path}_agent_metrics.csv', f'{base_path}_station_metrics.csv']
     for path in remove_path:
         if os.path.exists(path):
             os.remove(path)
 
 def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_path, append=False, is_odt=False):
+    """
+    Evaluate the metrics for a given base path
+
+    Parameters:
+        ev_info (list): List of information about the environment
+        metrics (list): List of metrics
+        seed (int): Seed for the experiment
+        date (str): Date of the experiment
+        verbose (bool): Whether to print verbose output
+        purpose (str): Purpose of the evaluation
+        num_episodes (int): Number of episodes
+        base_path (str): Base path to save the metrics
+        append (bool): Whether to append the metrics
+        is_odt (bool): Whether to use ODT weights
+    """
+
     if purpose == 'save':
 
         agent_data = []
@@ -135,6 +158,16 @@ def evaluate(ev_info, metrics, seed, date, verbose, purpose, num_episodes, base_
 
 
 def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episodes, algorithm='DQN'):
+
+    """
+    Evaluate the metrics for a given base path
+
+    Parameters:
+        data (list): List of data
+        metric_name (str): Name of the metric
+        metric_title (str): Title of the metric
+    """
+
     if verbose: print(f"Evaluating {metric_title} Metrics for seed {seed}")
 
     # Convert data to DataFrame for easier manipulation
@@ -288,6 +321,16 @@ def evaluate_by_agent(data, metric_name, metric_title, seed, verbose, num_episod
     plt.show()
 
 def draw_map_of_last_episode(data, seed, algorithm='DQN'):
+
+    """
+    Draw a map of the last episode
+
+    Parameters:
+        data (list): List of data
+        seed (int): Seed for the experiment
+        algorithm (str): Algorithm for the experiment
+    """
+
     # Convert data to DataFrame for easier manipulation
     df = pd.DataFrame(data)
 
@@ -397,14 +440,16 @@ def draw_map_of_last_episode(data, seed, algorithm='DQN'):
 
     plt.show()
 
-def evaluate_training_duration(data, algorithm='DQN'):
-    print("Evaluating Training Time Metrics")
-
-    # TODO:
-    # - Evaluate how long it takes to plateau to reward
-    # - Evaluate how long it takes to retrain after defining base models
-
 def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
+
+    """
+    Evaluate the metrics for a given base path
+
+    Parameters:
+        data (list): List of data
+        seed (int): Seed for the experiment
+    """
+
     if verbose: print("Evaluating Traffic Metrics")
 
     # Convert data to DataFrame for easier manipulation
@@ -523,13 +568,3 @@ def evaluate_by_station(data, seed, verbose, num_episodes, algorithm='DQN'):
     plt.ylabel('Average Traffic')
     plt.legend(title='Aggregation')
     plt.show()
-    
-if __name__ == "__main__":
-    reward_data = read_csv_data(f'./metrics/Experiment 1/train/metrics_reward.csv')
-    evaluate_by_agent(reward_data, 'reward', 'Simulation Reward', 1234, True, 25, 'DQN')
-
-
-
-
-
-

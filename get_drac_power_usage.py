@@ -6,12 +6,18 @@ import urllib.request
 import os
 import argparse
 
-# Lucas: inogpb48rxgkxgklt34m3ivzklxp2isy
-# Ethan: zkndni8fd4vkdnnylyyccqz5lfljkoeg
-# Santiago: hdwdd0n0hqxe7piia875zha596nj6a11
-cookie = f"sessionid=hdwdd0n0hqxe7piia875zha596nj6a11"
+cookie = f"sessionid={os.environ.get('COOKIE')}"
 
 def save_job_power_usage(job, experiment_num, username, base_path):
+    """
+    Save the power usage of a job to a CSV file
+
+    Parameters:
+        job (dict): Job information
+        experiment_num (int): Experiment number
+        username (str): Username
+        base_path (str): Base path to save the CSV file
+    """
 
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -50,7 +56,15 @@ def save_job_power_usage(job, experiment_num, username, base_path):
 
 def get_jobs_per_experiments(experiment_list, username, base_path):
 
-    
+    """
+    Get the jobs for a list of experiments
+
+    Parameters:
+        experiment_list (list): List of experiment numbers
+        username (str): Username
+        base_path (str): Base path to save the CSV file
+    """
+
     url = f"https://portail.beluga.calculquebec.ca/api/jobs/?format=datatables&username={username}&length=2000"
 
     print(f"Making request to {url}")
@@ -79,7 +93,7 @@ def get_jobs_per_experiments(experiment_list, username, base_path):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Get the power usage of a job')
     parser.add_argument('-e', type=int, nargs='*', default=[])
     parser.add_argument('-u', type=str, default='hartman')
     parser.add_argument('-p', type=str, default='../../../storage_1/metrics')

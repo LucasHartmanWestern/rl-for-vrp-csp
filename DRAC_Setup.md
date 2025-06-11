@@ -160,14 +160,6 @@ rsync -av --no-perms --prune-empty-dirs \
   --exclude='*' \
   <your_username>@beluga.computecanada.ca:/lustre04/scratch/<your_username>/metrics/ .
 ```
-e.g.,
-```
-rsync -av --no-perms --prune-empty-dirs \
-  --include='*/' \
-  --include='Exp_*/train/**' \
-  --exclude='*' \
-  hartman@beluga.computecanada.ca:/lustre04/scratch/hartman/metrics/ .
-```
 
 ### 3. Delete empty directories (optional)
 Use the below command if you want to delete empty directories after the transfer:

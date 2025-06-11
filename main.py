@@ -2,28 +2,20 @@ import os
 import argparse
 import warnings
 import time
-
 import copy
 from datetime import datetime
 import numpy as np
-import pickle
 from codecarbon import EmissionsTracker
-import uuid
 import shutil
 import pandas as pd
-import sys
-import json
-import glob
 import cProfile
-
 from collections import defaultdict
-
 warnings.filterwarnings("ignore")
 
-#Importing proprietary modules
+# Importing proprietary modules
 from data_loader import *
 from visualize import *
-from merl_env.environment import EnvironmentClass
+from environment.environment import EnvironmentClass
 from federated_learning import get_global_weights
 from evaluation import evaluate, clear_metrics
 from train_utils import train_route
@@ -34,38 +26,39 @@ mp.set_sharing_strategy('file_system')
 mp.set_start_method('spawn', force=True)
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-def train_rl_vrp_csp(args):
+def main_loop(args):
 
     """
-    Trains reinforcement learning models for vehicle routing and charging station placement (VRP-CSP).
+    Trains models for vehicle routing and charging station placement (VRP-CSP).
 
     Parameters:
-        args ()
+        args (argparse.Namespace): Arguments from command line
+        args.number_processors (int): Number of processors used to run MERL
+        args.list_gpus (list): List of GPU indices to run MERL
+        args.experiments_list (int): Experiment number to run
+        args.data_dir (str): Directory to save data to
+        args.verbose (bool): Whether to print verbose output
+        args.eval (bool): Whether to evaluate the model
+        args.profile (bool): Whether to profile the code
 
     Returns:
         None
     """
 
     ############ Initialization ############
-    #get current date for experiments
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
 
-    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
-    print(f"Available GPUs: {torch.cuda.device_count()}")
     print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
     print(f"PyTorch version: {torch.__version__}")
 
-    # Get the list of available GPUs from the environment variable
     cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
     if cuda_visible_devices is not None:
-        # Split the string into a list of GPU indices
         available_gpus = cuda_visible_devices.split(',')
     else:
-        # If the environment variable is not set, use all available GPUs
         available_gpus = [str(i) for i in range(torch.cuda.device_count())]
 
-    #initializing GPUs for training
+    # Initializing GPUs for training
     n_gpus = len(args.list_gpus)
     if n_gpus == 0:
         gpus = ['cpu'] # no gpus assigned, then everything running on cpu
@@ -77,7 +70,6 @@ def train_rl_vrp_csp(args):
     elif (n_gpus > 1) & (n_gpus < torch.cuda.device_count()+1):
         gpus = [f'cuda:{args.list_gpus[i]}' for i in range(n_gpus)]
         print(f'Woring with {n_gpus} GPUs, with following configuration for zones and devices:')
-    
     else:
         raise RuntimeError('Number of GPUs requested higher than available GPUs at server.')
 
@@ -87,14 +79,14 @@ def train_rl_vrp_csp(args):
         if gpu_index not in available_gpus and gpu != 'cpu':
             raise RuntimeError(f"Requested GPU {gpu_index} is not available.")
 
-
-    #Getting experiment number to run
-    experiment_number = args.experiments_list
     verbose = args.verbose
-    #Getting into Training or Evaluating mode to run experiments
+
+    # Getting experiment number to run
+    experiment_number = args.experiments_list
+    # Getting into Training or Evaluating mode to run experiments
     run_mode = 'Evaluating' if args.eval else "Training" 
 
-    #Fire up initialization by config file
+    # Fire up initialization by config file
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     c = load_config_file(config_fname)
     env_c = c['environment_settings']
@@ -103,29 +95,22 @@ def train_rl_vrp_csp(args):
     agent_by_zone= c['algorithm_settings']['agent_by_zone']
     federated_c = c['federated_learning_settings']
 
-    # Data directory
+    # Data directory where metrics are saved
     data_dir = args.data_dir if args.data_dir else f"{c['eval_config']['save_path_metrics']}"
     
-    #Should continue the training
+    # Whether to continue the training
     load_existing_model = eval_c['continue_training']
 
-    # Making directories if it doesn't already exist
-    # Logs directory
+    # Directory where logs are saved
     logs_dir = 'logs'
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
 
-    # # Creating output directory
-    # folder = 'outputs/best_paths/'
-    # if not os.path.exists(folder):
-    #     os.makedirs(folder)
-
-    # Creating model saving directory
+    # Directory where models are saved (the global weights)
     save_global_path = f'saved_networks/Exp_{experiment_number}/'
     if not os.path.exists(save_global_path):
         os.makedirs(save_global_path)
 
-    # Creating metric directory to save results from experiments
     metrics_base_path = f'{data_dir}_{experiment_number}'
 
     print(f"Metrics base path: {metrics_base_path}")
@@ -133,6 +118,7 @@ def train_rl_vrp_csp(args):
     print("Removing previous metrics if they exist")
     clear_metrics(f"{metrics_base_path}/{'eval' if args.eval else 'train'}/metrics")
 
+    # Subdirectory where metrics are saved
     sub_dir = '/train' if run_mode == 'Training' else '/eval'
     metrics_with_sub_dir = metrics_base_path + sub_dir
     if os.path.exists(metrics_with_sub_dir):
@@ -145,26 +131,22 @@ def train_rl_vrp_csp(args):
         os.makedirs(emission_output_dir)
 
 
-    if algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE"]: # reinforcement learning
+    if algorithm_dm in ["DQN", "PPO", "DDPG", "REINFORCE", "ODT"]: # reinforcement learning
         num_episodes = c['nn_hyperparameters']['num_episodes']
         variant = c
     elif algorithm_dm in ['CMA', 'DENSER', 'NEAT']: # population based
         num_episodes = c['cma_parameters']['max_generations']
-        variant = c
-    elif algorithm_dm == 'ODT': # transformer based
-        num_episodes = c['nn_hyperparameters']['num_episodes']
-        variant = c        
+        variant = c      
     else:
         variant = None
 
-    #### Runing experiment selected ####
+    # Runing experiment selected
     action_dim = env_c['action_dim'] * env_c['num_of_chargers']
 
     if algorithm_dm == 'ODT':
         print(variant['odt_hyperparameters']['experiment_number'])
-        #save_data_by_zone(metrics_base_path, variant['odt_hyperparameters']['experiment_number'])  
 
-    # Now assign GPUs to zones
+    # Assign GPUs to zones
     n_zones = len(env_c['coords'])
     gpus_size = len(gpus)
     exp_devices = [gpus[i % gpus_size] for i in range(n_zones)]
@@ -173,29 +155,25 @@ def train_rl_vrp_csp(args):
     else:
         for i, gpu in enumerate(exp_devices):
             print(f'Zone {i} with GPU {gpu} - {torch.cuda.get_device_name(gpu)}')
-
     devices = [gpus[i % gpus_size] for i in range(n_zones)]
 
-    # get seed for current experiment
+    # Get seed for current experiment
     seed = env_c['seed']
-    # Run and train agents with different routes with reproducibility based on the selected seed
 
-    #Retrieve Training or Evaluation mode and Continue or from scrath model training
+    # Retrieve Training or Evaluation mode and Continue or from scrath model training
     if (run_mode == "Evaluating") or (load_existing_model):
         global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
     print_l, print_et = print_log(f'{logs_dir}/{date}-{run_mode}_logs.txt', verbose)
     print_l(f"Saving metrics to base path: {metrics_with_sub_dir}", )
     
-    #to ask Lucas
+    # If evaluating on different seed, change the seed using round robin
     if eval_c['evaluate_on_diff_seed'] or args.eval:
         seed_options = [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6060]
         seed_index = seed_options.index(seed)
         old_seed = seed
         seed = seed_options[(seed_index + 1) % len(seed_options)]
-
         print_l(f'Running experiments with model trained on seed {old_seed} on new seed {seed}', )
-
     else:
         print_l(f'Running experiment {experiment_number} in {run_mode} mode with seed -> {seed}', )
 
@@ -204,31 +182,26 @@ def train_rl_vrp_csp(args):
     # Generating sub seeds to run on each environment
     chargers_seeds = rng.integers(low=0, high=10000, size=len(env_c['coords']))
 
-
-    # Initializing list of enviroments
+    # Initializing enviroment
     environment_list = []
     ev_info = []
     start_time = time.time()
     for area_idx in range(n_zones):
-        environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
-                                       env_c['coords'][area_idx], device=devices[area_idx],\
-                                       dtype=torch.float32)
-
+        environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx], env_c['coords'][area_idx], device=devices[area_idx], dtype=torch.float32)
         environment_list.append(environment)
         ev_info.append(environment.get_ev_info())
 
+    # Get EV Info
     print_et('Get EV Info:', start_time)
-
     start_time = time.time()
-
     all_routes = [None for route in env_c['coords']]
     for index, (city_lat, city_long) in enumerate(env_c['coords']):
         array_org_angle = rng.random(env_c['num_of_cars'])*2*np.pi # generating a list of random angles 
         all_routes[index] = get_org_dest_coords((city_lat, city_long), env_c['radius'], array_org_angle)
+    
+    # Get Routes
     print_et('Get Routes:', start_time)
-
     start_time = time.time()
-
     chargers = np.zeros(shape=[len(all_routes), env_c['num_of_cars'], env_c['num_of_chargers'] * 3, 3])
     
     for route_id,  route in enumerate(all_routes):
@@ -239,8 +212,8 @@ def train_rl_vrp_csp(args):
                                             dest_lat, dest_long, env_c['num_of_chargers'])
             chargers[route_id][agent_id] = charger_list
 
+    # Get Charging Stations
     print_et('Get Chargers:', start_time)
-
     if run_mode == "Training":
         print_l(f"Training using {algorithm_dm} - Seed {seed}", )
 
@@ -248,15 +221,15 @@ def train_rl_vrp_csp(args):
 
         metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-        output_values = []  # Array of [(episode_avg_output_values, episode_number,
-                            #aggregation_num, route_index, seed)]
+        output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
         old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
-        global_weights = None
+        global_weights = None # Holds the global weights which are effectively the model weights learned during training
 
         # Initialize weights_to_save as a manager list to persist between aggregations
         manager = mp.Manager()
         weights_to_save = manager.list([None for _ in range(len(chargers))])
 
+        # Loop through aggregation steps
         for aggregate_step in range(federated_c['aggregation_count']):
             try:
                 # Start tracking emissions
@@ -269,9 +242,11 @@ def train_rl_vrp_csp(args):
                 )
                 tracker.start()
 
-                # Check if we have only one zone - if so, don't use multiprocessing
+                # Print aggregation step
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count']}"
                 print_l(f"\n\n############ Aggregation {agg_print} ############\n\n",)
+
+                # Check if we have only one zone - if so, don't use multiprocessing
                 if len(chargers) == 1:
                     print("Only one zone detected, running without multiprocessing")
                     local_weights_list = [None]
@@ -290,7 +265,10 @@ def train_rl_vrp_csp(args):
                                 eval_c['display_training_times'], agent_by_zone, variant,\
                                 eval_c['save_offline_data'], True, old_buffers[0],\
                                 process_buffers, weights_to_save, len(chargers))
+                    
+                # If there are multiple zones, use multiprocessing
                 else:
+                    # Initialize manager for multiprocessing
                     manager = mp.Manager()
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
@@ -301,8 +279,10 @@ def train_rl_vrp_csp(args):
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
 
+                    # Initialize processes
                     processes = []
                     for ind, charger_list in enumerate(chargers):
+                        # Create arguments tuple for each process
                         args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
@@ -312,6 +292,8 @@ def train_rl_vrp_csp(args):
                                   eval_c['display_training_times'], agent_by_zone, variant,\
                                   eval_c['save_offline_data'], True, old_buffers[ind], \
                                   process_buffers, weights_to_save, len(chargers))
+                        
+                        # Enter the training loop for each zone
                         process = mp.Process(target=train_route, args=args_tuple)
                         processes.append(process)
                         process.start()
@@ -326,22 +308,11 @@ def train_rl_vrp_csp(args):
                             p.terminate()  # Just in case
 
                 rewards = []
-                # for metric in process_metrics:
-                #     metric = metric[0]
-                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                #         f" for aggregation: {metric['aggregation']+1}"
-                #     print_l(to_print)
-
-                # metrics.extend(process_metrics)
-
-                # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                #  f"{metrics_base_path}/train/metrics", True)
 
                 print("Join Weights")
 
                 # Aggregate the weights from all local models
                 if algorithm_dm == 'ODT':
-                    # Aggregate the weights from all local models
                     global_weights = get_global_weights(local_weights_list, ev_info,\
                                                         federated_c['city_multiplier'],\
                                                         federated_c['zone_multiplier'],\
@@ -407,16 +378,22 @@ def train_rl_vrp_csp(args):
             plot_aggregate_reward_data(loaded_rewards)
             plot_aggregate_output_values_per_route(loaded_output_values)
 
+    # In evaluation mode, we don't need to train, we just evaluate the already saved model
     elif run_mode == "Evaluating":
         print_l(f"Evaluating using {algorithm_dm} - Seed {seed}", )
 
         print_l(f"Loading saved models - Seed {seed}")
-        global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
+        
+        try:
+            global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
+            assert global_weights is not None, "Global weights are None"
+        except Exception as e:
+            print_l(f"No saved model found for experiment {experiment_number}")
+            raise Exception(f"No saved model found for experiment {experiment_number}")
 
         metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-        output_values = []  # Array of [(episode_avg_output_values, episode_number,
-                            #aggregation_num, route_index, seed)]
+        output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
         old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
 
         # Initialize weights_to_save as a manager list to persist between aggregations
@@ -492,22 +469,11 @@ def train_rl_vrp_csp(args):
                             p.terminate()  # Just in case
 
                 rewards = []
-                # for metric in process_metrics:
-                #     metric = metric[0]
-                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                #         f" for aggregation: {metric['aggregation']+1}"
-                #     print_l(to_print)
-
-                # metrics.extend(process_metrics)
-
-                # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                #  f"{metrics_base_path}/train/metrics", True)
 
                 print("Join Weights")
 
                 # Aggregate the weights from all local models
                 if algorithm_dm == 'ODT':
-                    # Aggregate the weights from all local models
                     global_weights = get_global_weights(local_weights_list, ev_info,\
                                                         federated_c['city_multiplier'],\
                                                         federated_c['zone_multiplier'],\
@@ -558,19 +524,23 @@ def train_rl_vrp_csp(args):
                 except Exception as e:
                     print_l(f"Error saving emissions report")
 
-    flag_a = eval_c['fixed_attributes'] != [0, 1]
-    flag_b = eval_c['fixed_attributes'] != [1, 0]
-    flag_c = eval_c['fixed_attributes'] != [0.5, 0.5]
-    if flag_a and flag_b and flag_c:
-        attr_label = 'learned'
-    else:
-        fixed_attributes = eval_c['fixed_attributes']
-        attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
-
+    # Print total run time
     print_et(f'Experiment_number: {experiment_number}, run time', start_time, )
 
 
 def print_log(log_path, with_log=True):
+    """
+    Print log to file and console
+
+    Parameters:
+        log_path (str): Path to the log file
+        with_log (bool): Whether to print to file
+
+    Returns:
+        print_l (function): Function to print log to file and console
+        print_elapsed_time (function): Function to print elapsed time
+    """
+
     def print_l(to_print):
         if with_log:
             with open(log_path, 'a', encoding='utf-8') as file:
@@ -586,6 +556,8 @@ def print_log(log_path, with_log=True):
     
 if __name__ == '__main__':
 
+    # Parse arguments from command line
+
     parser = argparse.ArgumentParser(description=('MERL Project'))
     parser.add_argument('-c','--number_processors', type=int, default=1,help='number of processors used to run MERL')
     parser.add_argument('-g','--list_gpus', nargs='*', type=int, default=[], help ='Request of enumerated gpus run MERL.')
@@ -594,10 +566,9 @@ if __name__ == '__main__':
     parser.add_argument('-verb','--verbose', type=bool, default=False, help='Verbose')
     parser.add_argument('-eval', type=bool, default=False, help='Evaluate the model')
     parser.add_argument('-profile', type=bool, default=False, help='Profile the code')
-
     args = parser.parse_args()
 
     if args.profile:
-        cProfile.run('train_rl_vrp_csp(args)', 'profile.out')
+        cProfile.run('main_loop(args)', 'profile.out')
     else:
-        train_rl_vrp_csp(args)
+        main_loop(args)

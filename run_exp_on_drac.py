@@ -4,6 +4,18 @@ import yaml
 import os
 
 def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False, seed=None, aggregation=None):
+    """
+    Run experiments using the servers from the Digital Research Alliance of Canada (DRAC)
+
+    Parameters:
+        start_experiment (int): Start experiment number
+        end_experiment (int): End experiment number
+        algorithm (str): Algorithm to run
+        eval (bool): Whether to evaluate the model
+        seed (int): Seed to run
+        aggregation (int): Aggregation count to run
+    """
+
     for experiment_number in range(start_experiment, end_experiment + 1):
         try:
             # Load config.yaml file for experiment
@@ -11,18 +23,17 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
 
-                if algorithm:
-                    # Check if the experiment uses the specified algorithm
+                if algorithm: # Filter by algorithm
                     if config.get("algorithm_settings", {}).get("algorithm") != algorithm:
                         print(f"Experiment {experiment_number} does not use algorithm {algorithm}")
                         continue
 
-                if seed:
+                if seed: # Filter by seed
                     if int(config.get("environment_settings", {}).get("seed")) != int(seed):
                         print(f"Experiment {experiment_number} does not use seed {seed}")
                         continue
 
-                if aggregation:
+                if aggregation: # Filter by aggregation count
                     if int(config.get("federated_learning_settings", {}).get("aggregation_count")) != int(aggregation):
                         print(f"Experiment {experiment_number} does not use aggregation {aggregation}")
                         continue
