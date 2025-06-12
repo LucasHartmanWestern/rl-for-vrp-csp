@@ -260,13 +260,10 @@ def read_csv_data(filename, columns=None):
         return df
 
     except FileNotFoundError:
-        print(f"File {filename} not found.")
         return pd.DataFrame()  # Return an empty DataFrame
     except pd.errors.EmptyDataError:
-        print(f"File {filename} is empty.")
         return pd.DataFrame()  # Return an empty DataFrame
     except Exception as e:
-        print(f"An error occurred while reading {filename}: {e}")
         return pd.DataFrame()  # Return an empty DataFrame
 
 def save_to_json(data, filename):
