@@ -61,7 +61,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     federated_c = load_config_file(config_fname)['federated_learning_settings']
 
     epsilon = nn_c['epsilon']
-    #epsilon_decay =  nn_c['epsilon_decay']
 
     discount_factor = nn_c['discount_factor']
     learning_rate= nn_c['learning_rate']
@@ -94,8 +93,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         torch.manual_seed(seed)
         dqn_rng = np.random.default_rng(seed)
     
-    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))),\
-                                         dtype=[('id', int), ('lat', float), ('lon', float)]))
+    unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
 
     state_dimension = (environment.num_chargers * 3 * 2) + 6
 
@@ -106,7 +104,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     optimizers = []
 
     num_cars = environment.num_cars
-    if agent_by_zone:  # Use same NN for each zone
+    if agent_by_zone: # Use same NN for each zone
         # Initialize networks
         num_agents = 1
         q_network, target_q_network = initialize(state_dimension, action_dim, layers, device) 
@@ -119,14 +117,14 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 q_network.load_state_dict(global_weights[zone_index])
                 target_q_network.load_state_dict(global_weights[zone_index])
 
-        optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
+        optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate) # Use RMSprop optimizer
 
         # Store individual networks
         q_networks.append(q_network)
         target_q_networks.append(target_q_network)
         optimizers.append(optimizer)
 
-    else:  # Assign unique agent for each car
+    else: # Assign unique agent for each car
         num_agents = environment.num_cars
         for agent_ind in range(num_agents):
             # Initialize networks
@@ -140,15 +138,16 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
                     target_q_network.load_state_dict(global_weights[zone_index][model_indices[agent_ind]])
 
-            optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate)  # Use RMSprop optimizer
-            # Store individual networks
+            optimizer = optim.RMSprop(q_network.parameters(), lr=learning_rate) # Use RMSprop optimizer
+            
+            # Store individual networks/optimizers
             q_networks.append(q_network)
             target_q_networks.append(target_q_network)
             optimizers.append(optimizer)
 
     random_threshold = dqn_rng.random((num_episodes, num_cars))
 
-    buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)]  # Initialize replay buffer with fixed size
+    buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)] # Initialize replay buffer with fixed size
 
     if old_buffers is not None and len(old_buffers) > 0:
         buffers = old_buffers
@@ -161,9 +160,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
     metrics = []
 
-    avg_output_values = []  # List to store the average values of output neurons for each episode
+    avg_output_values = [] # List to store the average values of output neurons for each episode
 
-    for i in range(num_episodes):  # For each episode
+    for i in range(num_episodes): # For each episode
         if save_offline_data:
             trajectories.extend([
                 {
@@ -174,7 +173,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     'terminals_car': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
-                    'episode': i,      # Critical: Keep this inside the loop for correct episode tracking
+                    'episode': i, # Critical: Keep this inside the loop for correct episode tracking
                     'car_idx': car_idx
                 }
                 for car_idx in range(num_cars)
@@ -230,11 +229,11 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 if save_offline_data:
                     car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) #Save unmodified action
                 
-                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist())  # Track outputs before the sigmoid application
+                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist()) # Track outputs before the sigmoid application
 
                 # Apply sigmoid function to the entire tensor
                 distribution = torch.sigmoid(distribution)
-                distributions.append(distribution.detach().cpu().numpy().tolist())  # Convert to list and append
+                distributions.append(distribution.detach().cpu().numpy().tolist()) # Convert to list and append
 
                 t3 = time.time()
 
@@ -316,7 +315,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             }
             metrics.append(metric)
 
-            timestep_counter += 1  # Next timestep
+            timestep_counter += 1 # Next timestep
             if timestep_counter >= environment.max_steps:
                 raise Exception("MAX TIME-STEPS EXCEEDED!")
 
@@ -376,10 +375,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 # Add this before you save your model
                 if not os.path.exists(base_path):
                     os.makedirs(base_path)
-
-                # Save the networks at the end of training
-                # save_model(q_networks[0], f'{base_path}/q_network_{zone_index}.pth')
-                # save_model(target_q_networks[0], f'{base_path}/target_q_network_{zone_index}.pth')
             else:
                 for agent_ind in range(num_cars):
                     soft_update(target_q_networks[agent_ind], q_networks[agent_ind])
@@ -387,10 +382,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     # Add this before you save your model
                     if not os.path.exists(base_path):
                         os.makedirs(base_path)
-
-                    # Save the networks at the end of training
-                    # save_model(q_networks[agent_ind], f'{base_path}/q_network_{agent_ind}.pth')
-                    # save_model(target_q_networks[agent_ind], f'{base_path}/target_q_network_{agent_ind}.pth')
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
@@ -412,18 +403,16 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                         else:
                             traj_grp.attrs[key] = value
         
-            #Verify data
             try:
                 with h5py.File(temp_path, "r") as f:
                     _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
             except Exception as e:
                 print(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
-                os.remove(temp_path)  # Optional: clean up bad file
+                os.remove(temp_path)
                 trajectories.clear()
-                continue  # Skip appending and move to next episode
+                continue
 
-        
-            #Append to main .h5 dataset incrementally
+            # Append to main .h5 dataset incrementally
             with h5py.File(dataset_path, 'a') as main_f, h5py.File(temp_path, 'r') as temp_f:
                 main_zone_grp = main_f.require_group(f"zone_{zone_index}")
                 temp_zone_grp = temp_f[f"zone_{zone_index}"]
@@ -440,7 +429,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         
             os.remove(temp_path)
             trajectories.clear()
-
 
         if avg_reward > best_avg:
             best_avg = avg_reward

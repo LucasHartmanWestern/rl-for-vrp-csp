@@ -305,7 +305,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
             # Format current trajectories
             traj_format = format_data(trajectories)
         
-            #Save a temp checkpoint
+            # Save a temp checkpoint for ODT offline data
             temp_path = os.path.join(checkpoint_dir, f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
             with h5py.File(temp_path, 'w') as f:
                 zone_grp = f.create_group(f"zone_{zone_index}")
@@ -317,18 +317,18 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                         else:
                             traj_grp.attrs[key] = value
         
-            #Verify data
+            # Verify data
             try:
                 with h5py.File(temp_path, "r") as f:
                     _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
             except Exception as e:
                 print(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
-                os.remove(temp_path)  # Optional: clean up bad file
+                os.remove(temp_path)
                 trajectories.clear()
                 continue  # Skip appending and move to next episode
 
         
-            #Append to main .h5 dataset incrementally
+            # Append to main .h5 dataset incrementally
             with h5py.File(dataset_path, 'a') as main_f, h5py.File(temp_path, 'r') as temp_f:
                 main_zone_grp = main_f.require_group(f"zone_{zone_index}")
                 temp_zone_grp = temp_f[f"zone_{zone_index}"]

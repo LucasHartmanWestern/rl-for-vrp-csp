@@ -18,7 +18,6 @@ try:
 except ImportError:
     print("Cannot import local files")
 
-
 DEBUG = False
 
 # Predefined list of supported cities with their coordinates and WeatherStats URLs
@@ -82,6 +81,15 @@ def get_closest_city(lat: float, lon: float) -> dict:
     return closest_city
 
 def save_temps(coords_list: list, seed_list: list):
+    """
+    Save the temperatures for the given coordinates and seeds to a CSV file.
+    This is used to avoid making API calls to get the temperature data on DRAC.
+
+    Parameters:
+        coords_list (list): List of coordinates.
+        seed_list (list): List of seeds.
+    """
+
     # Ensure the directory exists
     os.makedirs('merl_env/temps', exist_ok=True)
     
@@ -108,6 +116,15 @@ def save_temps(coords_list: list, seed_list: list):
                     csvwriter.writerow([coords[0], coords[1], season, seed, temp])
 
 def get_temps_from_file(coords: list, seed: int, season: str):
+    """
+    Get the temperature for the given coordinates and seed from the CSV file.
+
+    Parameters:
+        coords (list): Coordinates [latitude, longitude] of the location.
+        seed (int): Seed for the random number generator.
+        season (str): Season to get the temperature for.
+    """
+
     # Define the CSV file path
     csv_file_path = 'merl_env/temps/temperatures.csv'
     
@@ -135,6 +152,8 @@ def get_temperature(season: str, coords: list, rng: np.random.Generator, seed: i
     Parameters:
         season (str): Season to get the temperature for.
         coords (list): Coordinates [latitude, longitude] of the location.
+        rng (np.random.Generator): Random number generator.
+        seed (int): Seed for the random number generator.
 
     Returns:
         float: Average temperature for the given season and location.
@@ -547,6 +566,10 @@ class EnvironmentClass:
         return done
 
     def get_odt_info(self):
+        """
+        Get the information for ODT specifically.
+        """
+
         return self.arrived_at_final[0,:]
 
     def get_results(self) -> tuple:
@@ -745,16 +768,28 @@ class EnvironmentClass:
         self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
 
     def cma_store(self):
+        """
+        Store the paths, charges needed, and local paths.
+        """
+
         self.store_paths = copy.deepcopy(self.paths)
         self.store_charges_needed = copy.deepcopy(self.charges_needed)
         self.store_local_paths = copy.deepcopy(self.local_paths)
 
     def cma_copy_store(self):
+        """
+        Copy the stored paths, charges needed, and local paths.
+        """
+
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
 
     def cma_clean(self):
+        """
+        Clean the paths, charges needed, and local paths.
+        """
+
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
@@ -764,6 +799,11 @@ class EnvironmentClass:
         self.store_local_paths = []
 
 if __name__ == "__main__":
+    """
+    Run this file to save the temperature data for usage on DRAC.
+    Note that below specifies the seed and coordinate combinations to save.
+    """
+
     seeds = [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6002, 6060]
     coords_list = [[43.02120034946083, -81.28349087468504],
                    [43.004969336049854, -81.18631870502043],

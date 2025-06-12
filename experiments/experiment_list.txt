@@ -301,30 +301,37 @@ Experiment 39:
 - Season: winter
 - Agent-per-car
 
-Experiments 40 and onwards are combinations of the following parameters.
+Experiments in the range 40-3999 are not used in the paper, but helped test certain edge behaviors and informed the development process.
+
+Experiments 4000 and onwards are combinations of the following parameters.
 
 There is one experiment for each combination of the following parameters:
-- Model: [DQN, PPO, DQN + ODT, PPO + ODT, ALL + ODT, CMA] (6 models)
-- Seed: [1234, 5555, 2020, 5678, 9101] (5 seeds)
-- Season: [summer, winter] (2 seasons)
+- Aggregation level: [50, 5, 1] (3 levels)
+- Model: [DQN, REINFORCE, CMA, DQN + ODT, REINFORCE + ODT] (5 models)
+- Seed: [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6002] (9 seeds)
+- Season: [spring, summer, autumn, winter] (4 seasons)
 
-Number of combinations = 12 * 5 * 2 = 120 experiments
+Number of combinations = 3 * 5 * 9 * 4 = 540 experiments
+
+These are spread over 3 batches, 4000-4179, 5000-5179, and 6000-6179.
+Each batch covers 3 of the 9 total seeds.
 
 Each experiment can be run to train the model, or to load a pretrained model and evaluate it.
-The selection of training or evaluation is done by running the app_v2.py file and answering the prompts given.
+The selection of training or evaluation is done by running the main.py file and including -eval True or -eval False (default is False).
 
-Experiments 31-151 are ordered to cycle through each model (starting with DQN), and then each seed (starting with 1234), and then each season (starting with summer).
+Experiments 4000-6179 are ordered to cycle through each model (starting with DQN), and then each aggregation level (starting with 50) and then each seed (starting with 1234), and then each season (starting with spring).
 
-Experiment 31:
+Experiment 4000:
 - Model: DQN
 - Seed: 1234
-- Season: summer
-- Agent-per-car
+- Season: spring
+- Aggregations: 50
 
 ...
 
-Experiment 151:
-- Model: CMA
-- Seed: 9101
+Experiment 4179:
+- Model: REINFORCE + ODT
+- Seed: 2020
 - Season: winter
-- Agent-per-car
+
+This repeats for the 5k and 6k batches but with different starting seeds.

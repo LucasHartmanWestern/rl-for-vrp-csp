@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore")
 # Importing proprietary modules
 from data_loader import *
 from visualize import *
-from environment.environment import EnvironmentClass
+from environment.environment_main import EnvironmentClass
 from federated_learning import get_global_weights
 from evaluation import evaluate, clear_metrics
 from train_utils import train_route
