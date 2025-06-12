@@ -14,7 +14,7 @@ try:
     from ._helpers_routing import *
     from ._pathfinding import dijkstra, build_graph, haversine
     from .agent_info import agent_info
-    from data_loader import load_config_file
+    from environment.data_loader import load_config_file
 except ImportError:
     print("Cannot import local files")
 
