@@ -11,9 +11,9 @@ import h5py
 
 from environment.evaluation import evaluate
 
-from agents.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
+from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from environment.data_loader import load_config_file
-from merl_env._pathfinding import haversine
+from environment._pathfinding import haversine
 from misc.utils import format_data, save_to_h5, save_temp_checkpoint
 
 # Define the experience tuple

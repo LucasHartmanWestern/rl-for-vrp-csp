@@ -10,9 +10,9 @@ import h5py
 from environment.evaluation import evaluate
 
 # Replaced import from dqn_agent with reinforce_agent
-from agents.reinforce_agent import initialize, agent_learn, get_actions, save_model
+from decision_makers.reinforce_agent import initialize, agent_learn, get_actions, save_model
 from environment.data_loader import load_config_file
-from merl_env._pathfinding import haversine
+from environment._pathfinding import haversine
 from misc.utils import format_data, save_to_h5
 
 def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
