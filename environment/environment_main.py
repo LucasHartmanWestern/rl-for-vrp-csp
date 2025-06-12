@@ -91,12 +91,12 @@ def save_temps(coords_list: list, seed_list: list):
     """
 
     # Ensure the directory exists
-    os.makedirs('merl_env/temps', exist_ok=True)
+    os.makedirs('environment/data', exist_ok=True)
     
     print("Saving temps to file")
 
     # Define the CSV file path
-    csv_file_path = 'merl_env/temps/temperatures.csv'
+    csv_file_path = 'environment/data/temperatures.csv'
     
     # Open the CSV file for writing
     with open(csv_file_path, 'w', newline='') as csvfile:
@@ -126,7 +126,7 @@ def get_temps_from_file(coords: list, seed: int, season: str):
     """
 
     # Define the CSV file path
-    csv_file_path = 'merl_env/temps/temperatures.csv'
+    csv_file_path = 'environment/data/temperatures.csv'
     
     print("Getting temps from file")
 

@@ -13,12 +13,11 @@ from collections import defaultdict
 warnings.filterwarnings("ignore")
 
 # Importing proprietary modules
-from data_loader import *
-from visualize import *
+from environment.data_loader import *
+from environment.evaluation import clear_metrics
 from environment.environment_main import EnvironmentClass
-from federated_learning import get_global_weights
-from evaluation import evaluate, clear_metrics
-from train_utils import train_route
+from training_processes.federated_learning import get_global_weights
+from training_processes.train_selector import train_route
 
 # Setting for multiprocessing using pytorch
 import torch.multiprocessing as mp
@@ -371,12 +370,6 @@ def main_loop(args):
         if eval_c['save_aggregate_rewards']:
             save_to_csv(rewards, 'outputs/rewards.csv')
             save_to_csv(output_values, 'outputs/output_values.csv')
-
-            loaded_rewards = load_from_csv('outputs/rewards.csv')
-            loaded_output_values = load_from_csv('outputs/output_values.csv')
-
-            plot_aggregate_reward_data(loaded_rewards)
-            plot_aggregate_output_values_per_route(loaded_output_values)
 
     # In evaluation mode, we don't need to train, we just evaluate the already saved model
     elif run_mode == "Evaluating":
