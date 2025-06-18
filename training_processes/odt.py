@@ -38,150 +38,170 @@ from misc.online_data import PersistentOnlineDataset, create_online_dataloader
 MAX_EPISODE_LEN = 1000
 
 class Experiment:
-    def __init__(self, variant, environment, chargers, routes, state_dim, action_dim, device, seed, experiment_number, agg_num, zone_index, buffers, metrics_path, ev_info, date, verbose, num_episodes, arwt):
-
-        self.arwt = arwt
-        self.persist_buffers = variant["persist_buffers"]
-        self.metrics_base_path = metrics_path
+    def __init__(
+        self,
+        variant,
+        environment,
+        chargers,
+        routes,
+        state_dim,
+        action_dim,
+        device,
+        seed,
+        experiment_number,
+        agg_num,
+        zone_index,
+        prev_trajs,
+        metrics_path,
+        ev_info,
+        date,
+        verbose,
+        num_episodes,
+        arwt
+    ):
+        # Basic attributes
+        self.action_range = self._get_env_spec(variant)
         self.variant = variant
-        self.experiment_number = experiment_number
-        self.ev_info = ev_info
-        self.date = date
-        self.verbose = verbose
-        self.state_dim = state_dim
-        self.act_dim = action_dim
         self.environment = environment
         self.chargers = chargers
         self.routes = routes
+        self.state_dim = state_dim
+        self.act_dim = action_dim
+        self.device = device
         self.seed = seed
-        self.zone_index = zone_index
+        self.experiment_number = experiment_number
         self.agg_num = agg_num
+        self.zone_index = zone_index
+        self.ev_info = ev_info
+        self.date = date
+        self.verbose = verbose
+        self.arwt = arwt
+        # Store metrics path
+        self.metrics_base_path = metrics_path
+
+
+        # Setup save path and logger
+        base_dir = variant["save_dir"]
+        if variant.get("evaluation", False):
+            base_dir = os.path.join(base_dir, "eval")
+        self.save_dir = os.path.join(base_dir, str(variant["exp_name"]))
+        os.makedirs(self.save_dir, exist_ok=True)
         self.logger = Logger(variant, agg_num, zone_index)
-        self.action_range = self._get_env_spec(variant)
-        self.action_batch = None
-        self.dataloader = None
-        self.online_dataset = getattr(self, "online_dataset", None)
 
-        
-        save_path = os.path.join(variant["save_dir"], str(variant["exp_name"]))
-        os.makedirs(save_path, exist_ok=True)  # Ensure the directory exists
-
-        if not variant['evaluation'] or agg_num < 1:
-            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
-            # Initialize by offline trajectories
-            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
-            # Save state_mean and state_std
-            with open(os.path.join(save_path, 'state_stats.pkl'), 'wb') as f:
+        # Load or persist normalization stats and initial trajectories
+        stats_path = os.path.join(self.save_dir, 'state_stats.pkl')
+        if agg_num < 1:
+            # First aggregation: load offline trajectories and compute stats
+            trajs, self.state_mean, self.state_std = self._load_dataset('merl')
+            # Save stats for later
+            with open(stats_path, 'wb') as f:
                 pickle.dump({'state_mean': self.state_mean, 'state_std': self.state_std}, f)
         else:
-            self.offline_trajs, self.state_mean, self.state_std = self._load_dataset('merl')
-            # Initialize by offline trajectories
-            self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
-            buffers = None
-            # Load state_mean and state_std
-            with open(os.path.join(save_path, 'state_stats.pkl'), 'rb') as f:
-                state_stats = pickle.load(f)
-            self.state_mean = state_stats['state_mean']
-            self.state_std = state_stats['state_std']
+            # Subsequent aggregation: reuse previous trajectories
+            trajs = prev_trajs
+            # Load saved stats
+            with open(stats_path, 'rb') as f:
+                stats = pickle.load(f)
+            self.state_mean, self.state_std = stats['state_mean'], stats['state_std']
 
+        self.offline_trajs = trajs
+        # Initialize replay buffer with chosen trajectories
+        self.replay_buffer = ReplayBuffer(variant['replay_size'], trajs)
 
-        self.aug_trajs = []
-        self.metrics = []
-        self.device = device
-        self.target_entropy = -self.act_dim
-        
-    
-        self.model = DecisionTransformer(
-        state_dim=self.state_dim,
-        act_dim=self.act_dim,
-        action_range=self.action_range,
-        max_length=variant["K"],
-        eval_context_length=variant["eval_context_length"],
-        max_ep_len=MAX_EPISODE_LEN,
-        hidden_size=variant["embed_dim"],
-        n_layer=variant["n_layer"],
-        n_head=variant["n_head"],
-        n_inner=4 * variant["embed_dim"],
-        activation_function=variant["activation_function"],
-        n_positions=1024,
-        resid_pdrop=variant["dropout"],
-        attn_pdrop=variant["dropout"],
-        stochastic_policy=True,
-        ordering=variant["ordering"],
-        init_temperature=variant["init_temperature"],
-        target_entropy=self.target_entropy,
-    ).to(device=self.device)
-
-        if variant['evaluation']:
-            exp_number = int(self.experiment_number) - 100  # Subtract 100 from the experiment number
-            #exp_number = self.experiment_number
-            model_path = f'../exp/Exp_{exp_number}/Agg:1-Zone:{self.zone_index + 1}/model.pt'  # Generate the updated pathprint
-            print(model_path)
-            self._load_model(model_path)
-            self.save_attn_layers(self.model, self.device)
-
-        self.optimizer = Lamb(
-            self.model.parameters(),
-            lr=variant["learning_rate"],
-            weight_decay=variant["weight_decay"],
-            eps=1e-8,
+        # Build online dataset from replay buffer
+        transform = TransformSamplingSubTraj(
+            max_len=variant['K'],
+            state_dim=self.state_dim,
+            act_dim=self.act_dim,
+            state_mean=self.state_mean,
+            state_std=self.state_std,
+            reward_scale=1,
+            action_range=self._get_env_spec(variant)
         )
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optimizer, lambda steps: min((steps + 1) / variant["warmup_steps"], 1)
-        )
-
-        self.log_temperature_optimizer = torch.optim.Adam(
-            [self.model.log_temperature],
-            lr=1e-4,
-            betas=[0.9, 0.999],
-        )
-
-        if agg_num > 0:
-            start_time = time.time() 
-            
-            path = self.logger.log_path
-            current_agg_num = int(re.search(r'Agg:(\d+)', path ).group(1))
-            new_agg_num = current_agg_num - 1
-            updated_save_model_path = re.sub(r'Agg:\d+', f'Agg:{new_agg_num}', path)
-            self._load_model(updated_save_model_path)
-
-            #Load aggregated weights
-            save_global_path = f'saved_networks/Exp_{experiment_number}/'
-            attn_layers = load_global_weights(save_global_path)
-            self.set_attn_layers(self.model, attn_layers.to(device))
-            end_time = time.time()
-            elapsed = end_time - start_time
-            print(f'Loading aggregated models took {elapsed}')
-
-        if self.online_dataset is None:
-            transform = TransformSamplingSubTraj(
-                max_len=self.variant["K"],
-                state_dim=self.state_dim,
-                act_dim=self.act_dim,
-                state_mean=self.state_mean,
-                state_std=self.state_std,
-                reward_scale=1,
-                action_range=self.action_range,
-            )
-
-
         self.online_dataset = PersistentOnlineDataset(
             initial_trajectories=self.replay_buffer.trajectories,
-            sample_size=self.variant["batch_size"] * self.variant["num_updates_per_online_iter"],
+            sample_size=variant['batch_size'] * variant['num_updates_per_online_iter'],
             transform=transform
         )
         self.online_dataloader = create_online_dataloader(
-            self.online_dataset, batch_size=self.variant["batch_size"]
+            self.online_dataset,
+            batch_size=variant['batch_size']
         )
 
-        # track the training progress and
-        # training/evaluation/online performance in all the iterations
+        # Initialize transformer model
+        self.model = DecisionTransformer(
+            state_dim=self.state_dim,
+            act_dim=self.act_dim,
+            action_range=self._get_env_spec(variant),
+            max_length=variant['K'],
+            eval_context_length=variant['eval_context_length'],
+            max_ep_len=MAX_EPISODE_LEN,
+            hidden_size=variant['embed_dim'],
+            n_layer=variant['n_layer'],
+            n_head=variant['n_head'],
+            n_inner=4 * variant['embed_dim'],
+            activation_function=variant['activation_function'],
+            n_positions=1024,
+            resid_pdrop=variant['dropout'],
+            attn_pdrop=variant['dropout'],
+            stochastic_policy=True,
+            ordering=variant['ordering'],
+            init_temperature=variant['init_temperature'],
+            target_entropy=-self.act_dim,
+        ).to(device=self.device)
+
+        # Evaluation-specific: Loads model from a different zone
+        if variant.get('evaluation', False) and agg_num == 0:
+            num_zones = variant.get('num_zones', 4)
+            next_zone = (self.zone_index + 1) % num_zones
+            model_path = (
+                f"../exp/Exp_{self.experiment_number}"
+                f"/Agg:0-Zone:{next_zone+1}/model.pt"
+            )
+            print(f"[eval] first-agg load from zone {next_zone}: {model_path}")
+            self._load_model(model_path)
+            self.save_attn_layers(self.model, self.device)
+
+        # Setup optimizers and scheduler
+        self.optimizer = Lamb(self.model.parameters(), lr=variant['learning_rate'], weight_decay=variant['weight_decay'], eps=1e-8)
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer,
+            lambda steps: min((steps + 1) / variant['warmup_steps'], 1)
+        )
+        self.log_temperature_optimizer = torch.optim.Adam(
+            [self.model.log_temperature],
+            lr=1e-4,
+            betas=[0.9, 0.999]
+        )
+
+        # Load previous aggregation’s model if needed
+        if agg_num > 0:
+            prev_log = re.sub(r"Agg:\\d+", f"Agg:{agg_num-1}", self.logger.log_path)
+            print(f"[federated] loading local checkpoint from {prev_log}")
+            # load model + counters/RNG, skip optimizer
+            self._load_model(prev_log, load_optimizer=False)
+        
+            global_path = f"saved_networks/Exp_{self.experiment_number}"
+            print(f"[federated] applying aggregated weights from {global_path}")
+            attn_layers = load_global_weights(global_path)
+            self.set_attn_layers(self.model, attn_layers.to(self.device))
+            # 1) Reset LR scheduler epoch counter:
+            self.scheduler.last_epoch = -1
+        
+            # 2) Zero out any momentum buffers in the optimizer:
+            for group in self.optimizer.param_groups:
+                for p in group['params']:
+                    state = self.optimizer.state[p]
+                    if 'momentum_buffer' in state:
+                        state['momentum_buffer'].zero_()
+
+        # Tracking variables
+        self.aug_trajs = []
+        self.metrics = []
         self.pretrain_iter = 0
         self.online_iter = 0
         self.total_transitions_sampled = 0
-        
         self.reward_scale = 1
-        
 
     def _get_env_spec(self, variant):
         action_range = [
@@ -207,7 +227,7 @@ class Experiment:
 
         with open(f"{path_prefix}/model.pt", "wb") as f:
             torch.save(to_save, f)
-        print(f"\nModel saved at {path_prefix}/model.pt")
+        print(f"\n Model saved at {path_prefix}/model.pt")
 
         if is_pretrain_model:
             with open(f"{path_prefix}/pretrain_model.pt", "wb") as f:
@@ -215,23 +235,53 @@ class Experiment:
             print(f"Model saved at {path_prefix}/pretrain_model.pt")
         self.model_path = f"{path_prefix}/model.pt"
 
-    def _load_model(self, path_prefix):
-        if Path(f"{path_prefix}/model.pt").exists():
-            with open(f"{path_prefix}/model.pt", "rb") as f:
-                checkpoint = torch.load(f)
-            self.model.load_state_dict(checkpoint["model_state_dict"])
+    # in train_odt.py, update this definition:
+    def _load_model(self, path_prefix, load_optimizer=True):
+        model_file = Path(f"{path_prefix}/model.pt")
+        if not model_file.exists():
+            return
+    
+        # 1) load checkpoint onto cuda:0 or CPU
+        with open(model_file, "rb") as f:
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                map_location = lambda storage, loc: storage.cuda(0)
+            else:
+                map_location = torch.device("cpu")
+            checkpoint = torch.load(f, map_location=map_location)
+    
+        # 2) always restore model weights
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+    
+        # 3) restore optimizer & scheduler only if requested
+        if load_optimizer:
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
             self.log_temperature_optimizer.load_state_dict(
                 checkpoint["log_temperature_optimizer_state_dict"]
             )
-            self.pretrain_iter = checkpoint["pretrain_iter"]
-            self.online_iter = checkpoint["online_iter"]
-            self.total_transitions_sampled = checkpoint["total_transitions_sampled"]
-            np.random.set_state(checkpoint["np"])
-            random.setstate(checkpoint["python"])
-            torch.set_rng_state(checkpoint["pytorch"])
-            print(f"Model loaded at {path_prefix}/model.pt")
+    
+        # 4) always restore counters
+        self.pretrain_iter = checkpoint["pretrain_iter"]
+        self.online_iter = checkpoint["online_iter"]
+        self.total_transitions_sampled = checkpoint["total_transitions_sampled"]
+    
+        # 5) always restore numpy & python RNG
+        np.random.set_state(checkpoint["np"])
+        random.setstate(checkpoint["python"])
+    
+        # 6) fix & restore PyTorch RNG
+        pytorch_rng_state = checkpoint.get("pytorch")
+        if pytorch_rng_state is not None:
+            if not isinstance(pytorch_rng_state, torch.ByteTensor):
+                pytorch_rng_state = torch.tensor(
+                    pytorch_rng_state, dtype=torch.uint8, device="cpu"
+                )
+            torch.set_rng_state(pytorch_rng_state)
+    
+        print(f"Model loaded at {model_file}")
+
+
+
 
 
     def _load_dataset(self, env_name):
@@ -246,33 +296,43 @@ class Experiment:
         - state_mean (np.array): Mean values for state normalization.
         - state_std (np.array): Standard deviation values for state normalization.
         """
-        print(f'Loading Dataset for Zone {self.zone_index}...')
+        # determine which zone to actually load from (wrap around)
+        num_zones = self.variant.get("num_zones", 4)
+        load_zone = (self.zone_index + 1) % num_zones
+        print(f'Loading Dataset for Zone {load_zone} (orig {self.zone_index})...')
 
         # Locate the dataset file
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        adjusted_experiment_number = str((int(self.experiment_number) - 108))
-        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5')
-        #dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{self.zone_index}.h5')
-        # f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5")
+        adjusted_experiment_number = str(int(self.experiment_number) - 108)
+        #dataset_path = f"/storage_1/epigou_storage/Exp_3000/Exp_4000/data_zone_{self.zone_index + 1}.h5"
 
+
+        dataset_path = os.path.join(base_dir, f'rl-for-vrp-csp/Exp_3000/data_zone_{load_zone}.h5')
+
+        # dataset_path = os.path.join(
+        #     base_dir,
+        #     f'rl-for-vrp-csp/Exp_{adjusted_experiment_number}/data_zone_{load_zone}.h5'
+        # )
+
+        # fallback to drac path
         if not os.path.exists(dataset_path):
             print(f'Loading from {adjusted_experiment_number}')
             glob_path = os.path.expanduser(
-                f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{self.zone_index}.h5"
+                f"/home/hartman/scratch/metrics/Exp_{adjusted_experiment_number}/data_zone_{load_zone}.h5"
             )
             matching_files = glob.glob(glob_path)
             if not matching_files:
-                print(f"[ERROR] No .h5 files found for zone {self.zone_index} in fallback path: {glob_path}")
-                raise FileNotFoundError(f"No .h5 files found for zone {self.zone_index}")
+                print(f"[ERROR] No .h5 files found for zone {load_zone} in fallback path: {glob_path}")
+                raise FileNotFoundError(f"No .h5 files found for zone {load_zone}")
             dataset_path = min(matching_files, key=os.path.getctime)
 
         # Load trajectories from HDF5 file
         trajectories = []
         try:
             with h5py.File(dataset_path, 'r') as f:
-                zone_key = f"zone_{self.zone_index}"
+                zone_key = f"zone_{load_zone}"
                 if zone_key not in f:
-                    raise RuntimeError(f"Zone {self.zone_index} not found in {dataset_path}")
+                    raise RuntimeError(f"Zone {load_zone} not found in {dataset_path}")
 
                 zone_group = f[zone_key]
                 for traj_key in zone_group:
@@ -301,8 +361,8 @@ class Experiment:
         states, traj_lens, returns = [], [], []
         for traj in trajectories:
             traj["observations"] = np.array(traj["observations"], dtype=np.float32)
-            traj["rewards"] = np.array(traj["rewards"], dtype=np.float32)
-            traj["actions"] = np.array(traj["actions"], dtype=np.float32)
+            traj["rewards"]      = np.array(traj["rewards"], dtype=np.float32)
+            traj["actions"]      = np.array(traj["actions"], dtype=np.float32)
 
             states.append(traj["observations"])
             traj_lens.append(len(traj["observations"]))
@@ -315,12 +375,9 @@ class Experiment:
 
         # Print dataset statistics
         print("=" * 50)
-        print(f"Dataset for Zone {self.zone_index} loaded successfully")
+        print(f"Dataset for Zone {load_zone} loaded successfully from {dataset_path}")
         print(f"{len(traj_lens)} trajectories, {num_timesteps} timesteps")
         print(f"Average return: {np.mean(returns):.2f}, std: {np.std(returns):.2f}")
-        print(f"Max return: {np.max(returns):.2f}, min: {np.min(returns):.2f}")
-        print(f"Average length: {np.mean(traj_lens):.2f}, std: {np.std(traj_lens):.2f}")
-        print(f"Max length: {np.max(traj_lens):.2f}, min: {np.min(traj_lens):.2f}")
         print("=" * 50)
 
         # Sort and filter trajectories by return
@@ -336,6 +393,7 @@ class Experiment:
         trajectories = [trajectories[ii] for ii in sorted_inds]
 
         return trajectories, state_mean, state_std
+
 
 
     def _augment_trajectories(
@@ -525,7 +583,6 @@ class Experiment:
             SummaryWriter(self.logger.log_path) if self.variant["log_to_tb"] else None
         )
     
-        buffer_to_return = None  # Initialize as None
         full_metrics = []
 
         
@@ -571,30 +628,21 @@ class Experiment:
                 total_transitions_sampled=self.total_transitions_sampled,
                 writer=writer,
             )
-    
-            if is_last_iter:
-                self.save_attn_layers(self.model, self.device)
 
-                #TODO Remove
-                if self.persist_buffers:
-                    buffer_to_return = None  # Assign buffer only at the last iteration
-                else:
-                    buffer_to_return = None
-                
             self._save_model(
                 path_prefix=self.logger.log_path,
                 is_pretrain_model=False
             )
-            self.online_iter += 1 
     
-        return buffer_to_return  # Return the buffer only at the last iteration
+            if is_last_iter:
+                self.save_attn_layers(self.model, self.device)
+                
+            self.online_iter += 1 
 
 
     def __call__(self):
 
         utils.set_seed_everywhere(self.seed)
-
-        #import d4rl
 
         def loss_fn(
             a_hat_dist,
@@ -623,14 +671,8 @@ class Experiment:
 
         print("\n\nMaking Eval Env.....")
         env_name = 'merl'
-        if "antmaze" in env_name:
-            #env = gym.make(env_name)
-            target_goal = env.target_goal
-            env.close()
-            print(f"Generated the fixed target goal: {target_goal}")
-        else:
-            target_goal = None
-            eval_envs = self.environment
+        target_goal = None
+        eval_envs = self.environment
 
         self.start_time = time.time()
         if self.agg_num < 1 and self.variant["max_pretrain_iters"]:
@@ -639,30 +681,42 @@ class Experiment:
         if self.variant["max_online_iters"]:
             print("\n\nMaking Online Env.....")
             online_envs = self.environment
-            self.final_buffer = self.online_tuning(online_envs, eval_envs, loss_fn)
+            self.online_tuning(online_envs, eval_envs, loss_fn)
             
-        #eval_envs.close()
 
 def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index, seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
               dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None):
 
-    num_episodes = variant['nn_hyperparameters']['num_episodes'] if not args.eval else 100
+    num_episodes = variant['nn_hyperparameters']['num_episodes']
     arwt = variant['nn_hyperparameters']['average_rewards_when_training']
-    num_aggs = variant['federated_learning_settings']['aggregation_count'] if not args.eval else variant['federated_learning_settings']['aggregation_count_eval']
+    num_aggs = variant['federated_learning_settings']['aggregation_count']
     variant = variant['odt_hyperparameters']
     variant["max_online_iters"] = num_episodes
     utils.set_seed_everywhere(main_seed)
     
     print(f'episode calc check: {variant["max_online_iters"] }')
+    print(f"Evaluation: {variant['evaluation']}")
     experiment = Experiment(variant, environment, chargers, routes, environment.state_dim, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
     experiment()
-    
-    metrics = experiment.metrics
 
+    clean_buffers = []
+    for traj in experiment.online_dataset.trajectories:
+        clean = {}
+        for k, v in traj.items():
+            if isinstance(v, torch.Tensor):
+                clean[k] = v.detach().cpu().numpy()
+            else:
+                clean[k] = v
+        clean_buffers.append(clean)
 
-    return experiment.get_model_weights().detach().cpu(), [], [], metrics, experiment.final_buffer
+    return (
+        experiment.get_model_weights().detach().cpu(),
+        [], [], 
+        experiment.metrics,
+        clean_buffers
+    )
 
 def load_global_weights(save_global_path):
     """
