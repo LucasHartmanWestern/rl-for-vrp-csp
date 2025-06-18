@@ -15,6 +15,7 @@ try:
     from ._pathfinding import dijkstra, build_graph, haversine
     from .agent_info import agent_info
     from data_loader import load_config_file
+    from ._timer import env_timer
 except ImportError:
     print("Cannot import local files")
 
@@ -261,7 +262,9 @@ class EnvironmentClass:
         self.data_deepness = config['saving_data_deepness']
         # Get the model index by using car_models[zone_index][agent_index]
         self.car_models = np.column_stack([info['model_type'] for info in self.info]).T
-        self.evaluate_data(None, init_data_headers=True)        
+        self.init_data_structure()
+
+        self.timer = env_timer()
 
         # tracemalloc.start()
 
@@ -583,7 +586,7 @@ class EnvironmentClass:
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
 
-    def get_rewards(self, timestep_time, population_reward=False) -> np.array:
+    def get_rewards(self, population_reward=False) -> np.array:
         """
         Get the results of the simulation.
 
@@ -592,150 +595,147 @@ class EnvironmentClass:
         """
 
         if not population_reward:
-            self.evaluate_data(timestep_time)
+            self.evaluate_data()
 
 
         return self.simulation_reward
 
-    def evaluate_data(self, timestep_time, init_data_headers=False):  # Computed to be done every time step
+
+    def init_data_structure(self):
         # Initialize headers as dtypes for station and agent data
-        if init_data_headers:
-            if self.data_deepness == 'aggregation_level':
-                print('Saving data deepness == 0 to be implemented')
-                self.station_header = None
-            elif self.data_deepness == 'episode_level':
-                self.station_header = np.dtype([("aggregation", int),
-                                                ("zone", int),
-                                                ("episode", int),
-                                                ("station_index", int),
-                                                ("traffic", float)])
-                self.agent_header = np.dtype([("aggregation", int),
-                                                ("zone", int),
-                                                ("episode", int),
-                                                ("agent_index", int),
-                                                ("car_model", "U20"),
-                                                ("distance", float),
-                                                ("reward", float),
-                                                ("duration", float),
-                                                ("average_battery", float),
-                                                ("ending_battery", float),
-                                                ("starting_battery", float),
-                                                ("timestep_real_world_time", float)])
+        if self.data_deepness == 'aggregation_level':
+            print('Saving data deepness == 0 to be implemented')
+            self.station_header = None
+        elif self.data_deepness == 'episode_level':
+            self.station_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("station_index", int),
+                                            ("traffic", float)])
+            self.agent_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("agent_index", int),
+                                            ("car_model", "U20"),
+                                            ("distance", float),
+                                            ("reward", float),
+                                            ("duration", float),
+                                            ("average_battery", float),
+                                            ("ending_battery", float),
+                                            ("starting_battery", float),
+                                            ("timestep_real_world_time", float)])
 
-            elif self.data_deepness == 'timestep_level':
-                self.station_header = np.dtype([("aggregation", int),
-                                                ("zone", int),
-                                                ("episode", int),
-                                                ("timestep", int),
-                                                ("simulation_step", int),
-                                                ("done", bool),
-                                                ("station_index", int),
-                                                ("traffic", float)])
-                self.agent_header = np.dtype([("aggregation", int),
-                                                ("zone", int),
-                                                ("episode", int),
-                                                ("timestep", int),
-                                                ("done", bool),
-                                                ("agent_index", int),
-                                                ("car_model", "U20"),
-                                                ("distance", float),
-                                                ("reward", float),
-                                                ("duration", float),
-                                                ("average_battery", float),
-                                                ("ending_battery", float),
-                                                ("starting_battery", float),
-                                                ("timestep_real_world_time", float)])
-
-        # Collect data using the dtype structure for station and agent data
-
-        else:
-            if self.data_deepness == 'aggregation_level':
-                print('Saving data deepness == 0 to be implemented')
+        elif self.data_deepness == 'timestep_level':
+            self.station_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("timestep", int),
+                                            ("simulation_step", int),
+                                            ("done", bool),
+                                            ("station_index", int),
+                                            ("traffic", float)])
+            self.agent_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("timestep", int),
+                                            ("done", bool),
+                                            ("agent_index", int),
+                                            ("car_model", "U20"),
+                                            ("distance", float),
+                                            ("reward", float),
+                                            ("duration", float),
+                                            ("average_battery", float),
+                                            ("ending_battery", float),
+                                            ("starting_battery", float),
+                                            ("timestep_real_world_time", float)])
             
-            elif self.data_deepness == 'episode_level':
-                # Collect traffic on stations
-                max_peak = self.traffic_results.max()
-                station_id  = np.unravel_index(np.argmax(self.traffic_results, axis=None),\
-                                                      self.traffic_results.shape)[1]
-                if self.timestep == 0:
-                    self.max_peak_ep = max_peak
-                    self.max_station_id = station_id
-                elif max_peak > self.max_peak_ep:
-                    self.max_peak_ep = max_peak
-                    self.max_station_id = station_id
+    def evaluate_data(self):  # Evaluation performed every data deepnes level
+        # Collect data using the dtype structure for station and agent data
+        if self.data_deepness == 'aggregation_level':
+            print('Saving data deepness == 0 to be implemented')
+        
+        elif self.data_deepness == 'episode_level':
+            # Collect traffic on stations
+            max_peak = self.traffic_results.max()
+            station_id  = np.unravel_index(np.argmax(self.traffic_results, axis=None),\
+                                                  self.traffic_results.shape)[1]
+            if self.timestep == 0:
+                self.max_peak_ep = max_peak
+                self.max_station_id = station_id
+            elif max_peak > self.max_peak_ep:
+                self.max_peak_ep = max_peak
+                self.max_station_id = station_id
 
-                self.reward_episode += self.simulation_reward
-                self.distances_episode += self.distances_results[-1,:]
-                for agent_idx in range(self.num_cars):
-                    duration_agent = self.distances_results[:,agent_idx]
-                    self.duration[agent_idx] += np.where(duration_agent.T == duration_agent[-1])[0][0]
-                
-                if self.done:
-                    station_data = np.array([(self.aggregation_num,
-                                            self.zone_idx,
-                                            self.episode,
-                                            self.max_station_id,
-                                            self.max_peak_ep)], dtype=self.station_header)
-                    self.station_data = np.concatenate((self.station_data,station_data))
-
-                    agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
-                    for agent_idx, car_model in enumerate(self.car_models):
-                        # duration = np.where(np.array(self.distances_results).T[agent_idx] == self.distances_results[-1][agent_idx])[0][0]
-                        agent_data[agent_idx] = (self.aggregation_num,
-                                            self.zone_idx,
-                                            self.episode,
-                                            agent_idx,
-                                            car_model[0],
-                                            self.distances_episode[agent_idx] * 100,
-                                            self.reward_episode[agent_idx],
-                                            self.duration[agent_idx],
-                                            self.battery_levels_results[:,agent_idx].mean(),
-                                            self.battery_levels_results[-1,agent_idx],
-                                            self.battery_levels_results[0,agent_idx],
-                                            timestep_time)
-                    self.agent_data = np.concatenate((self.agent_data, agent_data))
-                
-            elif self.data_deepness == 'timestep_level':
-                # Create an empty structured array (example with capacity for 10*stations entries)
-                station_size = len(self.traffic_results)*len(self.traffic_results[0])
-                station_data = np.zeros(station_size, dtype=self.station_header)
-                current_index = 0
-                #evaluating step in episode
-                for step_ind in range(len(self.traffic_results)):
-                    for station_ind in range(len(self.traffic_results[0])):
-                        station_data[current_index] = (self.aggregation_num,
-                                                    self.zone_idx,
-                                                    self.episode,
-                                                    self.timestep,
-                                                    step_ind,
-                                                    self.done,
-                                                    station_ind,
-                                                    self.traffic_results[step_ind][station_ind])
-                        current_index += 1
+            self.reward_episode += self.simulation_reward
+            self.distances_episode += self.distances_results[-1,:]
+            for agent_idx in range(self.num_cars):
+                duration_agent = self.distances_results[:,agent_idx]
+                self.duration[agent_idx] += np.where(duration_agent.T == duration_agent[-1])[0][0]
+            
+            if self.done:
+                station_data = np.array([(self.aggregation_num,
+                                        self.zone_idx,
+                                        self.episode,
+                                        self.max_station_id,
+                                        self.max_peak_ep)], dtype=self.station_header)
                 self.station_data = np.concatenate((self.station_data,station_data))
-    
-                # Loop through the agents in each zone
-                agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
 
+                agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
                 for agent_idx, car_model in enumerate(self.car_models):
-                    # duration = np.where(np.array(self.distances_results).T[agent_idx] == self.distances_results[-1][agent_idx])[0][0]
-                    distance = self.distances_results[:,agent_idx]
-                    duration = np.where(distance.T == distance[-1])[0][0]
                     agent_data[agent_idx] = (self.aggregation_num,
-                                            self.zone_idx,
-                                            self.episode,
-                                            self.timestep,
-                                            self.done,
-                                            agent_idx,
-                                            car_model[0],
-                                            self.distances_results[-1,agent_idx] * 100,
-                                            self.simulation_reward[agent_idx],
-                                            duration,
-                                            self.battery_levels_results[:,agent_idx].mean(),
-                                            self.battery_levels_results[-1,agent_idx],
-                                            self.battery_levels_results[0,agent_idx],
-                                            timestep_time)
+                                        self.zone_idx,
+                                        self.episode,
+                                        agent_idx,
+                                        car_model[0],
+                                        self.distances_episode[agent_idx] * 100,
+                                        self.reward_episode[agent_idx],
+                                        self.duration[agent_idx],
+                                        self.battery_levels_results[:,agent_idx].mean(),
+                                        self.battery_levels_results[-1,agent_idx],
+                                        self.battery_levels_results[0,agent_idx],
+                                        self.timer.get_elapsed_time())
                 self.agent_data = np.concatenate((self.agent_data, agent_data))
+            
+        elif self.data_deepness == 'timestep_level':
+            # Create an empty structured array (example with capacity for 10*stations entries)
+            station_size = len(self.traffic_results)*len(self.traffic_results[0])
+            station_data = np.zeros(station_size, dtype=self.station_header)
+            current_index = 0
+            #evaluating step in episode
+            for step_ind in range(len(self.traffic_results)):
+                for station_ind in range(len(self.traffic_results[0])):
+                    station_data[current_index] = (self.aggregation_num,
+                                                self.zone_idx,
+                                                self.episode,
+                                                self.timestep,
+                                                step_ind,
+                                                self.done,
+                                                station_ind,
+                                                self.traffic_results[step_ind][station_ind])
+                    current_index += 1
+            self.station_data = np.concatenate((self.station_data,station_data))
+
+            # Loop through the agents in each zone
+            agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
+
+            for agent_idx, car_model in enumerate(self.car_models):
+                distance = self.distances_results[:,agent_idx]
+                duration = np.where(distance.T == distance[-1])[0][0]
+                agent_data[agent_idx] = (self.aggregation_num,
+                                        self.zone_idx,
+                                        self.episode,
+                                        self.timestep,
+                                        self.done,
+                                        agent_idx,
+                                        car_model[0],
+                                        self.distances_results[-1,agent_idx] * 100,
+                                        self.simulation_reward[agent_idx],
+                                        duration,
+                                        self.battery_levels_results[:,agent_idx].mean(),
+                                        self.battery_levels_results[-1,agent_idx],
+                                        self.battery_levels_results[0,agent_idx],
+                                        self.timer.get_elapsed_time())
+            self.agent_data = np.concatenate((self.agent_data, agent_data))
 
 
     def generate_paths(self, distribution, fixed_attributes: list, agent_index: int):
@@ -894,6 +894,9 @@ class EnvironmentClass:
             # Sets starting battery to ending battery of last timestep
             self.info['starting_charge'] = self.new_starting_battery.cpu()
 
+        # To record elapsed time
+        self.timer.start_timer()
+
 
     def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray, reset_ep_counter: bool =False):
         """
@@ -935,6 +938,8 @@ class EnvironmentClass:
 
         # Increasing +1 episode counter
         self.episode += 1
+
+
 
     def get_data(self):
         return self.station_data, self.agent_data, self.data_deepness
