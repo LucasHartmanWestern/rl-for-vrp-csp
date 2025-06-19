@@ -948,17 +948,17 @@ class EnvironmentClass:
     def get_data(self):
         return self.station_data, self.agent_data, self.data_deepness
 
-    def cma_store(self):
+    def population_mode_store(self):
         self.store_paths = copy.deepcopy(self.paths)
         self.store_charges_needed = copy.deepcopy(self.charges_needed)
         self.store_local_paths = copy.deepcopy(self.local_paths)
 
-    def cma_copy_store(self):
+    def population_mode_copy_store(self):
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
 
-    def cma_clean(self):
+    def population_mode_clean(self):
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
