@@ -185,10 +185,9 @@ def train_cma(ev_info,
                     environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  
     
                 # Once all cars have routes, simulate routes in the environment and get results
-                sim_done = environment.simulate_routes()
-                # _, _, _, _, rewards_pop, _ = environment.get_results(population_reward=True)  # Retrieve rewards
-                rewards_pop = environment.get_rewards(population_reward=True)  # Retrieve rewards
-                # reward_timestep += rewards_pop
+                sim_done, rewards_pop, _ = environment.simulate_routes(population_mode=True)
+
+                # rewards_pop = environment.get_rewards(population_reward=True)  # Retrieve rewards
 
                 if agent_by_zone:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0).mean()
@@ -215,9 +214,6 @@ def train_cma(ev_info,
         timestep_counter = 0
 
         rewards = []
-        # ep_traffic = []
-        # ep_batteries = []
-        # ep_distances = []
         station_data = []
         agent_data = []
         # Get the model index by using car_models[zone_index][agent_index]
@@ -236,26 +232,21 @@ def train_cma(ev_info,
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
 
             # Simulate the environment with the best solutions
-            sim_done = environment.simulate_routes()
-            # sim_path_results, sim_traffic, sim_battery_levels, sim_distances,\
-            #     time_step_rewards, arrived_at_final  = environment.get_full_results()  # Get the resulting rewards
-            # sim_path_results, sim_traffic, sim_battery_levels, sim_distances,\
-            #     time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
-            time_step_rewards = environment.get_rewards()
-            
+            sim_done, timestep_rewards, timestep_counter = environment.simulate_routes()
+
             if timestep_counter == 0:
-                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+                episode_rewards = np.expand_dims(timestep_rewards,axis=0)
             else:
-                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+                episode_rewards = np.vstack((episode_rewards,timestep_rewards))
 
             # Train the model only using the average of all timestep rewards
             if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                avg_reward = time_step_rewards.sum(axis=0).mean()
-                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-                rewards.extend(time_step_rewards_avg)
+                avg_reward = timestep_rewards.sum(axis=0).mean()
+                timestep_rewards_avg = [avg_reward for _ in timestep_rewards]
+                rewards.extend(timestep_rewards_avg)
             # Train the model using the rewards from it's own experiences
             else:
-                rewards.extend(time_step_rewards)
+                rewards.extend(timestep_rewards)
 
             # time_step_time = time.time() - start_time_step
 
@@ -271,7 +262,7 @@ def train_cma(ev_info,
             #     "traffic": sim_traffic,
             #     "batteries": sim_battery_levels,
             #     "distances": sim_distances,
-            #     "rewards": time_step_rewards,
+            #     "rewards": timestep_rewards,
             #     "best_reward": best_avg,
             #     "timestep_real_world_time": time_step_time,
             #     "done": sim_done
@@ -329,7 +320,7 @@ def train_cma(ev_info,
     # Population evolution ends
 
     # Retrieve and print results for the best population after evolution
-    final_rewards = environment.get_rewards(population_reward=True)
+    final_rewards = environment.get_rewards(population_mode=True)
     print(f'Rewards for population evolution: {final_rewards.mean():.3f}'+\
           f' after {cma_info.max_generation} generations')
 

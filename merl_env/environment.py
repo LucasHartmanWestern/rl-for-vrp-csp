@@ -411,7 +411,7 @@ class EnvironmentClass:
         self.starting_battery_level = starting_battery_level
 
 
-    def simulate_routes(self):
+    def simulate_routes(self, population_mode=False):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -563,7 +563,11 @@ class EnvironmentClass:
         self.energy_used = energy_used
 
         self.done = done
-        return done
+
+        #get rewards for episode
+        rewards = self.get_rewards(population_mode=population_mode)
+        
+        return done, rewards, self.timestep
 
     def get_odt_info(self):
         return self.arrived_at_final[0,:]
@@ -586,7 +590,7 @@ class EnvironmentClass:
         return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
                 self.simulation_reward, self.arrived_at_final
 
-    def get_rewards(self, population_reward=False) -> np.array:
+    def get_rewards(self, population_mode) -> np.array:
         """
         Get the results of the simulation.
 
@@ -594,7 +598,7 @@ class EnvironmentClass:
             float array: with all the rewards for the episode 
         """
 
-        if not population_reward:
+        if not population_mode:
             self.evaluate_data()
 
 
