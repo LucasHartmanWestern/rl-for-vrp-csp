@@ -54,6 +54,7 @@ eval_config:
   verbose: true
 federated_learning_settings:
   aggregation_count: 10
+  aggregation_count_eval: 6
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
