@@ -6,13 +6,8 @@ import copy
 import torch
 import numpy as np
 
-from data_loader import load_config_file
-
 from agents.cma_agent import CMAAgent
-from evaluation import evaluate
-
-from data_loader import save_to_csv
-
+from data_loader import save_to_csv, load_config_file
 from merl_env._pathfinding import haversine
 
 
