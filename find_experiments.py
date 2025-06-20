@@ -2,6 +2,15 @@ import argparse
 import yaml
 
 def check_match(exp_num, num_aggs, reward_type):
+    """
+    Check if the experiment matches the given number of aggregations and reward type
+
+    Parameters:
+        exp_num (int): Experiment number
+        num_aggs (int): Target number of aggregations
+        reward_type (str): Target reward type
+    """
+
     # Load the config file
     with open(f'experiments/Exp_{exp_num}/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
@@ -13,6 +22,15 @@ def check_match(exp_num, num_aggs, reward_type):
         return config['federated_learning_settings']['aggregation_count'] != num_aggs
 
 if __name__ == "__main__":
+    """
+    Find experiments that match the given number of aggregations and reward type
+
+    Parameters:
+        num_aggs (int): Target number of aggregations
+        reward_type (str): Target reward type
+        experiment_range (list): Target experiment range
+    """
+
     parser = argparse.ArgumentParser(description=('MERL Project'))
     parser.add_argument('-a','--num_aggs', type=int, default=None, help ='Target number of aggregations.')
     parser.add_argument('-r','--reward_type', type=str, default=None, help ='Communal or Greedy.')

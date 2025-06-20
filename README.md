@@ -1,26 +1,8 @@
-# MERL: Multi-factor Edge-weighting with Reinforcement Learning for EV Routing
+# SURE-DM: Sustainable Urban Routing Evaluation of Decision Makers 
 
 ## Overview
 
-With Electric Vehicle (EV) adoption rates continuing
-to grow, it is becoming increasingly critical to find solutions
-to mitigate the risk of overloading the electrical grid. This
-paper examines the effectiveness of an EV routing application
-powered by an enhanced version of the Multi-factor Edge-weighting
-with Reinforcement Learning (MERL) algorithm, which
-uses federated learning to significantly increase performance,
-provide added security measures, and improve the sustainability
-of the algorithm. The application is designed to optimize EV
-routing by minimizing traffic clustering and travel duration. The
-application combines real-time data on traffic patterns, charging
-station availability, and grid load to direct drivers efficiently,
-aiming to alleviate congestion and balance grid demands. Our
-findings demonstrate that this advanced algorithmic approach
-significantly reduces peak charging station loads and enhances
-electrical grid efficiency. This study highlights the potential of
-merging sophisticated algorithms with practical applications to
-mitigate the challenges of urban EV integration, marking a
-pivotal step towards sustainable urban mobility.
+This paper presents a federated learning-based framework to tackle sustainable and dynamic electric vehicle routing, integrating multiple decision-making (DM) paradigms within a realistic simulation environment. Our environment models real-world conditions, including variable traffic patterns, seasonal temperature effects on battery performance, and authentic charging station distributions and constraints. In this setting, we compare the performance and environmental impact of reinforcement learning and transformer-based decision-makers, analyzing their ability to minimize travel distance, reduce peak charging station loads, and conserve energy. We use a federated learning approach which allows fine-grained per-vehicle DM, while aggregating experience at city, zone, and car model levels to accelerate learning and enhance scalability. By sharing policies among agents, the system adapts more rapidly to new conditions and achieves robust solutions that improve upon centralized methods. We evaluate the training overhead and estimate CO$_2$ emissions, demonstrating that federated learning can reduce environmental costs and training durations. Our findings offer actionable insights for electric vehicle fleet operators, urban planners, and policymakers, illustrating the promise of federated, data-driven DM methods in promoting environmentally responsible and grid-friendly electric vehicle routing.
 
 ## Authors
 
