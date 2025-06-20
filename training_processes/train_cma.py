@@ -1,16 +1,13 @@
 # Adapted by Santiago August 9, 2024
 import os
+import sys
 import time
 import copy
 import torch
 import numpy as np
 
-from data_loader import load_config_file
-
 from agents.cma_agent import CMAAgent
-from evaluation import evaluate
-
-import tracemalloc
+from data_loader import save_to_csv, load_config_file
 from merl_env._pathfinding import haversine
 
 
@@ -63,10 +60,8 @@ def train_cma(ev_info,
         weights_list (list): List containing the trained weights for each agent.
         avg_rewards (list): List of average rewards obtained per generation.
         avg_output_values (ndarray): Array of average output values across generations.
-        metrics (list): List of performance metrics gathered during training.
         trajectories (list): Saved trajectories for further analysis.
     """
-    tracemalloc.start()
     start_time = time.time()  # Start timing the training process
     avg_rewards = []  # List to store average rewards for each generation
 
@@ -92,6 +87,7 @@ def train_cma(ev_info,
 
     run_mode = 'Evaluating' if args.eval else "Training"
     log_path = f'logs/{date}-{run_mode}_logs.txt'
+    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
     
     # Initialize CMA agents
     cma_agents_list = []
@@ -114,12 +110,15 @@ def train_cma(ev_info,
     avg_output_values = torch.zeros((cma_agents_list[0].max_generation, action_dim), device=device)  
     best_avg = float('-inf')  # Track the best average reward encountered
     best_paths = None  # Store the best paths observed
-    metrics = []  # Initialize metrics list to track performance
     trained = False  # Track whether training occurred
 
     # Reset the environment for a new training episode
     environment.reset_episode(chargers, routes, unique_chargers)
-
+    environment.init_sim(aggregation_num)
+    
+    # Save the current state of the environment for later restoration during evolution
+    environment.population_mode_store()
+    
     cma_info = cma_agents_list[0]  # Retrieve information from the first CMA agent
     population_size = cma_info.population_size  # Size of the population for evolution
     #Setting max generations
@@ -127,13 +126,11 @@ def train_cma(ev_info,
     
     generation_weights = torch.empty((num_agents, action_dim),device=device)  # Storage for weights per generation
 
-    # Save the current state of the environment for later restoration during evolution
-    environment.cma_store()
+
 
     # Initialize matrices for storing solutions and fitness values during evolution
     matrix_solutions = torch.zeros((population_size, num_agents, cma_info.out_size), device=device)
     fitnesses = torch.empty((population_size, num_agents), device=device)
-
 
     # Evolution process: Loop over generations to evolve the population
     for generation in range(max_generation):
@@ -144,14 +141,13 @@ def train_cma(ev_info,
         if max_limit >= 120000:
             for agent in cma_agents_list:
                 agent.cma_restart()
-        
+
         # Generate solutions for each agent in the population
         for agent_idx, agent in enumerate(cma_agents_list):
             matrix_solutions[:, agent_idx, :] = agent.get_solutions()
 
         sim_done = False
         time_start_paths = time.time()
-        timestep_counter = 0
 
         while not sim_done:  # Keep going until every EV reaches its destination
 
@@ -162,14 +158,12 @@ def train_cma(ev_info,
     
             # Evaluate each individual in the population
             for pop_idx in range(population_size):
-                environment.cma_copy_store()  # Restore environment to its stored state
+                environment.population_mode_copy_store()  # Restore environment to its stored state
     
                 # Simulate the environment for each car
                 for car_idx in range(num_cars):
-
-                    start_time_step = time.time()
                     # Reset environment for the car #MAYBE A PROBLEM HERE!
-                    state = environment.reset_agent(car_idx, timestep_counter)  
+                    state = environment.reset_agent(car_idx)  
                     agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                     agent = cma_agents_list[agent_idx]
                     weights = matrix_solutions[pop_idx, agent_idx, :]  # Get the agent's weights
@@ -178,9 +172,7 @@ def train_cma(ev_info,
                     environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  
     
                 # Once all cars have routes, simulate routes in the environment and get results
-                sim_done = environment.simulate_routes(timestep_counter)
-                _, _, _, _, rewards_pop, _ = environment.get_results()  # Retrieve rewards
-                # reward_timestep += rewards_pop
+                sim_done, rewards_pop, _ = environment.simulate_routes(population_mode=True)
 
                 if agent_by_zone:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0).mean()
@@ -190,7 +182,7 @@ def train_cma(ev_info,
                 else:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0)
 
- 
+                
         # Update the agents based on the fitness of the solutions
         for agent_idx, agent in enumerate(cma_agents_list):
             agent.tell(matrix_solutions[:, agent_idx, :], fitnesses[:, agent_idx].flatten())
@@ -200,15 +192,17 @@ def train_cma(ev_info,
         environment.reset_episode(chargers, routes, unique_chargers)
 
         sim_done = False
-        timestep_counter = 0
 
         rewards = []
+        station_data = []
+        agent_data = []
+        # Get the model index by using car_models[zone_index][agent_index]
+        car_models = np.column_stack([info['model_type'] for info in ev_info]).T
         while not sim_done:  # Keep going until every EV reachewr its destination
-            # environment.cma_copy_store()  # Restore environment to its stored state
             environment.init_routing()
-            
+            start_time_step = time.time()
             for car_idx in range(num_cars):
-                state = environment.reset_agent(car_idx, timestep_counter)
+                state = environment.reset_agent(car_idx)
                 agent_idx = 0 if agent_by_zone else car_idx  # Determine the agent to use
                 agent = cma_agents_list[agent_idx]
                 weights = agent.get_best_solutions()  # Get the best solutions
@@ -217,45 +211,35 @@ def train_cma(ev_info,
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
 
             # Simulate the environment with the best solutions
-            sim_done = environment.simulate_routes(timestep_counter)  
-            sim_path_results, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final  = environment.get_results()  # Get the resulting rewards
+            sim_done, timestep_rewards, timestep,_ = environment.simulate_routes()
 
-            if timestep_counter == 0:
-                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+            if timestep == 0:
+                episode_rewards = np.expand_dims(timestep_rewards,axis=0)
             else:
-                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+                episode_rewards = np.vstack((episode_rewards,timestep_rewards))
 
             # Train the model only using the average of all timestep rewards
             if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                avg_reward = time_step_rewards.sum(axis=0).mean()
-                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-                rewards.extend(time_step_rewards_avg)
+                avg_reward = timestep_rewards.sum(axis=0).mean()
+                timestep_rewards_avg = [avg_reward for _ in timestep_rewards]
+                rewards.extend(timestep_rewards_avg)
             # Train the model using the rewards from it's own experiences
             else:
-                rewards.extend(time_step_rewards)
+                rewards.extend(timestep_rewards)
 
-            time_step_time = time.time() - start_time_step
-
-            metric = {
-                "zone": zone_index,
-                "episode": generation,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "paths": sim_path_results,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": time_step_rewards,
-                "best_reward": best_avg,
-                "timestep_real_world_time": time_step_time,
-                "done": sim_done
-            }
-            metrics.append(metric)
-            timestep_counter += 1
-
+          
+       
+        # Saving data per episode
+        station_data, agent_data, data_level = environment.get_data()
+        save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
+        save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
+        station_data = None
+        agent_data = None
+        
         avg_reward = episode_rewards.sum(axis=0).mean()
-
-        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  # Store the average reward
+        # Store the average reward
+        avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  
+        
         # Print information at the log and command line
         if verbose:
             elapsed_time = time.time() - start_time
@@ -263,15 +247,6 @@ def train_cma(ev_info,
                         f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
                         f'avg reward {avg_rewards[-1][0]:.3f}'
             print_log(to_print, log_path, elapsed_time)
-
-        if ((generation + 1) % eps_per_save == 0 and generation > 0 and train_model) or (generation == cma_info.max_generation - 2): # Save metrics data
-            # Create metrics path if it does not exist
-            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-            if not os.path.exists(metrics_path):
-                os.makedirs(metrics_path)
-
-            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
-            metrics = []
 
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:
@@ -287,8 +262,8 @@ def train_cma(ev_info,
     # Population evolution ends
 
     # Retrieve and print results for the best population after evolution
-    sim_path_results, sim_traffic, sim_battery_levels, sim_distances, rewards, arrived_at_final  = environment.get_results()
-    print(f'Rewards for population evolution: {rewards.mean():.3f}'+\
+    final_rewards = environment.get_rewards(population_mode=True)
+    print(f'Rewards for population evolution: {final_rewards.mean():.3f}'+\
           f' after {cma_info.max_generation} generations')
 
     # Save the trained models to disk
@@ -300,11 +275,7 @@ def train_cma(ev_info,
     for idx, agent in enumerate(cma_agents_list):
         agent.save_model(f'{fname}_agent{idx}.pkl')  # Save each agent's model
 
-    elapsed_time = time.time() - start_time  # Calculate total elapsed time for training
-    # if verbose:
-    #     to_print = (f' Finish Zone: {zone_index + 1} Best reward: {best_avg:.3f}')
-    #     print_log(to_print, log_path, elapsed_time)
-    
+   
 
 
     ########### STORE EXPERIENCES ########
@@ -323,11 +294,8 @@ def train_cma(ev_info,
     cma_agents_list = None
     # Clean up resources (e.g., GPU memory)
     torch.cuda.empty_cache()
-    current, peak = tracemalloc.get_traced_memory()
-    print(f"Current memory usage on CMA training: {current / 1024**2:.2f} MB; Peak: {peak / 1024**2:.2f} MB")
-    tracemalloc.stop()
-    
-    return weights_list, avg_rewards, avg_output_values, metrics, None
+   
+    return weights_list, avg_rewards, avg_output_values, None
 
 
 def print_log(label, log_path, et):

@@ -229,13 +229,21 @@ def read_excel_data(file_path, sheet_name):
 def save_to_csv(data, filename, append=False):
     mode = 'a' if append else 'w'
     file_exists = os.path.isfile(filename)
-    if data and isinstance(data[0], dict):
+    if isinstance(data[0], dict):
         keys = data[0].keys()  # Extract the headers from the first dictionary
         with open(filename, mode, newline='') as file:
             writer = csv.DictWriter(file, fieldnames=keys)
             if not append or not file_exists:
                 writer.writeheader()  # Write header if not appending or file doesn't exist
             writer.writerows(data)  # Write data rows
+    elif isinstance(data, np.ndarray):
+        df = pd.DataFrame(data)
+        if not append or not file_exists:
+            # First write, include header
+            df.to_csv(filename, index=False)
+        else:
+            df.to_csv(filename, mode=mode, header=False, index=False)
+        
     else:
         # If data is a list of lists or other structure
         with open(filename, mode, newline='') as file:

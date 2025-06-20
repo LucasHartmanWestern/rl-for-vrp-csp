@@ -9,10 +9,9 @@ import copy
 import pickle
 import h5py
 
-from evaluation import evaluate
 
 from agents.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
-from data_loader import load_config_file
+from data_loader import load_config_file, save_to_csv
 from merl_env._pathfinding import haversine
 from misc.utils import format_data, save_to_h5, save_temp_checkpoint
 
@@ -106,6 +105,11 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     optimizers = []
 
     num_cars = environment.num_cars
+
+    run_mode = 'Evaluating' if args.eval else "Training"
+    log_path = f'logs/{date}-{run_mode}_logs.txt'
+    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
@@ -159,7 +163,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     best_avg = float('-inf')
     best_paths = None
 
-    metrics = []
+    environment.init_sim(aggregation_num)
 
     avg_output_values = []  # List to store the average values of output neurons for each episode
 
@@ -192,7 +196,6 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         time_start_paths = time.time()
 
-        timestep_counter = 0
         new_rewards = []
         list_rewards= []
 
@@ -209,7 +212,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
 
                 ########### Starting environment routing
-                state = environment.reset_agent(car_idx, timestep_counter)
+                state = environment.reset_agent(car_idx)
                 states.append(state)  # Track states
 
                 if save_offline_data:
@@ -265,27 +268,25 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             ########### GET SIMULATION RESULTS ###########
 
-            # Run simulation
-            sim_done = environment.simulate_routes(timestep_counter)
+            # Run simulation and get results
+            sim_done, timestep_reward, timestep_counter,\
+                        arrived_at_final = environment.simulate_routes()
 
-            # Get results from environment
-            _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = environment.get_results()
-            
             dones.extend(arrived_at_final.tolist())
 
             if timestep_counter == 0:
-                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+                episode_rewards = np.expand_dims(timestep_reward,axis=0)
             else:
-                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+                episode_rewards = np.vstack((episode_rewards,timestep_reward))
             
             # Train the model only using the average of all timestep rewards
             if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                avg_reward = time_step_rewards.sum(axis=0) / len(time_step_rewards)
-                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-                rewards.extend(time_step_rewards_avg)
+                avg_reward = timestep_reward.sum(axis=0) / len(timestep_reward)
+                timestep_reward_avg = [avg_reward for _ in timestep_reward]
+                rewards.extend(timestep_reward_avg)
             # Train the model using the rewards from it's own experiences
             else:
-                rewards.extend(time_step_rewards)
+                rewards.extend(timestep_reward)
 
             time_step_time = time.time() - start_time_step
 
@@ -300,23 +301,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             time_step_time = time.time() - start_time_step
 
-            # Used to evaluate simulation
-            metric = {
-                "zone": zone_index,
-                "episode": i,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": time_step_rewards,
-                "best_reward": best_avg,
-                "timestep_real_world_time": time_step_time,
-                "done": sim_done
-            }
-            metrics.append(metric)
 
-            timestep_counter += 1  # Next timestep
             if timestep_counter >= environment.max_steps:
                 raise Exception("MAX TIME-STEPS EXCEEDED!")
 
@@ -326,7 +311,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
         for d in range(len(distributions_unmodified)):
 
-            buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d], rewards[d],\
+            buffers[d % num_cars].append(Experience(states[d], distributions_unmodified[d],\
+                                        rewards[d],
                             states[(d + num_cars) if d + num_cars < len(states) else d],
                             True if car_dones[d] == 1 else False))  # Store experience
 
@@ -442,6 +428,13 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             trajectories.clear()
 
 
+        # Saving data per episode
+        station_data, agent_data, data_level = environment.get_data()
+        save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
+        save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
+        station_data = None
+        agent_data = None
+        
         if avg_reward > best_avg:
             best_avg = avg_reward
             best_paths = paths_copy
@@ -469,16 +462,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             print(to_print)
 
-        if ((i + 1) % eps_per_save == 0) or (i == num_episodes - 1):
-            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-            if not os.path.exists(metrics_path):
-                os.makedirs(metrics_path)
-            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
-            metrics = []
-
     np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, metrics, buffers
+    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, buffers
 
 
 def print_time(label, time):
