@@ -25,7 +25,7 @@ from data_loader import *
 from visualize import *
 from merl_env.environment import EnvironmentClass
 from federated_learning import get_global_weights
-from evaluation import evaluate, clear_metrics
+from evaluation import clear_metrics
 from train_utils import train_route
 
 # Setting for multiprocessing using pytorch
@@ -250,7 +250,8 @@ def train_rl_vrp_csp(args):
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
-        old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
+        # Hold the buffers for the previous aggregation step
+        old_buffers = [None for _ in range(len(chargers))] 
         global_weights = None
 
         # Initialize weights_to_save as a manager list to persist between aggregations
@@ -326,16 +327,6 @@ def train_rl_vrp_csp(args):
                             p.terminate()  # Just in case
 
                 rewards = []
-                # for metric in process_metrics:
-                #     metric = metric[0]
-                #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-                #         f" for aggregation: {metric['aggregation']+1}"
-                #     print_l(to_print)
-
-                # metrics.extend(process_metrics)
-
-                # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-                #  f"{metrics_base_path}/train/metrics", True)
 
                 print("Join Weights")
 
@@ -366,7 +357,8 @@ def train_rl_vrp_csp(args):
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
                 
                 if sorted_list:
-                    print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0], sorted_list[-1]}')
+                    print_l('Min and Max rewards for the aggregation step:'+\
+                            f'{sorted_list[0], sorted_list[-1]}')
                 else:
                     print_l("No rewards found for this aggregation step.")
                 rewards.extend(process_rewards)
@@ -472,11 +464,6 @@ def train_rl_vrp_csp(args):
                 process.join()
 
         rewards = []
-        # for metric in process_metrics:
-        #     metric = metric[0]
-        #     to_print = f"Zone {metric['zone']+1} reward proccess { metric['rewards'][-1]:.3f}"+\
-        #         f" for aggregation: {metric['aggregation']+1}"
-        #     print_l(to_print)
 
         # Extend the main lists with the contents of the process lists
         sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
@@ -495,14 +482,6 @@ def train_rl_vrp_csp(args):
             fixed_attributes = eval_c['fixed_attributes']
             attr_label = f'{fixed_attributes[0]}_{fixed_attributes[1]}'
 
-        # # Save all metrics from evaluation into a file
-        # evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes,\
-        #          f"{metrics_base_path}/eval/metrics", True)
-
-        # # Generate the plots for the various metrics
-        # if eval_c['generate_plots']:
-        #     evaluate(ev_info, None, seed, date, verbose, 'display',\
-        #              num_episodes, f"{metrics_base_path}/eval/metrics", True)
 
     flag_a = eval_c['fixed_attributes'] != [0, 1]
     flag_b = eval_c['fixed_attributes'] != [1, 0]
