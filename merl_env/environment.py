@@ -19,7 +19,6 @@ try:
 except ImportError:
     print("Cannot import local files")
 
-import tracemalloc
 DEBUG = False
 
 # Predefined list of supported cities with their coordinates and WeatherStats URLs
@@ -266,8 +265,6 @@ class EnvironmentClass:
         self.init_data_structure()
 
         self.timer = env_timer()
-
-        # tracemalloc.start()
 
 
     def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):

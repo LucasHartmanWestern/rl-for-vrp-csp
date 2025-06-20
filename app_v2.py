@@ -245,7 +245,6 @@ def train_rl_vrp_csp(args):
 
         print(f"CHARGERS: {len(chargers)}")
 
-        # metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
@@ -277,7 +276,6 @@ def train_rl_vrp_csp(args):
                     local_weights_list = [None]
                     process_rewards = []
                     process_output_values = []
-                    # process_metrics = []
                     process_buffers = [None]
                     
                     # Run directly without multiprocessing
@@ -295,7 +293,6 @@ def train_rl_vrp_csp(args):
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
-                    # process_metrics = manager.list()
                     process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
@@ -399,7 +396,6 @@ def train_rl_vrp_csp(args):
             plot_aggregate_output_values_per_route(loaded_output_values)
 
     elif run_mode == "Evaluating":
-        # metrics = []  # Used to track all metrics
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
@@ -414,7 +410,6 @@ def train_rl_vrp_csp(args):
             local_weights_list = [None]
             process_rewards = []
             process_output_values = []
-            # process_metrics = []
             process_buffers = [None]
             weights_to_save = [None]
             
@@ -433,7 +428,6 @@ def train_rl_vrp_csp(args):
             local_weights_list = manager.list([None for _ in range(len(chargers))])
             process_rewards = manager.list()
             process_output_values = manager.list()
-            # process_metrics = manager.list()
             process_buffers = manager.list([None for _ in range(len(chargers))])
             weights_to_save = manager.list([None for _ in range(len(chargers))])
 
@@ -469,7 +463,6 @@ def train_rl_vrp_csp(args):
         print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
         rewards.extend(process_rewards)
         output_values.extend(process_output_values)
-        # metrics.extend(process_metrics)
         old_buffers = list(process_buffers)
 
         flag_a = eval_c['fixed_attributes'] != [0, 1]
