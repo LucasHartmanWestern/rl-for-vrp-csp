@@ -5,6 +5,7 @@ import time
 import copy
 from datetime import datetime
 import numpy as np
+import torch
 from codecarbon import EmissionsTracker
 import shutil
 import pandas as pd

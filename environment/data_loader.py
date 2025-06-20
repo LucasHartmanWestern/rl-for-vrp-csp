@@ -18,7 +18,7 @@ def get_charger_data():
     """
 
     # From JSON file
-    with open('data/Ontario_Charger_Dataset.json') as file:
+    with open('environment/data/Ontario_Charger_Dataset.json') as file:
         data = json.load(file)
     charger_data = []
     for station in [item for item in data['fuel_stations'] if item['city'] == 'London']:

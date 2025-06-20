@@ -1,4 +1,3 @@
-<<<<<<< HEAD:merl_env/environment.py
 # Created by Lucas
 # Restructured by Santiago 03/07/2024
 
