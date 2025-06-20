@@ -161,7 +161,6 @@ def train_rl_vrp_csp(args):
 
     if algorithm_dm == 'ODT':
         print(variant['odt_hyperparameters']['experiment_number'])
-        #save_data_by_zone(metrics_base_path, variant['odt_hyperparameters']['experiment_number'])  
 
     # Now assign GPUs to zones
     n_zones = len(env_c['coords'])
@@ -246,7 +245,7 @@ def train_rl_vrp_csp(args):
 
         print(f"CHARGERS: {len(chargers)}")
 
-        metrics = []
+        # metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
@@ -278,7 +277,7 @@ def train_rl_vrp_csp(args):
                     local_weights_list = [None]
                     process_rewards = []
                     process_output_values = []
-                    process_metrics = []
+                    # process_metrics = []
                     process_buffers = [None]
                     
                     # Run directly without multiprocessing
@@ -286,7 +285,7 @@ def train_rl_vrp_csp(args):
                                 copy.deepcopy(environment_list[0]), all_routes[0], date, 
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
-                                local_weights_list, process_rewards, process_metrics, \
+                                local_weights_list, process_rewards,\
                                 process_output_values, None, devices[0], verbose, \
                                 eval_c['display_training_times'], agent_by_zone, variant,\
                                 eval_c['save_offline_data'], True, old_buffers[0],\
@@ -296,7 +295,7 @@ def train_rl_vrp_csp(args):
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
-                    process_metrics = manager.list()
+                    # process_metrics = manager.list()
                     process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
@@ -308,7 +307,7 @@ def train_rl_vrp_csp(args):
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                  local_weights_list, process_rewards, process_metrics,\
+                                  local_weights_list, process_rewards,\
                                   process_output_values, barrier, devices[ind], verbose,\
                                   eval_c['display_training_times'], agent_by_zone, variant,\
                                   eval_c['save_offline_data'], True, old_buffers[ind], \
@@ -400,7 +399,7 @@ def train_rl_vrp_csp(args):
             plot_aggregate_output_values_per_route(loaded_output_values)
 
     elif run_mode == "Evaluating":
-        metrics = []  # Used to track all metrics
+        # metrics = []  # Used to track all metrics
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number,
                             #aggregation_num, route_index, seed)]
@@ -415,7 +414,7 @@ def train_rl_vrp_csp(args):
             local_weights_list = [None]
             process_rewards = []
             process_output_values = []
-            process_metrics = []
+            # process_metrics = []
             process_buffers = [None]
             weights_to_save = [None]
             
@@ -424,7 +423,7 @@ def train_rl_vrp_csp(args):
                         copy.deepcopy(environment_list[0]), all_routes[0], date,\
                         action_dim, global_weights, 0, 0, algorithm_dm,\
                         chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
-                        local_weights_list, process_rewards, process_metrics,\
+                        local_weights_list, process_rewards,\
                         process_output_values, None, devices[0], verbose,\
                         eval_c['display_training_times'], agent_by_zone, variant,\
                         eval_c['save_offline_data'], False, old_buffers[0],\
@@ -434,7 +433,7 @@ def train_rl_vrp_csp(args):
             local_weights_list = manager.list([None for _ in range(len(chargers))])
             process_rewards = manager.list()
             process_output_values = manager.list()
-            process_metrics = manager.list()
+            # process_metrics = manager.list()
             process_buffers = manager.list([None for _ in range(len(chargers))])
             weights_to_save = manager.list([None for _ in range(len(chargers))])
 
@@ -449,7 +448,7 @@ def train_rl_vrp_csp(args):
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, 0, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                  local_weights_list, process_rewards, process_metrics,\
+                                  local_weights_list, process_rewards,\
                                   process_output_values, barrier, devices[ind], verbose,\
                                   eval_c['display_training_times'], agent_by_zone, variant,\
                                   eval_c['save_offline_data'], False, old_buffers[ind], \
@@ -470,7 +469,7 @@ def train_rl_vrp_csp(args):
         print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0],sorted_list[-1]}')
         rewards.extend(process_rewards)
         output_values.extend(process_output_values)
-        metrics.extend(process_metrics)
+        # metrics.extend(process_metrics)
         old_buffers = list(process_buffers)
 
         flag_a = eval_c['fixed_attributes'] != [0, 1]

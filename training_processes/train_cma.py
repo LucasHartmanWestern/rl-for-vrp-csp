@@ -113,9 +113,12 @@ def train_cma(ev_info,
     trained = False  # Track whether training occurred
 
     # Reset the environment for a new training episode
-    environment.reset_episode(chargers, routes, unique_chargers, reset_ep_counter=True)
-    environment.set_aggregation(aggregation_num)
-
+    environment.reset_episode(chargers, routes, unique_chargers)
+    environment.init_sim(aggregation_num)
+    
+    # Save the current state of the environment for later restoration during evolution
+    environment.population_mode_store()
+    
     cma_info = cma_agents_list[0]  # Retrieve information from the first CMA agent
     population_size = cma_info.population_size  # Size of the population for evolution
     #Setting max generations
@@ -123,8 +126,7 @@ def train_cma(ev_info,
     
     generation_weights = torch.empty((num_agents, action_dim),device=device)  # Storage for weights per generation
 
-    # Save the current state of the environment for later restoration during evolution
-    environment.population_mode_store()
+
 
     # Initialize matrices for storing solutions and fitness values during evolution
     matrix_solutions = torch.zeros((population_size, num_agents, cma_info.out_size), device=device)
@@ -209,7 +211,7 @@ def train_cma(ev_info,
                 generation_weights[agent_idx] = weights  # Store the best weights for this generation
 
             # Simulate the environment with the best solutions
-            sim_done, timestep_rewards, timestep = environment.simulate_routes()
+            sim_done, timestep_rewards, timestep,_ = environment.simulate_routes()
 
             if timestep == 0:
                 episode_rewards = np.expand_dims(timestep_rewards,axis=0)
@@ -293,7 +295,7 @@ def train_cma(ev_info,
     # Clean up resources (e.g., GPU memory)
     torch.cuda.empty_cache()
    
-    return weights_list, avg_rewards, avg_output_values, None, None
+    return weights_list, avg_rewards, avg_output_values, None
 
 
 def print_log(label, log_path, et):

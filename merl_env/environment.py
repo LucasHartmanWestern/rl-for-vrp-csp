@@ -226,6 +226,7 @@ class EnvironmentClass:
         self.dtype = dtype
         self.zone_idx = zone + 1
         self.aggregation_num = None
+        self.episode = -1
 
         # Load configuration parameters for the environment
         config = load_config_file(config_fname)['environment_settings']
@@ -567,28 +568,28 @@ class EnvironmentClass:
         #get rewards for episode
         rewards = self.get_rewards(population_mode=population_mode)
         
-        return done, rewards, self.timestep
+        return done, rewards, self.timestep, self.arrived_at_final
 
     def get_odt_info(self):
         return self.arrived_at_final[0,:]
 
-    def get_full_results(self) -> tuple:
-        """
-        Get the results of the simulation.
+    # def get_full_results(self) -> tuple:
+    #     """
+    #     Get the results of the simulation.
 
-        Returns:
-            tuple: A tuple containing:
-                - paths (list): List of token positions at each timestep.
-                - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
-                - battery_levels (list): List of battery levels at each timestep.
-                - distances_per_car (list): List of distances traveled by each token at each timestep.
-                - simulats (float): Reward for the simulation.
-        """
-        # print(f'traffic  results {self.traffic_results.shape}')
-        # print(f'battery level results {self.battery_levels_results.shape}')
+    #     Returns:
+    #         tuple: A tuple containing:
+    #             - paths (list): List of token positions at each timestep.
+    #             - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
+    #             - battery_levels (list): List of battery levels at each timestep.
+    #             - distances_per_car (list): List of distances traveled by each token at each timestep.
+    #             - simulats (float): Reward for the simulation.
+    #     """
+    #     # print(f'traffic  results {self.traffic_results.shape}')
+    #     # print(f'battery level results {self.battery_levels_results.shape}')
 
-        return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
-                self.simulation_reward, self.arrived_at_final
+    #     return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
+    #             self.simulation_reward, self.arrived_at_final
 
     def get_rewards(self, population_mode) -> np.array:
         """
@@ -902,7 +903,7 @@ class EnvironmentClass:
         self.timer.start_timer()
 
 
-    def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray, reset_ep_counter: bool =False):
+    def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray):
         """
         Reset the episode with new chargers, routes, and unique chargers.
 
@@ -920,9 +921,6 @@ class EnvironmentClass:
         self.energy_episode = []
         self.reward_episode = np.zeros(self.num_cars)
         self.duration = np.zeros(self.num_cars)
-
-        if reset_ep_counter:
-            self.episode = -2
 
         traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
         traffic[:, 0] = unique_chargers['id']
@@ -943,6 +941,9 @@ class EnvironmentClass:
         # Increasing +1 episode counter
         self.episode += 1
 
+    def init_sim(self, aggregation_num):
+        self.aggregation_num = aggregation_num
+        self.episode = -1
 
 
     def get_data(self):
