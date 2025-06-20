@@ -439,12 +439,12 @@ def train_rl_vrp_csp(args):
                     # Run directly without multiprocessing
                     train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
                                 copy.deepcopy(environment_list[0]), all_routes[0], date,\
-                                action_dim, global_weights, 0, 0, algorithm_dm,\
+                                action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
                                 local_weights_list, process_rewards,\
                                 process_output_values, None, devices[0], verbose,\
                                 eval_c['display_training_times'], agent_by_zone, variant,\
-                                eval_c['save_offline_data'], False, old_buffers[0],\
+                                eval_c['save_offline_data'], True, old_buffers[0],\
                                 process_buffers, weights_to_save, len(chargers))
                 else:
                     manager = mp.Manager()
