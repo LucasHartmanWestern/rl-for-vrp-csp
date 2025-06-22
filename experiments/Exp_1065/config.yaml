@@ -7,15 +7,14 @@ cma_parameters:
   model_type: optimizer
   population_dimension: 20
 environment_settings:
-  distance_scale: 1
-  traffic_scale: 0.1
-  energy_scale: 1
   action_dim: 3
   coords:
   - - 43.02120034946083
     - -81.28349087468504
   - - 42.9819404397449
     - -81.2508736429095
+  distance_scale: 1
+  energy_scale: 1
   increase_rate: 12500
   max_charge:
   - 170000
@@ -30,10 +29,12 @@ environment_settings:
   num_of_cars: 500
   num_of_chargers: 1
   radius: 20
+  saving_data_deepness: episode_level
   season: winter
   seed: 1234
   starting_charge: 6000
   step_size: 0.01
+  traffic_scale: 0.1
   usage_per_hour:
   - 9840
   - 8460
