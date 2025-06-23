@@ -11,6 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 import h5py
 import os
+import time
 
 
 def set_seed_everywhere(seed):
@@ -120,3 +121,14 @@ def save_temp_checkpoint(data, path, zone_index):
                 traj_grp.create_dataset(key, data=np.array(value) if isinstance(value, (list, np.ndarray)) else value)
     return temp_path
 
+def evaluateODT(eval_fns, model):
+    eval_start = time.time()
+    model.eval()
+    outputs = {}
+    for eval_fn in eval_fns:
+        o = eval_fn(model)
+        outputs.update(o)
+    outputs["time/evaluation"] = time.time() - eval_start
+    eval_reward = outputs["evaluation/return_mean_gm"]
+    return outputs, eval_reward
+        

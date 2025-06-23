@@ -154,6 +154,7 @@ def vec_evaluate_episode_rtg(
         arrived_at_final = vec_env.arrived_at_final
 
         _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = vec_env.get_results()
+        
         dones.extend(arrived_at_final.tolist())
         if timestep_counter == 0:
             episode_rewards = np.expand_dims(time_step_rewards,axis=0)

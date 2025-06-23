@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from misc.data import TransformSamplingSubTraj, MAX_EPISODE_LEN
+from .data import TransformSamplingSubTraj, MAX_EPISODE_LEN
 
 
 class PersistentOnlineDataset(Dataset):

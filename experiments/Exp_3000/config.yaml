@@ -93,13 +93,13 @@ odt_hyperparameters:
   learning_rate: 0.0001
   log_to_tb: true
   max_online_iters: 10
-  max_pretrain_iters: 1
+  max_offline_iters: 1
   n_head: 4
   n_layer: 4
   num_eval_episodes: 1
   num_online_rollouts: 1
   num_updates_per_online_iter: 5
-  num_updates_per_pretrain_iter: 5
+  num_updates_per_offline_iter: 5
   online_rtg: -60
   ordering: 0
   replay_size: 500
@@ -108,3 +108,4 @@ odt_hyperparameters:
   weight_decay: 0.0005
   persist_buffers: True
   evaluation: True
+  dataset_path: "/home/epigou/rl-for-vrp-csp/Exp_3000/"

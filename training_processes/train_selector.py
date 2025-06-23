@@ -50,7 +50,7 @@ def train_route(ev_info, metrics_base_path, experiment_number, chargers, environ
             from training_processes.dqn import train_dqn as train
 
         elif algorithm_dm == 'ODT':
-            from training_processes.odt import train_odt as train
+            from training_processes.odt.train_odt import train_odt as train
 
         elif algorithm_dm == 'REINFORCE':
             from training_processes.reinforce import train_reinforce as train

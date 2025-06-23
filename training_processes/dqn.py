@@ -173,7 +173,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                     'terminals_car': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
-                    'episode': i, # Critical: Keep this inside the loop for correct episode tracking
+                    'episode': i, 
                     'car_idx': car_idx
                 }
                 for car_idx in range(num_cars)

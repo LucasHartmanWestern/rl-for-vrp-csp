@@ -185,10 +185,10 @@ class Experiment:
             print(f"[federated] applying aggregated weights from {global_path}")
             attn_layers = load_global_weights(global_path)
             self.set_attn_layers(self.model, attn_layers.to(self.device))
-            # 1) Reset LR scheduler epoch counter:
+            #Reset LR scheduler epoch counter:
             self.scheduler.last_epoch = -1
         
-            # 2) Zero out any momentum buffers in the optimizer:
+            #Zero out any momentum buffers in the optimizer:
             for group in self.optimizer.param_groups:
                 for p in group['params']:
                     state = self.optimizer.state[p]
@@ -279,10 +279,6 @@ class Experiment:
             torch.set_rng_state(pytorch_rng_state)
     
         print(f"Model loaded at {model_file}")
-
-
-
-
 
     def _load_dataset(self, env_name):
         """
@@ -696,6 +692,7 @@ def train_odt(ev_info, metrics_base_path, experiment_number, chargers, environme
     
     print(f'episode calc check: {variant["max_online_iters"] }')
     print(f"Evaluation: {variant['evaluation']}")
+    
     experiment = Experiment(variant, environment, chargers, routes, environment.state_dim, action_dim, device, main_seed, experiment_number, aggregation_num, zone_index, old_buffers, metrics_base_path, ev_info, date, verbose, num_episodes, arwt)
 
     print("=" * 50)
