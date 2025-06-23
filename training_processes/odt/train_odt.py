@@ -44,16 +44,19 @@ class Experiment:
         self.evaluation = bool(getattr(self.args, "eval", False))
         self.reward_scale = 1
         self.action_range = [1e-6, 1e-6]
-        self.base_dir = self.config['odt_hyperparameters']['save_dir']
-        self.stats_path = os.path.join(self.base_dir, str(self.config['odt_hyperparameters']['exp_name']), 'state_stats.pkl')
         self.arwt = self.config['nn_hyperparameters']['average_rewards_when_training']
+        self.base_dir = f"saved_networks/Exp_{self.experiment_number}"
 
         # Setup logger
         if self.evaluation:
             self.base_dir = os.path.join(self.base_dir, "eval")
-        save_dir = os.path.join(self.base_dir, str(self.config['odt_hyperparameters']["exp_name"]))
-        os.makedirs(save_dir, exist_ok=True)
-        self.logger = Logger(self.config['odt_hyperparameters'], self.aggregation_num, self.zone_index)
+        os.makedirs(self.base_dir, exist_ok=True)
+        stats_dir = os.path.join(self.base_dir, "StateStats")
+        os.makedirs(stats_dir, exist_ok=True)
+        self.stats_path = os.path.join(stats_dir, "state_stats.pkl")
+        
+        self.logger = Logger(self.base_dir, self.experiment_number,
+                             self.aggregation_num, self.zone_index)
     
     def init_agent(self):
         self.start_time = time.time()
@@ -213,7 +216,7 @@ class Experiment:
         )
 
         writer = (
-            SummaryWriter(self.logger.log_path) if self.odt_config["log_to_tb"] else None
+            SummaryWriter(self.logger.log_path)
         )
         while offline_iter < self.odt_config["max_offline_iters"]:
             self.environment.init_sim(self.aggregation_num)
@@ -303,7 +306,7 @@ class Experiment:
             )
         ]
         writer = (
-            SummaryWriter(self.logger.log_path) if self.odt_config["log_to_tb"] else None
+            SummaryWriter(self.logger.log_path)
         )
 
         while online_iter < self.odt_config["max_online_iters"]:
@@ -410,6 +413,7 @@ def train_odt(
     old_buffers=None
 ):
     utils.set_seed_everywhere(int(seed))
+    config['odt_hyperparameters']['max_online_iters'] = config['nn_hyperparameters']['num_episodes']
     params = {
         "ev_info":               ev_info,
         "metrics_base_path":     metrics_base_path,
@@ -433,6 +437,7 @@ def train_odt(
     }
 
     experiment = Experiment(params)
+    
     
     #Initialize agent
     experiment.init_agent()

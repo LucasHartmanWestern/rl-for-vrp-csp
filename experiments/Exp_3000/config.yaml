@@ -80,13 +80,8 @@ odt_hyperparameters:
   eval_context_length: 5
   eval_interval: 1
   eval_rtg: -60
-  evaluation: true
-  exp_name: 3000
-  experiment_number: 4023
   init_temperature: 0.1
   learning_rate: 0.0001
-  log_to_tb: true
-  max_online_iters: 10
   max_offline_iters: 1
   n_head: 4
   n_layer: 4
@@ -96,11 +91,7 @@ odt_hyperparameters:
   num_updates_per_offline_iter: 5
   online_rtg: -60
   ordering: 0
-  persist_buffers: true
   replay_size: 500
-  save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-  persist_buffers: True
-  evaluation: True
   dataset_path: "/home/epigou/rl-for-vrp-csp/Exp_3000/"
