@@ -172,7 +172,7 @@ def train_cma(ev_info,
                     environment.generate_paths(torch.tensor(car_route, device=device), None, agent_idx)  
     
                 # Once all cars have routes, simulate routes in the environment and get results
-                sim_done, rewards_pop, _ = environment.simulate_routes(population_mode=True)
+                sim_done, rewards_pop,_,_ = environment.simulate_routes(population_mode=True)
 
                 if agent_by_zone:
                     fitnesses[pop_idx] = -1 * rewards_pop.sum(axis=0).mean()
