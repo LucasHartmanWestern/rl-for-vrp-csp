@@ -9,6 +9,8 @@ import numpy as np
 import torch
 import time
 
+from environment.data_loader import save_to_csv
+
 MAX_EPISODE_LEN = 1000
 
 
@@ -27,12 +29,13 @@ def create_vec_eval_episodes_fn(
     episode_num,
     aggregation_num,
     average_rewards_when_training,
+    metrics_path,
     use_mean=False,
     reward_scale=0.001,
 ):
     def eval_episodes_fn(model):
         target_return = [eval_rtg * reward_scale] * 1
-        returns, lengths, _ , metrics = vec_evaluate_episode_rtg(
+        returns, lengths, _ = vec_evaluate_episode_rtg(
             vec_env,
             chargers,
             routes,
@@ -44,6 +47,7 @@ def create_vec_eval_episodes_fn(
             aggregation_num,
             model,
             average_rewards_when_training,
+            metrics_path,
             max_ep_len=MAX_EPISODE_LEN,
             reward_scale=reward_scale,
             target_return=target_return,
@@ -66,7 +70,7 @@ def create_vec_eval_episodes_fn(
 
 @torch.no_grad()
 def vec_evaluate_episode_rtg(
-    vec_env,
+    environment,
     chargers,
     routes,
     state_dim,
@@ -77,6 +81,7 @@ def vec_evaluate_episode_rtg(
     aggregation_num,
     model,
     average_rewards_when_training,
+    metrics_path,
     target_return: list,
     max_ep_len=10,
     reward_scale=0.001,
@@ -92,7 +97,7 @@ def vec_evaluate_episode_rtg(
     
     assert len(target_return) == 1
     unique_chargers = np.unique(np.array(list(map(tuple, chargers.reshape(-1, 3))), dtype=[('id', int), ('lat', float), ('lon', float)]))
-    vec_env.reset_episode(chargers, routes, unique_chargers)
+    environment.reset_episode(chargers, routes, unique_chargers)
     model.eval()
     model.to(device=device)
 
@@ -116,14 +121,14 @@ def vec_evaluate_episode_rtg(
     episode_rewards = []
     dones = []
     rewards = []
-    metrics=[]
+#   metrics=[]
     
     while not sim_done:
-        vec_env.init_routing()
+        environment.init_routing()
         start_time_step = time.time()
 
         for car in range(num_cars):
-            state = vec_env.reset_agent(car, False)
+            state = environment.reset_agent(car, False)
             car_traj = trajectories[car]
 
             # Add observation to pre-allocated tensor
@@ -145,64 +150,54 @@ def vec_evaluate_episode_rtg(
             car_traj['actions'][car_traj['cur_len']] = action.detach()
 
             # Execute action
-            vec_env.generate_paths(action, None, car)
+            environment.generate_paths(action, None, car)
 
         # Finalize simulation step
-        sim_done = vec_env.simulate_routes(timestep_counter)
+        sim_done = environment.simulate_routes(timestep_counter)
 
         # Gather results
-        arrived_at_final = vec_env.arrived_at_final
-
-        _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = vec_env.get_results()
+        arrived_at_final = environment.arrived_at_final
+      
+        sim_done, timestep_reward, timestep_counter, arrived_at_final = environment.simulate_routes()
         
         dones.extend(arrived_at_final.tolist())
         if timestep_counter == 0:
-            episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+            episode_rewards = np.expand_dims(timestep_reward,axis=0)
         else:
-            episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+            episode_rewards = np.vstack((episode_rewards,timestep_reward))
         
         # Train the model only using the average of all timestep rewards
         if average_rewards_when_training: 
-            avg_reward = time_step_rewards.sum(axis=0).mean()
-            time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
+            avg_reward = timestep_reward.sum(axis=0).mean()
+            timestep_reward_avg = [avg_reward for _ in timestep_reward]
         
         # Update rewards and terminals
         for traj in trajectories:
             if traj['cur_len'] < max_traj_len:
                 if average_rewards_when_training: 
-                    traj['rewards'][traj['cur_len']] = torch.tensor(time_step_rewards_avg[traj['car_num']], device=device, dtype=torch.float32)
+                    traj['rewards'][traj['cur_len']] = torch.tensor(timestep_reward_avg[traj['car_num']], device=device, dtype=torch.float32)
                 else:
-                    traj['rewards'][traj['cur_len']] = torch.tensor(time_step_rewards[traj['car_num']], device=device, dtype=torch.float32)
+                    traj['rewards'][traj['cur_len']] = torch.tensor(timestep_reward[traj['car_num']], device=device, dtype=torch.float32)
                 traj['terminals'][traj['cur_len']] = sim_done
 
             traj['cur_len'] += 1
 
         time_step_time = time.time() - start_time_step
             
-        metric = {
-            "zone": zone_index,#pass
-            "episode": episode_num, #pass
-            "timestep": timestep_counter,
-            "aggregation": aggregation_num, #pass
-            "traffic": sim_traffic,
-            "batteries": sim_battery_levels,
-            "distances": sim_distances,
-            "rewards": time_step_rewards,
-            "best_reward": best_avg,
-            "timestep_real_world_time": time_step_time,
-            "done": sim_done
-        }
-        metrics.append(metric)
-        timestep_counter += 1  # Next timestep
-        if timestep_counter >= vec_env.max_steps:
+        if timestep_counter >= environment.max_steps:
             raise Exception("MAX TIME-STEPS EXCEEDED!")
                 
 
-    #SIM COMPLETE----------------------
-
-    
+    #SIM COMPLETE  
     # Calculate the average return per car
     episode_return = np.mean(np.sum(np.vstack(episode_rewards), axis=0))
+    
+    station_data, agent_data, data_level = environment.get_data()
+    save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
+    save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
+    station_data = None
+    agent_data = None
+    
     # Truncate trajectories to actual length before returning
     trajectories = [{
         'observations': traj['observations'][:traj['cur_len']].cpu(),
@@ -212,6 +207,6 @@ def vec_evaluate_episode_rtg(
         'car_num': traj['car_num']
     } for traj in trajectories]
 
-    return episode_return, timestep_counter, trajectories, metrics
+    return episode_return, timestep_counter, trajectories
 
 

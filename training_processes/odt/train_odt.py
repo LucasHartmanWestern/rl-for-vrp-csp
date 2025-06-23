@@ -1,8 +1,6 @@
-
 from torch.utils.tensorboard import SummaryWriter
 
 import pickle
-import random
 import time
 import torch
 import numpy as np
@@ -10,10 +8,6 @@ import re
 import os
 import glob
 import h5py
-
-
-from environment.evaluation import evaluate
-from environment.data_loader import load_config_file
 
 from decision_makers.agent_odt import DecisionTransformer
 
@@ -25,7 +19,7 @@ from .odt_helpers.trainer import SequenceTrainer
 from .odt_helpers.logger import Logger
 from .odt_helpers.online_data import PersistentOnlineDataset, create_online_dataloader
 
-class odt_experiment:
+class Experiment:
     def __init__(self, params):
         self.ev_info             = params['ev_info']
         self.metrics_base_path   = params['metrics_base_path']
@@ -204,6 +198,7 @@ class odt_experiment:
                 episode_num=offline_iter,
                 aggregation_num=self.aggregation_num,
                 average_rewards_when_training=self.arwt,
+                metrics_path=self.metrics_base_path,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -221,6 +216,7 @@ class odt_experiment:
             SummaryWriter(self.logger.log_path) if self.odt_config["log_to_tb"] else None
         )
         while offline_iter < self.odt_config["max_offline_iters"]:
+            self.environment.init_sim(self.aggregation_num)
             dataloader = create_dataloader(
                 trajectories=trajectories,
                 num_iters=self.odt_config["num_updates_per_offline_iter"],
@@ -258,7 +254,6 @@ class odt_experiment:
         print("\n\n\n*** Online Training ***")
 
         online_iter = 0
-        full_metrics = []
         total_transitions_sampled = 0
         
         #Create replay buffer from trajectories:
@@ -302,6 +297,7 @@ class odt_experiment:
                 episode_num=online_iter,
                 aggregation_num=self.aggregation_num,
                 average_rewards_when_training=self.arwt,
+                metrics_path=self.metrics_base_path,
                 use_mean=True,
                 reward_scale=self.reward_scale,
             )
@@ -315,10 +311,11 @@ class odt_experiment:
                 online_dataset,
                 batch_size=self.odt_config['batch_size']
             )
-            outputs = {}   
+            self.environment.init_sim(self.aggregation_num)
+            outputs = {} 
             with torch.no_grad(): 
                 target_return = [self.odt_config["online_rtg"] * self.reward_scale]
-                returns, lengths, trajs, metrics = vec_evaluate_episode_rtg(
+                returns, lengths, trajs = vec_evaluate_episode_rtg(
                     self.environment,
                     self.chargers,
                     self.routes,
@@ -330,6 +327,7 @@ class odt_experiment:
                     self.aggregation_num,
                     self.ODTAgent,
                     self.arwt,
+                    self.metrics_base_path,
                     max_ep_len=self.Max_episode_len,
                     reward_scale=self.reward_scale,
                     target_return=target_return,
@@ -346,15 +344,7 @@ class odt_experiment:
                 "aug_traj/length": float(np.mean(lengths)),
             }
             
-            outputs.update(augment_outputs)
-            full_metrics.extend(metrics)
-            
-            # Call evaluate() only every 5 iterations
-            if online_iter % 5 == 0:
-                directory = f"{self.metrics_base_path}/train/metrics"
-                os.makedirs(directory, exist_ok=True)
-                evaluate(self.ev_info, full_metrics, self.seed, self.date, self.verbose, 'save', self.odt_config["max_online_iters"], directory, True, True)
-                full_metrics = []
+            outputs.update(augment_outputs)  
 
             is_last_iter = online_iter == self.odt_config["max_online_iters"] - 1
             if (online_iter + 1) % self.odt_config["eval_interval"] == 0 or is_last_iter:
@@ -384,7 +374,7 @@ class odt_experiment:
             if is_last_iter:
                 attn_layers = self.ODTAgent.get_attn_layers(self.device)
             online_iter += 1
-        return attn_layers.detach().cpu(), metrics, online_dataset
+        return attn_layers.detach().cpu(), online_dataset
 
     def loss_fn(self, a_hat_dist, a, attention_mask, entropy_reg):
         # a_hat is a SquashedNormal Distribution
@@ -442,7 +432,7 @@ def train_odt(
         "Max_episode_len":       1000
     }
 
-    experiment = odt_experiment(params)
+    experiment = Experiment(params)
     
     #Initialize agent
     experiment.init_agent()
@@ -458,7 +448,7 @@ def train_odt(
             state_mean, state_std = stats['state_mean'], stats['state_std']
             
     #Train online
-    attn_layers, metrics, online_dataset = experiment.train_online(trajectories, state_mean, state_std)
+    attn_layers, online_dataset = experiment.train_online(trajectories, state_mean, state_std)
     
     #Clean buffers(maintains trajectories between aggregations) before passing back
     buffers = []
@@ -471,4 +461,4 @@ def train_odt(
                 clean[k] = v
         buffers.append(clean)
         
-    return attn_layers, [], [], metrics, buffers
+    return attn_layers, [], [], buffers
