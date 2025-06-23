@@ -5,6 +5,7 @@ import time
 import copy
 from datetime import datetime
 import numpy as np
+import torch
 from codecarbon import EmissionsTracker
 import shutil
 import pandas as pd
@@ -48,6 +49,7 @@ def main_loop(args):
     ############ Initialization ############
     current_datetime = datetime.now()
     date = current_datetime.strftime('%Y-%m-%d_%H-%M')
+    print(f'Begining date and time {date}')
 
     print(f"PyTorch CUDA available: {torch.cuda.is_available()}")
     print(f"PyTorch version: {torch.__version__}")
@@ -187,7 +189,9 @@ def main_loop(args):
     ev_info = []
     start_time = time.time()
     for area_idx in range(n_zones):
-        environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx], env_c['coords'][area_idx], device=devices[area_idx], dtype=torch.float32)
+        environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
+                                       area_idx, device=devices[area_idx], dtype=torch.float32)
+
         environment_list.append(environment)
         ev_info.append(environment.get_ev_info())
 
@@ -214,16 +218,20 @@ def main_loop(args):
 
     # Get Charging Stations
     print_et('Get Chargers:', start_time)
+    print(f"Starting training at {current_datetime.strftime('%Y-%m-%d_%H-%M')}")
+    
     if run_mode == "Training":
         print_l(f"Training using {algorithm_dm} - Seed {seed}", )
 
         print(f"CHARGERS: {len(chargers)}")
 
-        metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
-        output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
-        old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
-        global_weights = None # Holds the global weights which are effectively the model weights learned during training
+        output_values = []  # Array of [(episode_avg_output_values, episode_number,
+                            #aggregation_num, route_index, seed)]
+        # Hold the buffers for the previous aggregation step
+        old_buffers = [None for _ in range(len(chargers))] 
+        global_weights = None
+
 
         # Initialize weights_to_save as a manager list to persist between aggregations
         manager = mp.Manager()
@@ -252,7 +260,6 @@ def main_loop(args):
                     local_weights_list = [None]
                     process_rewards = []
                     process_output_values = []
-                    process_metrics = []
                     process_buffers = [None]
                     
                     # Run directly without multiprocessing
@@ -260,7 +267,7 @@ def main_loop(args):
                                 copy.deepcopy(environment_list[0]), all_routes[0], date, 
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
-                                local_weights_list, process_rewards, process_metrics, \
+                                local_weights_list, process_rewards,\
                                 process_output_values, None, devices[0], verbose, \
                                 eval_c['display_training_times'], agent_by_zone, variant,\
                                 eval_c['save_offline_data'], True, old_buffers[0],\
@@ -273,7 +280,6 @@ def main_loop(args):
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
-                    process_metrics = manager.list()
                     process_buffers = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
@@ -287,7 +293,7 @@ def main_loop(args):
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                  local_weights_list, process_rewards, process_metrics,\
+                                  local_weights_list, process_rewards,\
                                   process_output_values, barrier, devices[ind], verbose,\
                                   eval_c['display_training_times'], agent_by_zone, variant,\
                                   eval_c['save_offline_data'], True, old_buffers[ind], \
@@ -337,7 +343,8 @@ def main_loop(args):
                 sorted_list = sorted([val[0] for sublist in process_rewards for val in sublist])
                 
                 if sorted_list:
-                    print_l(f'Min and Max rewards for the aggregation step: {sorted_list[0], sorted_list[-1]}')
+                    print_l('Min and Max rewards for the aggregation step:'+\
+                            f'{sorted_list[0], sorted_list[-1]}')
                 else:
                     print_l("No rewards found for this aggregation step.")
                 rewards.extend(process_rewards)
@@ -385,7 +392,6 @@ def main_loop(args):
             print_l(f"No saved model found for experiment {experiment_number}")
             raise Exception(f"No saved model found for experiment {experiment_number}")
 
-        metrics = []
         rewards = []  # Array of [(avg_reward, aggregation_num, route_index, seed)]
         output_values = []  # Array of [(episode_avg_output_values, episode_number, aggregation_num, route_index, seed)]
         old_buffers = [None for _ in range(len(chargers))] # Hold the buffers for the previous aggregation step
@@ -409,21 +415,22 @@ def main_loop(args):
                 # Check if we have only one zone - if so, don't use multiprocessing
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count_eval']}"
                 print_l(f"\n\n############ Aggregation {agg_print} ############\n\n",)
+
                 if len(chargers) == 1:
                     print("Only one zone detected, running without multiprocessing")
                     local_weights_list = [None]
                     process_rewards = []
                     process_output_values = []
-                    process_metrics = []
                     process_buffers = [None]
-                    
+                    weights_to_save = [None]
+
                     # Run directly without multiprocessing
                     train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
-                                copy.deepcopy(environment_list[0]), all_routes[0], date, 
+                                copy.deepcopy(environment_list[0]), all_routes[0], date,\
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
-                                chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
-                                local_weights_list, process_rewards, process_metrics, \
-                                process_output_values, None, devices[0], verbose, \
+                                chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
+                                local_weights_list, process_rewards,\
+                                process_output_values, None, devices[0], verbose,\
                                 eval_c['display_training_times'], agent_by_zone, variant,\
                                 eval_c['save_offline_data'], True, old_buffers[0],\
                                 process_buffers, weights_to_save, len(chargers))
@@ -432,8 +439,8 @@ def main_loop(args):
                     local_weights_list = manager.list([None for _ in range(len(chargers))])
                     process_rewards = manager.list()
                     process_output_values = manager.list()
-                    process_metrics = manager.list()
                     process_buffers = manager.list([None for _ in range(len(chargers))])
+                    weights_to_save = manager.list([None for _ in range(len(chargers))])
 
                     # Barrier for synchronization
                     barrier = mp.Barrier(len(chargers))
@@ -444,11 +451,12 @@ def main_loop(args):
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
-                                  local_weights_list, process_rewards, process_metrics,\
+                                  local_weights_list, process_rewards,\
                                   process_output_values, barrier, devices[ind], verbose,\
                                   eval_c['display_training_times'], agent_by_zone, variant,\
                                   eval_c['save_offline_data'], True, old_buffers[ind], \
                                   process_buffers, weights_to_save, len(chargers))
+
                         process = mp.Process(target=train_route, args=args_tuple)
                         processes.append(process)
                         process.start()

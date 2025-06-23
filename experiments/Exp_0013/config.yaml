@@ -33,6 +33,7 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 3
   radius: 20
+  saving_data_deepness: episode_level
   season: winter
   seed: 1234
   starting_charge: 6000

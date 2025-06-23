@@ -33,6 +33,7 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 3
   radius: 20
+  saving_data_deepness: episode_level
   season: winter
   seed: 1234
   starting_charge: 6000
@@ -50,7 +51,7 @@ eval_config:
   generate_plots: false
   save_aggregate_rewards: false
   save_data: false
-  save_offline_data: False
+  save_offline_data: false
   save_path_metrics: metrics/Exp
   verbose: true
 federated_learning_settings:
@@ -59,7 +60,7 @@ federated_learning_settings:
   model_multiplier: 0.5
   zone_multiplier: 0.35
 nn_hyperparameters:
-  average_rewards_when_training: False
+  average_rewards_when_training: false
   batch_size: 1000
   buffer_limit: 2000
   city_multiplier: 0.15

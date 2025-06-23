@@ -15,6 +15,7 @@ try:
     from ._pathfinding import dijkstra, build_graph, haversine
     from .agent_info import agent_info
     from environment.data_loader import load_config_file
+    from ._timer import env_timer
 except ImportError:
     print("Cannot import local files")
 
@@ -81,22 +82,13 @@ def get_closest_city(lat: float, lon: float) -> dict:
     return closest_city
 
 def save_temps(coords_list: list, seed_list: list):
-    """
-    Save the temperatures for the given coordinates and seeds to a CSV file.
-    This is used to avoid making API calls to get the temperature data on DRAC.
-
-    Parameters:
-        coords_list (list): List of coordinates.
-        seed_list (list): List of seeds.
-    """
-
     # Ensure the directory exists
-    os.makedirs('environment/data', exist_ok=True)
+    os.makedirs('merl_env/temps', exist_ok=True)
     
     print("Saving temps to file")
 
     # Define the CSV file path
-    csv_file_path = 'environment/data/temperatures.csv'
+    csv_file_path = 'merl_env/temps/temperatures.csv'
     
     # Open the CSV file for writing
     with open(csv_file_path, 'w', newline='') as csvfile:
@@ -116,17 +108,8 @@ def save_temps(coords_list: list, seed_list: list):
                     csvwriter.writerow([coords[0], coords[1], season, seed, temp])
 
 def get_temps_from_file(coords: list, seed: int, season: str):
-    """
-    Get the temperature for the given coordinates and seed from the CSV file.
-
-    Parameters:
-        coords (list): Coordinates [latitude, longitude] of the location.
-        seed (int): Seed for the random number generator.
-        season (str): Season to get the temperature for.
-    """
-
     # Define the CSV file path
-    csv_file_path = 'environment/data/temperatures.csv'
+    csv_file_path = 'merl_env/temps/temperatures.csv'
     
     print("Getting temps from file")
 
@@ -152,8 +135,6 @@ def get_temperature(season: str, coords: list, rng: np.random.Generator, seed: i
     Parameters:
         season (str): Season to get the temperature for.
         coords (list): Coordinates [latitude, longitude] of the location.
-        rng (np.random.Generator): Random number generator.
-        seed (int): Seed for the random number generator.
 
     Returns:
         float: Average temperature for the given season and location.
@@ -228,7 +209,7 @@ class EnvironmentClass:
     Class representing the environment for EV routing and charging simulation.
     """
 
-    def __init__(self, config_fname: str, seed: int, sub_seed: int, zone_coords: list, device: torch.device, dtype: torch.dtype = torch.float32):
+    def __init__(self, config_fname: str, seed: int, sub_seed: int, zone: int, device: torch.device, dtype: torch.dtype = torch.float32):
         """
         Initialize the environment with configuration, device, and dtype.
 
@@ -236,12 +217,15 @@ class EnvironmentClass:
             config_fname (str): Path to the configuration file.
             seed (int): Seed for getting the temp
             sub_seed (int): Seed for random number generator.
-            zone_coords (list): Coordinates of the center of the zone.
+            zone (int): Zone index.
             device (torch.device): Device to run tensor operations (CPU or CUDA).
             dtype (torch.dtype): Data type for tensors.
         """
         self.device = device
         self.dtype = dtype
+        self.zone_idx = zone + 1
+        self.aggregation_num = None
+        self.episode = -1
 
         # Load configuration parameters for the environment
         config = load_config_file(config_fname)['environment_settings']
@@ -249,7 +233,7 @@ class EnvironmentClass:
         # Seeding environment random generator
         rng = np.random.default_rng(sub_seed)
 
-        self.temperature = get_temperature(config['season'], zone_coords, rng, seed)
+        self.temperature = get_temperature(config['season'], config['coords'][zone], rng, seed)
 
         self.init_ev_info(config, self.temperature, rng)
 
@@ -273,6 +257,15 @@ class EnvironmentClass:
 
         self.action_space = self.num_chargers * 3
         self.observation_space = self.state_dim
+
+        # Parameters to save data for stations and agents
+        self.data_deepness = config['saving_data_deepness']
+        # Get the model index by using car_models[zone_index][agent_index]
+        self.car_models = np.column_stack([info['model_type'] for info in self.info]).T
+        self.init_data_structure()
+
+        self.timer = env_timer()
+
 
     def init_ev_info(self, config: dict, temperature: float, rng: np.random.Generator):
         """
@@ -328,6 +321,9 @@ class EnvironmentClass:
             np.ndarray: Array containing EV information.
         """
         return self.info
+
+    def set_aggregation(self, aggregation_num):
+        self.aggregation_num = aggregation_num
 
     def init_data(self):
         """
@@ -412,7 +408,8 @@ class EnvironmentClass:
         self.target_battery_level = target_battery_level
         self.starting_battery_level = starting_battery_level
 
-    def simulate_routes(self, timestep: int):
+
+    def simulate_routes(self, population_mode=False):
         """
         Simulate the environment for a matrix of tokens (vehicles) as they move towards their destinations,
         update their battery levels, and interact with charging stations.
@@ -420,7 +417,6 @@ class EnvironmentClass:
         Returns:
             None
         """
-
         # Initialize routing data
         self.init_data()
 
@@ -550,7 +546,7 @@ class EnvironmentClass:
         energy_used = energy_used.cpu().numpy() * self.energy_scale
         
         # Note that by doing (* 100) and (/ 100) we are scaling each factor of the reward to be around 0-10 on average
-        reward_scale = (timestep + 1) if self.reward_version == 2 else 1
+        reward_scale = (self.timestep + 1) if self.reward_version == 2 else 1
         self.simulation_reward = -((distance_factor + peak_traffic + energy_used) / (reward_scale))
 
         # Save results in class
@@ -562,30 +558,187 @@ class EnvironmentClass:
         self.battery_levels_results = battery_levels.numpy()
         self.distances_results = distances_per_car.numpy()
         self.arrived_at_final = arrived_at_final
+        self.energy_used = energy_used
 
-        return done
+        self.done = done
+
+        #get rewards for episode
+        rewards = self.get_rewards(population_mode=population_mode)
+        
+        return done, rewards, self.timestep, self.arrived_at_final
 
     def get_odt_info(self):
-        """
-        Get the information for ODT specifically.
-        """
-
         return self.arrived_at_final[0,:]
 
-    def get_results(self) -> tuple:
+    # def get_full_results(self) -> tuple:
+    #     """
+    #     Get the results of the simulation.
+
+    #     Returns:
+    #         tuple: A tuple containing:
+    #             - paths (list): List of token positions at each timestep.
+    #             - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
+    #             - battery_levels (list): List of battery levels at each timestep.
+    #             - distances_per_car (list): List of distances traveled by each token at each timestep.
+    #             - simulats (float): Reward for the simulation.
+    #     """
+    #     # print(f'traffic  results {self.traffic_results.shape}')
+    #     # print(f'battery level results {self.battery_levels_results.shape}')
+
+    #     return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
+    #             self.simulation_reward, self.arrived_at_final
+
+    def get_rewards(self, population_mode) -> np.array:
         """
         Get the results of the simulation.
 
         Returns:
-            tuple: A tuple containing:
-                - paths (list): List of token positions at each timestep.
-                - traffic_per_charger (torch.Tensor): Tensor of traffic levels at each charging station over time.
-                - battery_levels (list): List of battery levels at each timestep.
-                - distances_per_car (list): List of distances traveled by each token at each timestep.
-                - simulats (float): Reward for the simulation.
+            float array: with all the rewards for the episode 
         """
-        return self.path_results, self.traffic_results, self.battery_levels_results, self.distances_results,\
-                self.simulation_reward, self.arrived_at_final
+
+        if not population_mode:
+            self.evaluate_data()
+
+
+        return self.simulation_reward
+
+
+    def init_data_structure(self):
+        # Initialize headers as dtypes for station and agent data
+        if self.data_deepness == 'aggregation_level':
+            print('Saving data deepness == 0 to be implemented')
+            self.station_header = None
+        elif self.data_deepness == 'episode_level':
+            self.station_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("station_index", int),
+                                            ("traffic", float)])
+            self.agent_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("agent_index", int),
+                                            ("car_model", "U20"),
+                                            ("distance", float),
+                                            ("reward", float),
+                                            ("duration", float),
+                                            ("average_battery", float),
+                                            ("ending_battery", float),
+                                            ("starting_battery", float),
+                                            ("timestep_real_world_time", float)])
+
+        elif self.data_deepness == 'timestep_level':
+            self.station_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("timestep", int),
+                                            ("simulation_step", int),
+                                            ("done", bool),
+                                            ("station_index", int),
+                                            ("traffic", float)])
+            self.agent_header = np.dtype([("aggregation", int),
+                                            ("zone", int),
+                                            ("episode", int),
+                                            ("timestep", int),
+                                            ("done", bool),
+                                            ("agent_index", int),
+                                            ("car_model", "U20"),
+                                            ("distance", float),
+                                            ("reward", float),
+                                            ("duration", float),
+                                            ("average_battery", float),
+                                            ("ending_battery", float),
+                                            ("starting_battery", float),
+                                            ("timestep_real_world_time", float)])
+            
+    def evaluate_data(self):  # Evaluation performed every data deepnes level
+        # Collect data using the dtype structure for station and agent data
+        if self.data_deepness == 'aggregation_level':
+            print('Saving data deepness == 0 to be implemented')
+        
+        elif self.data_deepness == 'episode_level':
+            # Collect traffic on stations
+            max_peak = self.traffic_results.max()
+            station_id  = np.unravel_index(np.argmax(self.traffic_results, axis=None),\
+                                                  self.traffic_results.shape)[1]
+            if self.timestep == 0:
+                self.max_peak_ep = max_peak
+                self.max_station_id = station_id
+            elif max_peak > self.max_peak_ep:
+                self.max_peak_ep = max_peak
+                self.max_station_id = station_id
+
+            self.reward_episode += self.simulation_reward
+            self.distances_episode += self.distances_results[-1,:]
+            for agent_idx in range(self.num_cars):
+                duration_agent = self.distances_results[:,agent_idx]
+                self.duration[agent_idx] += np.where(duration_agent.T == duration_agent[-1])[0][0]
+            
+            if self.done:
+                station_data = np.array([(self.aggregation_num,
+                                        self.zone_idx,
+                                        self.episode,
+                                        self.max_station_id,
+                                        self.max_peak_ep)], dtype=self.station_header)
+                self.station_data = np.concatenate((self.station_data,station_data))
+
+                agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
+                for agent_idx, car_model in enumerate(self.car_models):
+                    agent_data[agent_idx] = (self.aggregation_num,
+                                        self.zone_idx,
+                                        self.episode,
+                                        agent_idx,
+                                        car_model[0],
+                                        self.distances_episode[agent_idx] * 100,
+                                        self.reward_episode[agent_idx],
+                                        self.duration[agent_idx],
+                                        self.battery_levels_results[:,agent_idx].mean(),
+                                        self.battery_levels_results[-1,agent_idx],
+                                        self.battery_levels_results[0,agent_idx],
+                                        self.timer.get_elapsed_time())
+                self.agent_data = np.concatenate((self.agent_data, agent_data))
+            
+        elif self.data_deepness == 'timestep_level':
+            # Create an empty structured array (example with capacity for 10*stations entries)
+            station_size = len(self.traffic_results)*len(self.traffic_results[0])
+            station_data = np.zeros(station_size, dtype=self.station_header)
+            current_index = 0
+            #evaluating step in episode
+            for step_ind in range(len(self.traffic_results)):
+                for station_ind in range(len(self.traffic_results[0])):
+                    station_data[current_index] = (self.aggregation_num,
+                                                self.zone_idx,
+                                                self.episode,
+                                                self.timestep,
+                                                step_ind,
+                                                self.done,
+                                                station_ind,
+                                                self.traffic_results[step_ind][station_ind])
+                    current_index += 1
+            self.station_data = np.concatenate((self.station_data,station_data))
+
+            # Loop through the agents in each zone
+            agent_data = np.zeros(self.num_cars, dtype=self.agent_header)
+
+            for agent_idx, car_model in enumerate(self.car_models):
+                distance = self.distances_results[:,agent_idx]
+                duration = np.where(distance.T == distance[-1])[0][0]
+                agent_data[agent_idx] = (self.aggregation_num,
+                                        self.zone_idx,
+                                        self.episode,
+                                        self.timestep,
+                                        self.done,
+                                        agent_idx,
+                                        car_model[0],
+                                        self.distances_results[-1,agent_idx] * 100,
+                                        self.simulation_reward[agent_idx],
+                                        duration,
+                                        self.battery_levels_results[:,agent_idx].mean(),
+                                        self.battery_levels_results[-1,agent_idx],
+                                        self.battery_levels_results[0,agent_idx],
+                                        self.timer.get_elapsed_time())
+            self.agent_data = np.concatenate((self.agent_data, agent_data))
+
 
     def generate_paths(self, distribution, fixed_attributes: list, agent_index: int):
         """
@@ -649,7 +802,7 @@ class EnvironmentClass:
         for step in global_paths:
             self.traffic[step, 1] += 1
 
-    def reset_agent(self, agent_idx: int, timestep_counter: int, is_odt=False, is_madt=False) -> np.ndarray:
+    def reset_agent(self, agent_idx: int, is_odt=False, is_madt=False) -> np.ndarray:
         """
         Reset the agent for a new simulation run.
 
@@ -684,7 +837,7 @@ class EnvironmentClass:
         state = np.hstack((np.vstack((agent_unique_traffic[:, 1], dists)).reshape(-1),
                            np.array([self.num_chargers * 3]), np.array([route_dist]),
                            np.array([self.num_cars]), np.array([self.info['model_indices'][agent_idx]]),
-                           np.array([self.temperature]), np.array([timestep_counter])))
+                           np.array([self.temperature]), np.array([self.timestep])))
         # Update needed: the following line is just a temporary patch, it needs to be optimized so to avoid 
         # performing unnecesary repetitions of the state creation
         # state = torch.cat((
@@ -694,7 +847,7 @@ class EnvironmentClass:
         #     torch.tensor([self.num_cars], device=self.device, dtype=self.dtype),
         #     torch.tensor([self.info['model_indices'][agent_idx]], device=self.device, dtype=self.dtype),
         #     torch.tensor([self.temperature], device=self.device, dtype=self.dtype),
-        #     torch.tensor([timestep_counter], device=self.device, dtype=self.dtype)), dim=0)
+        #     torch.tensor([self.timestep], device=self.device, dtype=self.dtype)), dim=0)
         
         # Normalize the state values
         state = (state - np.mean(state)) / np.std(state)
@@ -716,6 +869,8 @@ class EnvironmentClass:
         self.historical_charges_needed.append(self.charges_needed)
         self.charges_needed = []
         self.local_paths = []
+
+        self.timestep += 1
 
         # Update starting routes
         if self.tokens != None:
@@ -741,6 +896,9 @@ class EnvironmentClass:
             # Sets starting battery to ending battery of last timestep
             self.info['starting_charge'] = self.new_starting_battery.cpu()
 
+        # To record elapsed time
+        self.timer.start_timer()
+
 
     def reset_episode(self, chargers: np.ndarray, routes: np.ndarray, unique_chargers: np.ndarray):
         """
@@ -756,6 +914,10 @@ class EnvironmentClass:
         self.historical_charges_needed = []
         self.local_paths = []
         self.tokens = None
+        self.distances_episode = np.zeros(self.num_cars)
+        self.energy_episode = []
+        self.reward_episode = np.zeros(self.num_cars)
+        self.duration = np.zeros(self.num_cars)
 
         traffic = np.zeros(shape=(unique_chargers.shape[0], 2))
         traffic[:, 0] = unique_chargers['id']
@@ -767,29 +929,34 @@ class EnvironmentClass:
         self.chargers = chargers  # [[[charger id, charger latitude, charger longitude],...],...] (chargers[agent index][charger index][charger property index])
         self.routes = routes  # [[starting latitude, starting longitude, ending latitude, ending longitude],...]
 
-    def cma_store(self):
-        """
-        Store the paths, charges needed, and local paths.
-        """
+        # Registers data station and agents
+        self.station_data = np.empty(0, dtype=self.station_header)  # initially empty
+        self.agent_data = np.empty(0, dtype=self.agent_header)  # initially empty
+        # Reseting timestep
+        self.timestep = -1
 
+        # Increasing +1 episode counter
+        self.episode += 1
+
+    def init_sim(self, aggregation_num):
+        self.aggregation_num = aggregation_num
+        self.episode = -1
+
+
+    def get_data(self):
+        return self.station_data, self.agent_data, self.data_deepness
+
+    def population_mode_store(self):
         self.store_paths = copy.deepcopy(self.paths)
         self.store_charges_needed = copy.deepcopy(self.charges_needed)
         self.store_local_paths = copy.deepcopy(self.local_paths)
 
-    def cma_copy_store(self):
-        """
-        Copy the stored paths, charges needed, and local paths.
-        """
-
+    def population_mode_copy_store(self):
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
 
-    def cma_clean(self):
-        """
-        Clean the paths, charges needed, and local paths.
-        """
-
+    def population_mode_clean(self):
         self.paths = copy.deepcopy(self.store_paths)
         self.charges_needed = copy.deepcopy(self.store_charges_needed)
         self.local_paths = copy.deepcopy(self.store_local_paths)
@@ -799,16 +966,10 @@ class EnvironmentClass:
         self.store_local_paths = []
 
 if __name__ == "__main__":
-    """
-    Run this file to save the temperature data for usage on DRAC.
-    Note that below specifies the seed and coordinate combinations to save.
-    """
-
     seeds = [1234, 5555, 2020, 2468, 11110, 4040, 3702, 16665, 6002, 6060]
     coords_list = [[43.02120034946083, -81.28349087468504],
                    [43.004969336049854, -81.18631870502043],
                    [42.95923445066671, -81.26016049362336],
                    [42.98111190139387, -81.30953935839466],
                    [42.9819404397449, -81.2508736429095]]
-    
     save_temps(coords_list, seeds)
