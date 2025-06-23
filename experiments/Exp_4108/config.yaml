@@ -99,10 +99,6 @@ odt_hyperparameters:
   online_rtg: -60
   ordering: 0
   replay_size: 500
-  save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-<<<<<<< HEAD
-  offline_dataset_path: ./
-=======
->>>>>>> 53111c9d5d9b8ee2b49494f4e961a65009259cae
+  offline_dataset_path: "/home/epigou/rl-for-vrp-csp/metrics/Exp_3000/"
