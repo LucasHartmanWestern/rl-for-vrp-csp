@@ -109,7 +109,7 @@ def save_temps(coords_list: list, seed_list: list):
 
 def get_temps_from_file(coords: list, seed: int, season: str):
     # Define the CSV file path
-    csv_file_path = 'merl_env/temps/temperatures.csv'
+    csv_file_path = 'environment/data/temperatures.csv'
     
     print("Getting temps from file")
 

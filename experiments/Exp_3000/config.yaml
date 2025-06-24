@@ -36,7 +36,7 @@ environment_settings:
   - 9360
 eval_config:
   continue_training: false
-  display_training_times: false
+  display_training_times: True
   evaluate_on_diff_seed: false
   evaluate_on_diff_zone: false
   fixed_attributes: []
@@ -94,4 +94,4 @@ odt_hyperparameters:
   replay_size: 500
   warmup_steps: 10000
   weight_decay: 0.0005
-  dataset_path: "/home/epigou/rl-for-vrp-csp/Exp_3000/"
+  dataset_path: "/home/epigou/rl-for-vrp-csp/metrics/Exp_3000/"
