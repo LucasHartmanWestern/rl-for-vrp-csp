@@ -253,6 +253,12 @@ def main_loop(args):
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count']}"
                 print_l(f"\n\n############ Aggregation {agg_print} ############\n\n",)
 
+                # queue = mp.Queue()
+                # writer_process = mp.Process(target=writer, args=(queue, file_path))
+                # writer_process.start()
+                lock = mp.Lock()
+
+                
                 # Check if we have only one zone - if so, don't use multiprocessing
                 if len(chargers) == 1:
                     print("Only one zone detected, running without multiprocessing")
@@ -262,7 +268,7 @@ def main_loop(args):
                     process_buffers = [None]
                     
                     # Run directly without multiprocessing
-                    train_route(ev_info, metrics_base_path, experiment_number, chargers[0],\
+                    train_route(lock, ev_info, metrics_base_path, experiment_number, chargers[0],\
                                 copy.deepcopy(environment_list[0]), all_routes[0], date, 
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
@@ -288,7 +294,7 @@ def main_loop(args):
                     processes = []
                     for ind, charger_list in enumerate(chargers):
                         # Create arguments tuple for each process
-                        args_tuple = (ev_info, metrics_base_path, experiment_number, charger_list,\
+                        args_tuple = (lock, ev_info, metrics_base_path, experiment_number, charger_list,\
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
