@@ -19,7 +19,7 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
     for experiment_number in range(start_experiment, end_experiment + 1):
         try:
             # Load config.yaml file for experiment
-            config_file = os.path.join(f"../experiments/Exp_{experiment_number}", "config.yaml")
+            config_file = os.path.join(f"experiments/Exp_{experiment_number}", "config.yaml")
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
 
