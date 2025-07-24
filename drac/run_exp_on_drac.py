@@ -42,7 +42,7 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
             print(f"Error loading config.yaml file for experiment {experiment_number}: {e}")
             continue
 
-        cmd = f"sbatch ../experiments/Exp_{experiment_number}/{'eval' if eval else 'train'}_job.sh"
+        cmd = f"sbatch experiments/Exp_{experiment_number}/{'eval' if eval else 'train'}_job.sh"
         print(f"Running command: {cmd}")
         try:
             subprocess.run(cmd, shell=True)
