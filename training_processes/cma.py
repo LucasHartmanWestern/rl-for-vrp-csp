@@ -5,13 +5,15 @@ import time
 import copy
 import torch
 import numpy as np
+import torch.multiprocessing as mp
 
 from decision_makers.cma_agent import CMAAgent
 from environment.data_loader import save_to_csv, load_config_file
 from environment._pathfinding import haversine
 
 
-def train_cma(lock, 
+def train_cma(lock,
+              queue,
               ev_info, 
               metrics_base_path,
               experiment_number,
@@ -87,7 +89,9 @@ def train_cma(lock,
     num_agents = 1 if agent_by_zone else num_cars  # Determine number of agents based on assignment mode
 
     run_mode = 'Evaluating' if args.eval else "Training"
-    log_path = f'logs/{date}-{run_mode}_logs.txt'
+    # log_path = f'logs/{date}-{run_mode}_logs.txt'
+    # Get logging functions
+    print_l, print_elapsed_time = print_log(queue)
     metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
     
     # Initialize CMA agents
@@ -242,20 +246,30 @@ def train_cma(lock,
         avg_rewards.append((avg_reward, aggregation_num, zone_index, main_seed))  
         
         # Print information at the log and command line
-        if verbose:
-            elapsed_time = time.time() - start_time
+        if verbose:            
+            # to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
+            #             f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
+            #             f'avg reward {avg_rewards[-1][0]:.3f}'
+            # elapsed_time = time.time() - start_time
+            # print_log(to_print, log_path, elapsed_time)
+
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
                         f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
                         f'avg reward {avg_rewards[-1][0]:.3f}'
-            print_log(to_print, log_path, elapsed_time)
+            print_elapsed_time(to_print, start_time)
+            
+            
 
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:
             best_avg = avg_reward
             if verbose:
+                # to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
+                #             f' - New Best: {best_avg:.3f}')
+                # print_log(to_print, log_path, None)
                 to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
                             f' - New Best: {best_avg:.3f}')
-                print_log(to_print, log_path, None)
+                print_l(to_print)
 
         # Store the average weights for the generation
         avg_output_values[generation] = generation_weights.mean(axis=0)  
@@ -264,8 +278,11 @@ def train_cma(lock,
 
     # Retrieve and print results for the best population after evolution
     final_rewards = environment.get_rewards(population_mode=True)
-    print(f'Rewards for population evolution: {final_rewards.mean():.3f}'+\
-          f' after {cma_info.max_generation} generations')
+    # print(f'Rewards for population evolution: {final_rewards.mean():.3f}'+\
+    #       f' after {cma_info.max_generation} generations')
+    to_print = f'Rewards for population evolution: {final_rewards.mean():.3f}'+\
+               f' after {cma_info.max_generation} generations'
+    print_l(to_print)
 
     # Save the trained models to disk
     folder_path = 'saved_networks'
@@ -299,21 +316,42 @@ def train_cma(lock,
     return weights_list, avg_rewards, avg_output_values, None
 
 
-def print_log(label, log_path, et):
+# def print_log(label, log_path, et):
+#     """
+#     Prints log messages to the console and a file.
+
+#     Parameters:
+#         label (str): The log message.
+#         date (str): The current date.
+#         et (float): Elapsed time since the start of training.
+#     """
+#     if et != None:
+#         to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
+#     else:
+#         to_print = label
+#     with open(log_path, 'a') as file:
+#         print(to_print, file=file)
+#     print(to_print)
+
+def print_log(queue: mp.Queue):
     """
-    Prints log messages to the console and a file.
+    Returns logging functions that place messages in the shared queue.
 
     Parameters:
-        label (str): The log message.
-        date (str): The current date.
-        et (float): Elapsed time since the start of training.
+        queue (mp.Queue): Queue shared with log_writer
+
+    Returns:
+        print_l (function): Enqueue a log message
+        print_elapsed_time (function): Enqueue an elapsed time message
     """
-    if et != None:
-        to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
-    else:
-        to_print = label
-    with open(log_path, 'a') as file:
-        print(to_print, file=file)
-    print(to_print)
+    def print_l(to_print):
+        queue.put(to_print)
+
+    def print_elapsed_time(msg, start_t):
+        et = time.time() - start_t
+        h = f"{int(et // 3600):02}:{int((et % 3600) // 60):02}:{int(et % 60):02}"
+        queue.put(f'{msg} - {h}')
+
+    return print_l, print_elapsed_time
 
     
