@@ -226,31 +226,58 @@ def read_excel_data(file_path, sheet_name):
     df = pd.read_excel(file_path, sheet_name=sheet_name)
     return df
 
+# def save_to_csv(data, filename, append=False):
+#     mode = 'a' if append else 'w'
+#     file_exists = os.path.isfile(filename)
+#     if isinstance(data[0], dict):
+#         keys = data[0].keys()  # Extract the headers from the first dictionary
+#         with open(filename, mode, newline='') as file:
+#             writer = csv.DictWriter(file, fieldnames=keys)
+#             if not append or not file_exists:
+#                 writer.writeheader()  # Write header if not appending or file doesn't exist
+#             writer.writerows(data)  # Write data rows
+#     elif isinstance(data, np.ndarray):
+#         df = pd.DataFrame(data)
+#         if not append or not file_exists:
+#             # First write, include header
+#             df.to_csv(filename, index=False)
+#         else:
+#             df.to_csv(filename, mode=mode, header=False, index=False)
+        
+#     else:
+#         # If data is a list of lists or other structure
+#         with open(filename, mode, newline='') as file:
+#             writer = csv.writer(file)
+#             if not append or not file_exists:
+#                 writer.writerow(data[0])  # Write header if not appending or file doesn't exist
+#             writer.writerows(data)  # Write rows for lists of lists
+
 def save_to_csv(data, filename, append=False):
     mode = 'a' if append else 'w'
     file_exists = os.path.isfile(filename)
+
+    def flush_file(file_obj):
+        file_obj.flush()
+        os.fsync(file_obj.fileno())
+
     if isinstance(data[0], dict):
         keys = data[0].keys()  # Extract the headers from the first dictionary
-        with open(filename, mode, newline='') as file:
+        with open(filename, mode, newline='', encoding='utf-8') as file:
             writer = csv.DictWriter(file, fieldnames=keys)
             if not append or not file_exists:
-                writer.writeheader()  # Write header if not appending or file doesn't exist
-            writer.writerows(data)  # Write data rows
+                writer.writeheader()
+            writer.writerows(data)
+            flush_file(file)
+
     elif isinstance(data, np.ndarray):
         df = pd.DataFrame(data)
-        if not append or not file_exists:
-            # First write, include header
-            df.to_csv(filename, index=False)
-        else:
-            df.to_csv(filename, mode=mode, header=False, index=False)
-        
-    else:
-        # If data is a list of lists or other structure
-        with open(filename, mode, newline='') as file:
-            writer = csv.writer(file)
+        with open(filename, mode, newline='', encoding='utf-8') as file:
             if not append or not file_exists:
-                writer.writerow(data[0])  # Write header if not appending or file doesn't exist
-            writer.writerows(data)  # Write rows for lists of lists
+                df.to_csv(file, index=False)
+            else:
+                df.to_csv(file, header=False, index=False)
+            flush_file(file)
+    data = None
 
 
 def read_csv_data(filename, columns=None):
