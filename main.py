@@ -541,18 +541,25 @@ def main_loop(args):
     log_queue.put("__STOP__")
     log_proc.join()
 
+
 def log_writer(queue: mp.Queue, log_path: str, with_log: bool = True):
     """
     Dedicated log writer process function.
-    Continuously listens for messages from the queue and writes them.
+    Waits for messages from the queue and writes them to file/console.
+    Closes the file immediately after writing and flushes OS-level cache.
     """
-    with open(log_path, 'a', encoding='utf-8') if with_log else open(os.devnull, 'w') as file:
-        while True:
-            msg = queue.get()
-            if msg == "__STOP__":
-                break
-            print(msg, file=file)
-            print(msg, flush=True)
+    while True:
+        msg = queue.get()
+        if msg == "__STOP__":
+            break
+
+        if with_log:
+            with open(log_path, 'a', encoding='utf-8') as file:
+                print(msg, file=file)
+                file.flush()                   # flush Python I/O buffer
+                os.fsync(file.fileno())        # flush OS buffer to disk
+
+        print(msg, flush=True)
 
 def print_log(queue: mp.Queue):
     """
