@@ -39,6 +39,7 @@ environment_settings:
   - 9840
   - 8460
   - 9360
+  saving_data_deepness: timestep_level # level per: aggregation, episode, timestep
 eval_config:
   continue_training: false
   display_training_times: false
