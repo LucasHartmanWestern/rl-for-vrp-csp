@@ -165,14 +165,27 @@ def main_loop(args):
     if (run_mode == "Evaluating") or (load_existing_model):
         global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
-    # Start log writer process
-    log_path = f'{logs_dir}/{date}-{run_mode}_logs.txt'
-    log_queue = mp.Queue()
-    log_proc = mp.Process(target=log_writer, args=(log_queue, log_path, verbose))
-    log_proc.start()
+    # # Start log writer process
+    # log_path = f'{logs_dir}/{date}-{run_mode}_logs.txt'
+    # log_queue = mp.Queue()
+    # log_proc = mp.Process(target=log_writer, args=(log_queue, log_path, verbose))
+    # log_proc.start()
 
-    print_l, print_et = print_log(log_queue)
+    # print_l, print_et = print_log(log_queue)
+    # print_l(f"Saving metrics to base path: {metrics_with_sub_dir}", )
+
+    # Start writer proccess
+    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+    log_path = f'{logs_dir}/{date}-{run_mode}_logs.txt'
+    queue = mp.Queue()
+    data_level = env_c['saving_data_deepness']
+    writer_process = mp.Process(target=multiprocess_writer, 
+                                args=(queue, log_path, metrics_path, data_level, verbose))
+    writer_process.start()
+
+    print_l, print_et = printer_queue(queue)
     print_l(f"Saving metrics to base path: {metrics_with_sub_dir}", )
+
     
     # If evaluating on different seed, change the seed using round robin
     if eval_c['evaluate_on_diff_seed'] or args.eval:
@@ -259,8 +272,6 @@ def main_loop(args):
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count']}"
                 print_l(f"\n\n############ Aggregation {agg_print} ############\n\n",)
 
-                lock = mp.Lock()
-
                 
                 # Check if we have only one zone - if so, don't use multiprocessing
                 if len(chargers) == 1:
@@ -271,7 +282,7 @@ def main_loop(args):
                     process_buffers = [None]
                     
                     # Run directly without multiprocessing
-                    train_route(lock, log_queue, ev_info, metrics_base_path, experiment_number, chargers[0],\
+                    train_route(queue, ev_info, experiment_number, chargers[0],\
                                 copy.deepcopy(environment_list[0]), all_routes[0], date, 
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'], \
@@ -297,7 +308,7 @@ def main_loop(args):
                     processes = []
                     for ind, charger_list in enumerate(chargers):
                         # Create arguments tuple for each process
-                        args_tuple = (lock, log_queue, ev_info, metrics_base_path, experiment_number, charger_list,\
+                        args_tuple = (queue, ev_info, experiment_number, charger_list,\
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
@@ -433,7 +444,7 @@ def main_loop(args):
                     weights_to_save = [None]
 
                     # Run directly without multiprocessing
-                    train_route(lock, log_queue, ev_info, metrics_base_path, experiment_number, chargers[0],\
+                    train_route(queue, ev_info, experiment_number, chargers[0],\
                                 copy.deepcopy(environment_list[0]), all_routes[0], date,\
                                 action_dim, global_weights, aggregate_step, 0, algorithm_dm,\
                                 chargers_seeds[0], seed, args, eval_c['fixed_attributes'],\
@@ -455,7 +466,7 @@ def main_loop(args):
 
                     processes = []
                     for ind, charger_list in enumerate(chargers):
-                        args_tuple = (lock, log_queue, ev_info, metrics_base_path, experiment_number, charger_list,\
+                        args_tuple = (queue, ev_info, experiment_number, charger_list,\
                                   copy.deepcopy(environment_list[ind]), all_routes[ind], date,\
                                   action_dim, global_weights, aggregate_step, ind, algorithm_dm,\
                                   chargers_seeds[ind], seed, args, eval_c['fixed_attributes'],\
@@ -538,30 +549,39 @@ def main_loop(args):
     print_et(f'Experiment_number: {experiment_number}, run time', start_time, )
 
     # Stop the logger
-    log_queue.put("__STOP__")
-    log_proc.join()
+    queue.put("__STOP__")
+    writer_process.join()
 
 
-def log_writer(queue: mp.Queue, log_path: str, with_log: bool = True):
+def multiprocess_writer(queue: mp.Queue, log_path: str, metrics_path: str, data_level: str, verbose: bool):
     """
-    Dedicated log writer process function.
-    Waits for messages from the queue and writes them to file/console.
-    Closes the file immediately after writing and flushes OS-level cache.
+    A general-purpose multiprocess writer that listens for messages
+    tagged as 'csv', 'log', or 'time elapsed', and handles them accordingly.
     """
     while True:
         msg = queue.get()
         if msg == "__STOP__":
             break
 
-        if with_log:
-            with open(log_path, 'a', encoding='utf-8') as file:
-                print(msg, file=file)
-                file.flush()                   # flush Python I/O buffer
-                os.fsync(file.fileno())        # flush OS buffer to disk
+        tag = msg.get("tag")
 
-        print(msg, flush=True)
+        if tag == "csv":
+            station_data = msg["station_data"]
+            agent_data = msg["agent_data"]
+            save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
+            save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
 
-def print_log(queue: mp.Queue):
+        elif tag == "log":
+            text = msg["data"]
+            if verbose:
+                with open(log_path, 'a', encoding='utf-8') as file:
+                    print(text, file=file)
+                    file.flush()                   # flush Python I/O buffer
+                    os.fsync(file.fileno())        # flush OS buffer to disk
+    
+            print(text, flush=True)
+
+def printer_queue(queue: mp.Queue):
     """
     Returns logging functions that place messages in the shared queue.
 
@@ -573,40 +593,22 @@ def print_log(queue: mp.Queue):
         print_elapsed_time (function): Enqueue an elapsed time message
     """
     def print_l(to_print):
-        queue.put(to_print)
+        queue.put({
+            'tag':'log',
+            'data': to_print
+        })
 
     def print_elapsed_time(msg, start_t):
         et = time.time() - start_t
         h = f"{int(et // 3600):02}:{int((et % 3600) // 60):02}:{int(et % 60):02}"
-        queue.put(f'{msg} - {h}')
+        queue.put({
+            'tag':'log',
+            'data': f'{msg} - {h}'
+        })
 
-    return print_l, print_elapsed_time
+    return print_l, print_elapsed_time    
+    
 
-# def print_log(log_path, queue, with_log=True):
-#     """
-#     Print log to file and console
-
-#     Parameters:
-#         log_path (str): Path to the log file
-#         with_log (bool): Whether to print to file
-
-#     Returns:
-#         print_l (function): Function to print log to file and console
-#         print_elapsed_time (function): Function to print elapsed time
-#     """
-
-#     def print_l(to_print):
-#         if with_log:
-#             with open(log_path, 'a', encoding='utf-8') as file:
-#                 print(to_print, file=file)
-#         print(to_print)
-
-#     def print_elapsed_time(msg, start_t):
-#         et = time.time()-start_t
-#         h = f"{str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}"
-#         print_l(f'{msg} - {h}')
-
-#     return print_l, print_elapsed_time
 
 
 if __name__ == '__main__':

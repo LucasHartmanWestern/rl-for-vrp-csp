@@ -944,7 +944,7 @@ class EnvironmentClass:
 
 
     def get_data(self):
-        return self.station_data, self.agent_data, self.data_deepness
+        return self.station_data, self.agent_data
 
     def population_mode_store(self):
         self.store_paths = copy.deepcopy(self.paths)

@@ -12,10 +12,8 @@ from environment.data_loader import save_to_csv, load_config_file
 from environment._pathfinding import haversine
 
 
-def train_cma(lock,
-              queue,
+def train_cma(queue,
               ev_info, 
-              metrics_base_path,
               experiment_number,
               chargers, environment,
               routes, date,
@@ -91,8 +89,7 @@ def train_cma(lock,
     run_mode = 'Evaluating' if args.eval else "Training"
     # log_path = f'logs/{date}-{run_mode}_logs.txt'
     # Get logging functions
-    print_l, print_elapsed_time = print_log(queue)
-    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
+    print_l, print_et = printer_queue(queue)
     
     # Initialize CMA agents
     cma_agents_list = []
@@ -234,10 +231,14 @@ def train_cma(lock,
           
        
         # Saving data per episode
-        station_data, agent_data, data_level = environment.get_data()
-        with lock:
-            save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
-            save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
+        station_data, agent_data = environment.get_data()
+        # Saving as CSV data using the the writer proccess
+        queue.put({
+            'tag': 'csv',
+            'station_data': station_data,
+            'agent_data': agent_data
+        })
+
         station_data = None
         agent_data = None
         
@@ -247,26 +248,15 @@ def train_cma(lock,
         
         # Print information at the log and command line
         if verbose:            
-            # to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
-            #             f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
-            #             f'avg reward {avg_rewards[-1][0]:.3f}'
-            # elapsed_time = time.time() - start_time
-            # print_log(to_print, log_path, elapsed_time)
-
             to_print = f'(Aggregation: {aggregation_num + 1} Zone: {zone_index + 1} ' +\
                         f'Generation: {generation + 1}/{cma_info.max_generation}) -'+\
                         f'avg reward {avg_rewards[-1][0]:.3f}'
-            print_elapsed_time(to_print, start_time)
+            print_et(to_print, start_time)
             
-            
-
         # Compare each generation's best reward and save scores and actions
         if avg_reward > best_avg:
             best_avg = avg_reward
             if verbose:
-                # to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
-                #             f' - New Best: {best_avg:.3f}')
-                # print_log(to_print, log_path, None)
                 to_print = (f' Zone: {zone_index + 1} Gen: {generation + 1}/{cma_info.max_generation}'+\
                             f' - New Best: {best_avg:.3f}')
                 print_l(to_print)
@@ -316,24 +306,7 @@ def train_cma(lock,
     return weights_list, avg_rewards, avg_output_values, None
 
 
-# def print_log(label, log_path, et):
-#     """
-#     Prints log messages to the console and a file.
-
-#     Parameters:
-#         label (str): The log message.
-#         date (str): The current date.
-#         et (float): Elapsed time since the start of training.
-#     """
-#     if et != None:
-#         to_print = f"{label}\t - et {str(int(et // 3600)).zfill(2)}:{str(int(et // 60) % 60).zfill(2)}:{str(int(et % 60)).zfill(2)}.{int((et * 1000) % 1000)}"
-#     else:
-#         to_print = label
-#     with open(log_path, 'a') as file:
-#         print(to_print, file=file)
-#     print(to_print)
-
-def print_log(queue: mp.Queue):
+def printer_queue(queue: mp.Queue):
     """
     Returns logging functions that place messages in the shared queue.
 
@@ -345,13 +318,19 @@ def print_log(queue: mp.Queue):
         print_elapsed_time (function): Enqueue an elapsed time message
     """
     def print_l(to_print):
-        queue.put(to_print)
+        queue.put({
+            'tag':'log',
+            'data': to_print
+        })
 
     def print_elapsed_time(msg, start_t):
         et = time.time() - start_t
         h = f"{int(et // 3600):02}:{int((et % 3600) // 60):02}:{int(et % 60):02}"
-        queue.put(f'{msg} - {h}')
+        queue.put({
+            'tag':'log',
+            'data': f'{msg} - {h}'
+        })
 
-    return print_l, print_elapsed_time
+    return print_l, print_elapsed_time   
 
     
