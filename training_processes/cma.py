@@ -10,6 +10,7 @@ import torch.multiprocessing as mp
 from decision_makers.cma_agent import CMAAgent
 from environment.data_loader import save_to_csv, load_config_file
 from environment._pathfinding import haversine
+from training_processes.writer_proccess import printer_queue
 
 
 def train_cma(queue,
@@ -27,8 +28,8 @@ def train_cma(queue,
               agent_by_zone,
               variant,
               args,
-              fixed_attributes,
-              verbose,
+              fixed_attributes=None,
+              verbose=False,
               display_training_times=False,
               dtype=torch.float32,
               save_offline_data=False,
@@ -304,33 +305,6 @@ def train_cma(queue,
     torch.cuda.empty_cache()
    
     return weights_list, avg_rewards, avg_output_values, None
-
-
-def printer_queue(queue: mp.Queue):
-    """
-    Returns logging functions that place messages in the shared queue.
-
-    Parameters:
-        queue (mp.Queue): Queue shared with log_writer
-
-    Returns:
-        print_l (function): Enqueue a log message
-        print_elapsed_time (function): Enqueue an elapsed time message
-    """
-    def print_l(to_print):
-        queue.put({
-            'tag':'log',
-            'data': to_print
-        })
-
-    def print_elapsed_time(msg, start_t):
-        et = time.time() - start_t
-        h = f"{int(et // 3600):02}:{int((et % 3600) // 60):02}:{int(et % 60):02}"
-        queue.put({
-            'tag':'log',
-            'data': f'{msg} - {h}'
-        })
-
-    return print_l, print_elapsed_time   
+  
 
     

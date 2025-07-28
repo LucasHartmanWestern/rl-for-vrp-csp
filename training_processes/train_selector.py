@@ -94,11 +94,3 @@ def train_route(queue, ev_info, experiment_number, chargers, environment, routes
         traceback.print_exc()
         sys.exit(1) # Exit the program with a non-zero status
 
-# def writer_file(queue):
-#     def writer(file_path)
-#     with open(file_path, 'wb') as f:
-#         while True:
-#             item = queue.get()
-#             if item is None:
-#                 break
-#             torch.save(item, f)

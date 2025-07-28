@@ -13,14 +13,33 @@ from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft
 from environment.data_loader import load_config_file, save_to_csv
 from environment._pathfinding import haversine
 from misc.utils import format_data, save_to_h5, save_temp_checkpoint
+from training_processes.writer_proccess import printer_queue
 
 # Define the experience tuple
 Experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
-def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
-):
+def train_dqn(queue, 
+              ev_info, 
+              experiment_number, 
+              chargers, environment, 
+              routes, date, 
+              action_dim, 
+              global_weights, 
+              aggregation_num, 
+              zone_index,
+              seed, 
+              main_seed, 
+              device, 
+              agent_by_zone, 
+              variant, 
+              args,
+              fixed_attributes=None,
+              verbose=False, 
+              display_training_times=False,
+              dtype=torch.float32,
+              save_offline_data=False, 
+              train_model=True, 
+              old_buffers=None):
 
     """
     Trains a Deep Q-Network (DQN) for Electric Vehicle (EV) routing and charging optimization.
@@ -104,9 +123,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
     num_cars = environment.num_cars
 
     run_mode = 'Evaluating' if args.eval else "Training"
-    log_path = f'logs/{date}-{run_mode}_logs.txt'
-    metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-
+    print_l, print_et = printer_queue(queue)
+    
     if agent_by_zone:  # Use same NN for each zone
         # Initialize networks
         num_agents = 1
@@ -244,9 +262,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 t4 = time.time()
 
                 if car_idx == 0 and display_training_times:
-                    print_time("Get actions", (t2 - t1))
-                    print_time("Get distributions", (t3 - t2))
-                    print_time("Generate paths in environment", (t4 - t3))
+                    print_l("Get actions", (t2 - t1))
+                    print_l("Get distributions", (t3 - t2))
+                    print_l("Generate paths in environment", (t4 - t3))
 
             if num_episodes == 1 and fixed_attributes is None:
                 if os.path.isfile(f'outputs/best_paths/route_{zone_index}_seed_{main_seed}.npy'):
@@ -257,12 +275,11 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
 
             # Calculate the average values of the output neurons for this episode
             episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
-
-            time_end_paths = time.time() - time_start_paths
+            avg_output_values.append((episode_avg_output_values.tolist(), i,\
+                                      aggregation_num, zone_index, main_seed))
 
             if display_training_times:
-                print_time('Get Paths', time_end_paths)
+                print_et('Get Paths', time_start_paths)
 
             ########### GET SIMULATION RESULTS ###########
 
@@ -337,10 +354,9 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         et = time.time() - st
 
         if verbose and trained:
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(f'Trained for {et:.3f}s', file=file)  # Print training time with 3 decimal places
-
-            print(f'Trained for {et:.3f}s')  # Print training time with 3 decimal places
+            to_print = f'Trained for {et:.3f}s'
+            print_l(to_print)
+            
 
         epsilon *= epsilon_decay  # Decay epsilon
         if train_model:
@@ -352,7 +368,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
         base_path = f'saved_networks/Experiment {experiment_number}'
 
         if ((i + 1) % target_network_update_frequency == 0) and len(buffers[agent_ind]) >= batch_size:
-            print(f'Updating target network at episode {i}')
+            to_print = f'Updating target network at episode {i}'
+            print_l(to_print)
             if agent_by_zone:                
                 soft_update(target_q_networks[0], q_networks[0])
 
@@ -368,6 +385,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                         os.makedirs(base_path)
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
+            metrics_base_path = f"{eval_c['save_path_metrics']}_{experiment_number}"
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
             checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path), f"temp/Exp_{experiment_number}_checkpoints")
             os.makedirs(checkpoint_dir, exist_ok=True)
@@ -391,7 +409,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
                 with h5py.File(temp_path, "r") as f:
                     _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
             except Exception as e:
-                print(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
+                print_l(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
                 os.remove(temp_path)
                 trajectories.clear()
                 continue
@@ -415,9 +433,14 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             trajectories.clear()
 
         # Saving data per episode
-        station_data, agent_data, data_level = environment.get_data()
-        save_to_csv(station_data, f'{metrics_path}/metrics_station_{data_level}.csv', True)
-        save_to_csv(agent_data, f'{metrics_path}/metrics_agent_{data_level}.csv', True)
+        station_data, agent_data = environment.get_data()
+        # Saving as CSV data using the the writer proccess
+        queue.put({
+            'tag': 'csv',
+            'station_data': station_data,
+            'agent_data': agent_data
+        })
+
         station_data = None
         agent_data = None
         
@@ -425,7 +448,7 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             best_avg = avg_reward
             best_paths = paths_copy
             if verbose:
-                print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
+                print_l(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
         avg_ir = 0
         ir_count = 0
@@ -443,15 +466,8 @@ def train_dqn(ev_info, metrics_base_path, experiment_number, chargers, environme
             f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
             f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
             f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(to_print, file=file)
+            print_l(to_print)
 
-            print(to_print)
-
-    np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
+    # np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
     return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, buffers
-
-
-def print_time(label, time):
-    print(f"{label} - {int(time // 3600)}h, {int((time % 3600) // 60)}m, {int(time % 60)}s")
