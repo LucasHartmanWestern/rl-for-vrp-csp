@@ -39,6 +39,7 @@ environment_settings:
   - 9840
   - 8460
   - 9360
+  saving_data_deepness: timestep_level # level per: aggregation, episode, timestep
 eval_config:
   continue_training: false
   display_training_times: false
@@ -52,7 +53,7 @@ eval_config:
   save_path_metrics: ../../../storage_1/metrics/Exp
   verbose: true
 federated_learning_settings:
-  aggregation_count: 50
+  aggregation_count: 5
   city_multiplier: 0.15
   model_multiplier: 0.5
   zone_multiplier: 0.35
