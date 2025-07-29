@@ -7,7 +7,6 @@ cma_parameters:
   model_type: optimizer
   population_dimension: 20
 environment_settings:
-  reward_version: 2
   action_dim: 3
   coords:
   - - 43.02120034946083
@@ -34,6 +33,8 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 3
   radius: 20
+  reward_version: 2
+  saving_data_deepness: episode_level
   season: winter
   seed: 1234
   starting_charge: 6000

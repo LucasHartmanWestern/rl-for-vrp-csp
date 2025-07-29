@@ -3,7 +3,7 @@ algorithm_settings:
   algorithm: CMA
 cma_parameters:
   initial_sigma: 0.1
-  max_generations: 10000 
+  max_generations: 10000
   model_type: optimizer
   population_dimension: 20
 environment_settings:
@@ -31,6 +31,7 @@ environment_settings:
   num_of_cars: 100
   num_of_chargers: 1
   radius: 20
+  saving_data_deepness: episode_level
   season: summer
   seed: 5555
   starting_charge: 6000
@@ -50,7 +51,6 @@ eval_config:
   save_data: true
   save_offline_data: true
   save_path_metrics: ../../../storage_1/metrics/Exp
-  # save_path_metrics: ../metrics/Exp
   verbose: true
 federated_learning_settings:
   aggregation_count: 1

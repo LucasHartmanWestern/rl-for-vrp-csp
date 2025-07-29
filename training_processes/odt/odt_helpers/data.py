@@ -63,11 +63,6 @@ class TransformSamplingSubTraj:
         self.state_mean = state_mean
         self.state_std = state_std
         self.reward_scale = reward_scale
-
-        # For some datasets there are actions with values 1.0/-1.0 which is problematic
-        # for the SquahsedNormal distribution. The inversed tanh transformation will
-        # produce NAN when computing the log-likelihood. We clamp them to be within
-        # the user defined action range.
         self.action_range = action_range
 
     def __call__(self, traj):

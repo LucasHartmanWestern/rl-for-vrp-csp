@@ -33,6 +33,7 @@ environment_settings:
   num_of_cars: 5
   num_of_chargers: 3
   radius: 20
+  saving_data_deepness: episode_level
   season: winter
   seed: 2020
   starting_charge: 6000
@@ -50,7 +51,7 @@ eval_config:
   generate_plots: false
   save_aggregate_rewards: false
   save_data: false
-  save_offline_data: False
+  save_offline_data: false
   save_path_metrics: metrics/Exp
   verbose: true
 federated_learning_settings:
@@ -100,8 +101,8 @@ odt_hyperparameters:
   num_updates_per_pretrain_iter: 500
   online_rtg: -60
   ordering: 0
+  persist_buffers: true
   replay_size: 500
   save_dir: ./exp
   warmup_steps: 10000
   weight_decay: 0.0005
-  persist_buffers: True

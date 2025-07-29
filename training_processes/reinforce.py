@@ -11,7 +11,7 @@ import h5py
 from decision_makers.reinforce_agent import initialize, agent_learn, get_actions, save_model
 from environment.data_loader import load_config_file
 from environment._pathfinding import haversine
-from misc.utils import format_data, save_to_h5
+from .odt.odt_helpers.utils import format_data, save_to_h5, save_temp_checkpoint
 from training_processes.writer_proccess import printer_queue
 
 def train_reinforce(queue,

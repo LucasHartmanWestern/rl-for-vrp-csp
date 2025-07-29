@@ -7,13 +7,13 @@ LICENSE.md file in the root directory of this source tree.
 
 from datetime import datetime
 import os
-from misc import utils
+from . import utils
 
 
 class Logger:
-    def __init__(self, variant, agg_num, zone):
+    def __init__(self, save_dir, experiment_number, agg_num, zone):
 
-        self.log_path = self.create_log_path(variant, agg_num, zone)
+        self.log_path = f"{save_dir}/Exp_{experiment_number}/Agg:{agg_num}-Zone:{zone}"
         utils.mkdir(self.log_path)
         print(f"Experiment log path: {self.log_path}")
 
@@ -30,9 +30,3 @@ class Logger:
                         v,
                         total_transitions_sampled,
                     )
-
-    def create_log_path(self, variant, agg_num, zone):
-        #now = datetime.now().strftime("%Y.%m.%d/%H%M%S")
-        exp_name = variant["exp_name"]
-        prefix = variant["save_dir"]
-        return f"{prefix}/Exp_{exp_name}/Agg:{agg_num}-Zone:{zone}"
