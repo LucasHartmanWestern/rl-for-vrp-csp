@@ -122,7 +122,7 @@ def train_dqn(queue,
 
     num_cars = environment.num_cars
 
-    run_mode = 'Evaluating' if args.eval else "Training"
+    # Calling log and console printer standardized
     print_l, print_et = printer_queue(queue)
     
     if agent_by_zone:  # Use same NN for each zone
@@ -174,15 +174,13 @@ def train_dqn(queue,
         buffers = old_buffers
 
     trajectories = []
-
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
-
-    environment.init_sim(aggregation_num)
-
     avg_output_values = [] # List to store the average values of output neurons for each episode
 
+    # Initialize simulation for the aggregation step
+    environment.init_sim(aggregation_num)
     for i in range(num_episodes): # For each episode
         if save_offline_data:
             trajectories.extend([
@@ -205,27 +203,24 @@ def train_dqn(queue,
         states = []
         rewards = []
         dones = []
+        
         # Episode includes every car reaching their destination
         environment.reset_episode(chargers, routes, unique_chargers)  
-
         sim_done = False
-
         time_start_paths = time.time()
 
         new_rewards = []
         list_rewards= []
 
         while not sim_done:  # Keep going until every EV reaches its destination
-
             environment.init_routing()
-
             start_time_step = time.time()
 
             # Build path for each EV
             for car_idx in range(num_cars): # For each car
-    
                 if save_offline_data:
-                    car_traj = next((traj for traj in trajectories if traj['car_idx'] == car_idx and traj['zone'] == zone_index and traj['aggregation'] == aggregation_num and traj['episode'] == i), None) #Retreive car trajectory
+                    # Retrieve car trajectory
+                    car_traj = next((t for t in trajectories if t['car_idx'] == car_idx and t['zone'] == zone_index and t['aggregation'] == aggregation_num and t['episode'] == i), None) 
 
                 ########### Starting environment routing
                 state = environment.reset_agent(car_idx)
@@ -238,29 +233,27 @@ def train_dqn(queue,
 
                 ####### Getting actions from agents
                 state = torch.tensor(state, dtype=dtype, device=device)  # Convert state to tensor
-
+                # Get the action values from the agent
                 action_values = get_actions(state, q_networks, random_threshold, epsilon, i,\
-                                            car_idx, device, agent_by_zone)  # Get the action values from the agent
+                                            car_idx, device, agent_by_zone)  
 
                 t2 = time.time()
-
                 distribution = action_values
-
                 if save_offline_data:
-                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) #Save unmodified action
+                    #Save unmodified action
+                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) 
                 
-                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist()) # Track outputs before the sigmoid application
-
+                # Track outputs before the sigmoid application
+                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist()) 
                 # Apply sigmoid function to the entire tensor
                 distribution = torch.sigmoid(distribution)
-                distributions.append(distribution.detach().cpu().numpy().tolist()) # Convert to list and append
+                # Convert to list and append
+                distributions.append(distribution.detach().cpu().numpy().tolist()) 
 
                 t3 = time.time()
-
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
 
                 t4 = time.time()
-
                 if car_idx == 0 and display_training_times:
                     print_l("Get actions", (t2 - t1))
                     print_l("Get distributions", (t3 - t2))
@@ -335,9 +328,7 @@ def train_dqn(queue,
         trained = False
 
         for agent_ind in range(num_cars):
-
             if len(buffers[agent_ind]) >= batch_size: # Buffer is full enough
-
                 trained = True
 
                 mini_batch = dqn_rng.choice(np.array([Experience(exp.state.cpu().numpy(), exp.distribution, exp.reward, exp.next_state.cpu().numpy(), exp.done) if isinstance(exp.state, torch.Tensor) else exp for exp in buffers[agent_ind]], dtype=object), batch_size, replace=False)
@@ -387,14 +378,16 @@ def train_dqn(queue,
         if save_offline_data and (i + 1) % eps_per_save == 0:
             metrics_base_path = f"{eval_c['save_path_metrics']}_{experiment_number}"
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
-            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path), f"temp/Exp_{experiment_number}_checkpoints")
+            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path),\
+                                          f"temp/Exp_{experiment_number}_checkpoints")
             os.makedirs(checkpoint_dir, exist_ok=True)
         
             # Format current trajectories
             traj_format = format_data(trajectories)
         
             #Save a temp checkpoint
-            temp_path = os.path.join(checkpoint_dir, f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
+            temp_path = os.path.join(checkpoint_dir, \
+                        f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
             with h5py.File(temp_path, 'w') as f:
                 zone_grp = f.create_group(f"zone_{zone_index}")
                 for i_traj, entry in enumerate(traj_format):
@@ -432,7 +425,7 @@ def train_dqn(queue,
             os.remove(temp_path)
             trajectories.clear()
 
-        # Saving data per episode
+        ### Saving metrics per episode ###
         station_data, agent_data = environment.get_data()
         # Saving as CSV data using the the writer proccess
         queue.put({
@@ -440,7 +433,6 @@ def train_dqn(queue,
             'station_data': station_data,
             'agent_data': agent_data
         })
-
         station_data = None
         agent_data = None
         
@@ -458,14 +450,14 @@ def train_dqn(queue,
                 ir_count += 1
         avg_ir /= ir_count
 
-        et = time.time() - start_time
-
-        # Open the file in write mode (use 'a' for append mode)
+        
         if verbose:
-            to_print = f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"+\
-            f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"+\
-            f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "+\
-            f"Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
+            et = time.time() - start_time
+            to_print =  f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1}"+\
+                        f" - Episode: {i + 1}/{num_episodes})\t"+\
+                        f" et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s"+\
+                        f"- Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter},"+\
+                        f" Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
             print_l(to_print)
 
     # np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
