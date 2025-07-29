@@ -83,12 +83,12 @@ def get_closest_city(lat: float, lon: float) -> dict:
 
 def save_temps(coords_list: list, seed_list: list):
     # Ensure the directory exists
-    os.makedirs('merl_env/temps', exist_ok=True)
+    os.makedirs('environment/temps', exist_ok=True)
     
     print("Saving temps to file")
 
     # Define the CSV file path
-    csv_file_path = 'merl_env/temps/temperatures.csv'
+    csv_file_path = 'environment/data/temperatures.csv'
     
     # Open the CSV file for writing
     with open(csv_file_path, 'w', newline='') as csvfile:
@@ -944,7 +944,7 @@ class EnvironmentClass:
 
 
     def get_data(self):
-        return self.station_data, self.agent_data, self.data_deepness
+        return self.station_data, self.agent_data
 
     def population_mode_store(self):
         self.store_paths = copy.deepcopy(self.paths)

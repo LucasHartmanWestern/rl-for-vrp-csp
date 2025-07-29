@@ -5,8 +5,8 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=90:00:00
-#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --mem=6G
 
 
 #SBATCH --mail-type=FAIL,TIME_LIMIT
@@ -22,5 +22,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4036 -d "/home/hartman/scratch/metrics/Exp" 
+python main.py  -e 4036 -d "/home/sgomezro/scratch/metrics/Exp" -verb True 
     

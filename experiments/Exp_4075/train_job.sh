@@ -5,8 +5,8 @@
 #SBATCH -A def-mcapretz
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5
-#SBATCH --time=20:00:00
-#SBATCH --mem=12G
+#SBATCH --time=15:00:00
+#SBATCH --mem=6G
 
 
 echo "Starting training for experiment 4075"
@@ -19,5 +19,5 @@ source ~/envs/merl_env/bin/activate
 # Enable multi-threading
 export OMP_NUM_THREADS=2
 
-python app_v2.py  -e 4075 -d "/home/sgomezro/scratch/metrics/Exp" -verb True
+python main.py  -e 4075 -d "/home/sgomezro/scratch/metrics/Exp" -verb True
     

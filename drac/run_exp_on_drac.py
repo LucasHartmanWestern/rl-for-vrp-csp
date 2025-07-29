@@ -19,7 +19,7 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
     for experiment_number in range(start_experiment, end_experiment + 1):
         try:
             # Load config.yaml file for experiment
-            config_file = os.path.join(f"../experiments/Exp_{experiment_number}", "config.yaml")
+            config_file = os.path.join(f"experiments/Exp_{experiment_number}", "config.yaml")
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
 
@@ -42,7 +42,7 @@ def run_exp_on_drac(start_experiment, end_experiment, algorithm=None, eval=False
             print(f"Error loading config.yaml file for experiment {experiment_number}: {e}")
             continue
 
-        cmd = f"sbatch ../experiments/Exp_{experiment_number}/{'eval' if eval else 'train'}_job.sh"
+        cmd = f"sbatch experiments/Exp_{experiment_number}/{'eval' if eval else 'train'}_job.sh"
         print(f"Running command: {cmd}")
         try:
             subprocess.run(cmd, shell=True)

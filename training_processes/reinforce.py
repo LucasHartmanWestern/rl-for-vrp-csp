@@ -7,18 +7,35 @@ import copy
 import pickle
 import h5py
 
-from environment.evaluation import evaluate
-
 # Replaced import from dqn_agent with reinforce_agent
 from decision_makers.reinforce_agent import initialize, agent_learn, get_actions, save_model
 from environment.data_loader import load_config_file
 from environment._pathfinding import haversine
 from .odt.odt_helpers.utils import format_data, save_to_h5, save_temp_checkpoint
+from training_processes.writer_proccess import printer_queue
 
-def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, environment, routes, date, action_dim, global_weights, aggregation_num, zone_index,
-    seed, main_seed, device, agent_by_zone, variant, args, fixed_attributes=None, verbose=False, display_training_times=False, 
-          dtype=torch.float32, save_offline_data=False, train_model=True, old_buffers=None
-):
+def train_reinforce(queue,
+                    ev_info,
+                    experiment_number,
+                    chargers, environment,
+                    routes, date,
+                    action_dim, 
+                    global_weights, 
+                    aggregation_num, 
+                    zone_index,
+                    seed, 
+                    main_seed, 
+                    device, 
+                    agent_by_zone, 
+                    variant, 
+                    args, 
+                    fixed_attributes=None, 
+                    verbose=False, 
+                    display_training_times=False, 
+                    dtype=torch.float32, 
+                    save_offline_data=False, 
+                    train_model=True, 
+                    old_buffers=None):
     """
     Trains a policy using REINFORCE for Electric Vehicle (EV) routing and charging optimization.
 
@@ -46,7 +63,6 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
             - List of trained policy state dictionaries.
             - List of average rewards for each episode.
             - List of average output values for each episode.
-            - Metrics collected during training.
     """
     # Getting Neural Network parameters
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
@@ -92,12 +108,16 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     optimizers = []
     num_cars = environment.num_cars
 
+    # Calling log and console printer standardized
+    print_l, print_et = printer_queue(queue)
+    metrics_base_path = f"{eval_c['save_path_metrics']}_{experiment_number}"
+
     # Initialize policy network(s)
     if agent_by_zone:
         num_agents = 1
         policy_net = initialize(state_dimension, action_dim, layers, device)
         if global_weights is not None:
-            print("Resume from global weights")
+            print_l("Resume from global weights")
             if eval_c['evaluate_on_diff_zone'] or args.eval:
                 policy_net.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)])
             else:
@@ -111,7 +131,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         for agent_ind in range(num_agents):
             policy_net = initialize(state_dimension, action_dim, layers, device)
             if global_weights is not None:
-                print("Resume from global weights")
+                print_l("Resume from global weights")
                 if eval_c['evaluate_on_diff_zone'] or args.eval:
                     policy_net.load_state_dict(global_weights[(zone_index + 1) % len(global_weights)][model_indices[agent_ind]])
                 else:
@@ -124,9 +144,10 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
     start_time = time.time()
     best_avg = float('-inf')
     best_paths = None
-    metrics = []
     avg_output_values = []  # List to store the average values of output neurons for each episode
 
+    # Initialize simulation for the aggregation step
+    environment.init_sim(aggregation_num)
     for i in range(num_episodes):
         if save_offline_data:
             trajectories.extend([
@@ -154,7 +175,6 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
         environment.reset_episode(chargers, routes, unique_chargers)
         sim_done = False
         time_start_paths = time.time()
-        timestep_counter = 0
         episode_rewards = None
 
         # Store experiences (per-episode)
@@ -172,7 +192,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                         t['aggregation'] == aggregation_num and t['episode'] == i
                     )), None)
 
-                state = environment.reset_agent(car_idx, timestep_counter)
+                state = environment.reset_agent(car_idx)
                 states.append(state)
                 if save_offline_data:
                     car_traj['observations'].append(state)
@@ -182,20 +202,25 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
                 # Get action distribution from policy
                 if agent_by_zone:
-                    action_probs = get_actions(state_tensor, policy_networks, i, car_idx, device, epsilon)
+                    action_probs = get_actions(state_tensor, policy_networks, i,\
+                                               car_idx, device, epsilon)
                 else:
-                    action_probs = get_actions(state_tensor, [policy_networks[car_idx]], i, car_idx, device, epsilon)
+                    action_probs = get_actions(state_tensor, [policy_networks[car_idx]], i,\
+                                               car_idx, device, epsilon)
 
                 distribution = action_probs
 
                 if save_offline_data:
-                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) #Save unmodified action
+                    #Save unmodified action
+                    car_traj['actions'].append(distribution.detach().cpu().numpy().tolist()) 
                 
-                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist())  # Track outputs before the sigmoid application
+                # Track outputs before the sigmoid application
+                distributions_unmodified.append(distribution.detach().cpu().numpy().tolist())  
 
                 # Apply sigmoid function to the entire tensor
                 distribution = torch.sigmoid(distribution)
-                distributions.append(distribution.detach().cpu().numpy().tolist())  # Convert to list and append
+                # Convert to list and append
+                distributions.append(distribution.detach().cpu().numpy().tolist())  
 
                 environment.generate_paths(distribution, fixed_attributes, car_idx)
 
@@ -209,34 +234,38 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
             # Track output distribution stats
             episode_avg_output_values = np.mean(distributions_unmodified, axis=0)
-            avg_output_values.append((episode_avg_output_values.tolist(), i, aggregation_num, zone_index, main_seed))
+            avg_output_values.append((episode_avg_output_values.tolist(), i,\
+                                      aggregation_num, zone_index, main_seed))
 
             time_end_paths = time.time() - time_start_paths
             if display_training_times:
-                print_time('Get Paths', time_end_paths)
+                print_et('Get Paths', time_end_paths)
 
-            # Run simulation step
-            sim_done = environment.simulate_routes(timestep_counter)
-            _, sim_traffic, sim_battery_levels, sim_distances, time_step_rewards, arrived_at_final = environment.get_results()
+            ########### GET SIMULATION RESULTS ###########
+
+            # Run simulation and get results
+            sim_done, timestep_reward, timestep_counter,\
+                        arrived_at_final = environment.simulate_routes()
+            
             dones.extend(arrived_at_final.tolist())
 
             # Accumulate episode rewards
             if timestep_counter == 0:
-                episode_rewards = np.expand_dims(time_step_rewards,axis=0)
+                episode_rewards = np.expand_dims(timestep_reward,axis=0)
             else:
-                episode_rewards = np.vstack((episode_rewards,time_step_rewards))
+                episode_rewards = np.vstack((episode_rewards,timestep_reward))
 
             # Train the model only using the average of all timestep rewards
             if 'average_rewards_when_training' in nn_c and nn_c['average_rewards_when_training']: 
-                avg_reward = time_step_rewards.sum(axis=0) / len(time_step_rewards)
-                time_step_rewards_avg = [avg_reward for _ in time_step_rewards]
-                rewards.extend(time_step_rewards_avg)
+                avg_reward = timestep_reward.sum(axis=0) / len(timestep_reward)
+                timestep_reward_avg = [avg_reward for _ in timestep_reward]
+                rewards.extend(timestep_reward_avg)
             # Train the model using the rewards from it's own experiences
             else:
-                rewards.extend(time_step_rewards)
+                rewards.extend(timestep_reward)
 
             # For REINFORCE, we store transitions for each agent
-            for car_idx, rew in enumerate(time_step_rewards):
+            for car_idx, rew in enumerate(timestep_reward):
                 episode_experiences[0 if agent_by_zone else car_idx].append((
                     states[-num_cars + car_idx],
                     distributions_unmodified[-num_cars + car_idx],
@@ -250,26 +279,9 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                     if traj['episode'] == i:
                         traj['terminals'].append(sim_done)
                         car_idx = traj['car_idx']
-                        traj['rewards'].append(time_step_rewards[car_idx])
+                        traj['rewards'].append(timestep_reward[car_idx])
                         traj['terminals_car'].append(bool(arrived[car_idx].item()))
 
-            # Collect metrics for analysis
-            metric = {
-                "zone": zone_index,
-                "episode": i,
-                "timestep": timestep_counter,
-                "aggregation": aggregation_num,
-                "traffic": sim_traffic,
-                "batteries": sim_battery_levels,
-                "distances": sim_distances,
-                "rewards": time_step_rewards,
-                "best_reward": best_avg,
-                "timestep_real_world_time": time.time() - start_time_step,
-                "done": sim_done
-            }
-            metrics.append(metric)
-
-            timestep_counter += 1
             if timestep_counter >= environment.max_steps:
                 raise Exception("MAX TIME-STEPS EXCEEDED!")
 
@@ -281,13 +293,14 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 experiences = (s_list, a_list, r_list, [None]*len(s_list), done_list)
 
                 if agent_by_zone:
-                    agent_learn(experiences, discount_factor, policy_networks[0], optimizers[0], device)
+                    agent_learn(experiences, discount_factor, policy_networks[0],\
+                                optimizers[0], device)
                 else:
-                    agent_learn(experiences, discount_factor, policy_networks[agent_ind], optimizers[agent_ind], device)
+                    agent_learn(experiences, discount_factor, policy_networks[agent_ind],\
+                                optimizers[agent_ind], device)
 
-            et = time.time() - st
             if verbose:
-                print(f'Spent {et // 3600}h {int((et % 3600) // 60)}m {int(et % 60)}s training')
+                print_et(f'Spent training', st)
 
 
         epsilon *= epsilon_decay  # Decay epsilon
@@ -299,14 +312,16 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
 
         if save_offline_data and (i + 1) % eps_per_save == 0:
             dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
-            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path), f"temp/Exp_{experiment_number}_checkpoints")
+            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path),\
+                                          f"temp/Exp_{experiment_number}_checkpoints")
             os.makedirs(checkpoint_dir, exist_ok=True)
         
             # Format current trajectories
             traj_format = format_data(trajectories)
         
             # Save a temp checkpoint for ODT offline data
-            temp_path = os.path.join(checkpoint_dir, f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
+            temp_path = os.path.join(checkpoint_dir,\
+                        f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
             with h5py.File(temp_path, 'w') as f:
                 zone_grp = f.create_group(f"zone_{zone_index}")
                 for i_traj, entry in enumerate(traj_format):
@@ -322,7 +337,7 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 with h5py.File(temp_path, "r") as f:
                     _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
             except Exception as e:
-                print(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
+                print_l(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
                 os.remove(temp_path)
                 trajectories.clear()
                 continue  # Skip appending and move to next episode
@@ -346,11 +361,22 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
             os.remove(temp_path)
             trajectories.clear()
 
+        ### Saving metrics per episode ###
+        station_data, agent_data = environment.get_data()
+        # Saving as CSV data using the the writer proccess
+        queue.put({
+            'tag': 'csv',
+            'station_data': station_data,
+            'agent_data': agent_data
+        })
+        station_data = None
+        agent_data = None
+        
         if avg_reward > best_avg:
             best_avg = avg_reward
             best_paths = paths_copy
             if verbose:
-                print(f'Zone: {zone_index + 1} - New Best: {best_avg}')
+                print_l(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
         # Some average intermediate result (avg_ir)
         avg_ir = 0
@@ -360,33 +386,17 @@ def train_reinforce(ev_info, metrics_base_path, experiment_number, chargers, env
                 avg_ir += out
                 ir_count += 1
         avg_ir = avg_ir / ir_count if ir_count else 0
-
-        et = time.time() - start_time
+     
         if verbose:
-            to_print = (
-                f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1} - Episode: {i + 1}/{num_episodes})"
-                f" \t et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s -"
-                f" Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter}, "
-                f"Epsilon: {round(epsilon, 3):0.3f}, "
-                f"Avg. IR: {round(avg_ir, 3):0.3f}"
-            )
-            with open(f'logs/{date}-training_logs.txt', 'a') as file:
-                print(to_print, file=file)
-            print(to_print)
-
-        # Periodically save metrics if training
-        if ((i + 1) % eps_per_save == 0) or (i == num_episodes - 1):
-            metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
-            if not os.path.exists(metrics_path):
-                os.makedirs(metrics_path)
-            evaluate(ev_info, metrics, seed, date, verbose, 'save', num_episodes, f"{metrics_path}/metrics", True)
-            metrics = []
-
+            et = time.time() - start_time
+            to_print =  f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1}"+\
+                        f" - Episode: {i + 1}/{num_episodes})\t"+\
+                        f" et: {int(et // 3600):02d}h{int((et % 3600) // 60):02d}m{int(et % 60):02d}s"+\
+                        f"- Avg. Reward {round(avg_reward, 3):0.3f} - Time-steps: {timestep_counter},"+\
+                        f" Avg. IR: {round(avg_ir, 3):0.3f} - Epsilon: {round(epsilon, 3):0.3f}"
+            print_l(to_print)
     # Save best paths info
-    np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
+    # np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
     # Return final policy states, rewards, outputs, and metrics (and old buffers since REINFORCE does not use a replay buffer)
-    return [net.cpu().state_dict() for net in policy_networks], avg_rewards, avg_output_values, metrics, old_buffers
-
-def print_time(label, elapsed_time):
-    print(f"{label} - {int(elapsed_time // 3600)}h, {int((elapsed_time % 3600) // 60)}m, {int(elapsed_time % 60)}s")
+    return [net.cpu().state_dict() for net in policy_networks], avg_rewards, avg_output_values, old_buffers
