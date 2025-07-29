@@ -7,7 +7,7 @@ import os
 import time
 import copy
 import pickle
-# import h5py
+import h5py
 
 from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from environment.data_loader import load_config_file, save_to_csv
@@ -378,55 +378,55 @@ def train_dqn(queue,
                     if not os.path.exists(base_path):
                         os.makedirs(base_path)
 
-        # if save_offline_data and (i + 1) % eps_per_save == 0:
-        #     metrics_base_path = f"{eval_c['save_path_metrics']}_{experiment_number}"
-        #     dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
-        #     checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path),\
-        #                                   f"temp/Exp_{experiment_number}_checkpoints")
-        #     os.makedirs(checkpoint_dir, exist_ok=True)
+        if save_offline_data and (i + 1) % eps_per_save == 0:
+            metrics_base_path = f"{eval_c['save_path_metrics']}_{experiment_number}"
+            dataset_path = f"{metrics_base_path}/data_zone_{zone_index}.h5"
+            checkpoint_dir = os.path.join(os.path.dirname(metrics_base_path),\
+                                          f"temp/Exp_{experiment_number}_checkpoints")
+            os.makedirs(checkpoint_dir, exist_ok=True)
         
-        #     # Format current trajectories
-        #     traj_format = format_data(trajectories)
+            # Format current trajectories
+            traj_format = format_data(trajectories)
         
-        #     #Save a temp checkpoint
-        #     temp_path = os.path.join(checkpoint_dir, \
-        #                 f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
-        #     with h5py.File(temp_path, 'w') as f:
-        #         zone_grp = f.create_group(f"zone_{zone_index}")
-        #         for i_traj, entry in enumerate(traj_format):
-        #             traj_grp = zone_grp.create_group(f"traj_{i_traj}")
-        #             for key, value in entry.items():
-        #                 if isinstance(value, (list, np.ndarray)):
-        #                     traj_grp.create_dataset(key, data=np.array(value))
-        #                 else:
-        #                     traj_grp.attrs[key] = value
+            #Save a temp checkpoint
+            temp_path = os.path.join(checkpoint_dir, \
+                        f"data_zone_{zone_index}_checkpoint_{(i + 1) // eps_per_save}.tmp.h5")
+            with h5py.File(temp_path, 'w') as f:
+                zone_grp = f.create_group(f"zone_{zone_index}")
+                for i_traj, entry in enumerate(traj_format):
+                    traj_grp = zone_grp.create_group(f"traj_{i_traj}")
+                    for key, value in entry.items():
+                        if isinstance(value, (list, np.ndarray)):
+                            traj_grp.create_dataset(key, data=np.array(value))
+                        else:
+                            traj_grp.attrs[key] = value
         
-        #     try:
-        #         with h5py.File(temp_path, "r") as f:
-        #             _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
-        #     except Exception as e:
-        #         print_l(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
-        #         os.remove(temp_path)
-        #         trajectories.clear()
-        #         continue
+            try:
+                with h5py.File(temp_path, "r") as f:
+                    _ = f[f"zone_{zone_index}"]["traj_0"]["observations"][:5]
+            except Exception as e:
+                print_l(f"[ERROR] Failed to verify checkpoint (zone {zone_index}, episode {i + 1}): {e}")
+                os.remove(temp_path)
+                trajectories.clear()
+                continue
 
-        #     # Append to main .h5 dataset incrementally
-        #     with h5py.File(dataset_path, 'a') as main_f, h5py.File(temp_path, 'r') as temp_f:
-        #         main_zone_grp = main_f.require_group(f"zone_{zone_index}")
-        #         temp_zone_grp = temp_f[f"zone_{zone_index}"]
-        #         existing_keys = list(main_zone_grp.keys())
-        #         offset = len(existing_keys)
+            # Append to main .h5 dataset incrementally
+            with h5py.File(dataset_path, 'a') as main_f, h5py.File(temp_path, 'r') as temp_f:
+                main_zone_grp = main_f.require_group(f"zone_{zone_index}")
+                temp_zone_grp = temp_f[f"zone_{zone_index}"]
+                existing_keys = list(main_zone_grp.keys())
+                offset = len(existing_keys)
         
-        #         for i, traj_key in enumerate(temp_zone_grp):
-        #             traj_data = temp_zone_grp[traj_key]
-        #             new_grp = main_zone_grp.create_group(f"traj_{offset + i}")
-        #             for key in traj_data:
-        #                 new_grp.create_dataset(key, data=traj_data[key][:])
-        #             for attr_key in traj_data.attrs:
-        #                 new_grp.attrs[attr_key] = traj_data.attrs[attr_key]
+                for i, traj_key in enumerate(temp_zone_grp):
+                    traj_data = temp_zone_grp[traj_key]
+                    new_grp = main_zone_grp.create_group(f"traj_{offset + i}")
+                    for key in traj_data:
+                        new_grp.create_dataset(key, data=traj_data[key][:])
+                    for attr_key in traj_data.attrs:
+                        new_grp.attrs[attr_key] = traj_data.attrs[attr_key]
         
-        #     os.remove(temp_path)
-        #     trajectories.clear()
+            os.remove(temp_path)
+            trajectories.clear()
 
         ### Saving metrics per episode ###
         station_data, agent_data = environment.get_data()
