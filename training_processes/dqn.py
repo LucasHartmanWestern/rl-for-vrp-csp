@@ -8,6 +8,7 @@ import time
 import copy
 import pickle
 import h5py
+import tracemalloc
 
 from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from environment.data_loader import load_config_file, save_to_csv
@@ -71,6 +72,9 @@ def train_dqn(queue,
             - List of average rewards for each episode.
             - List of average output values for each episode.
     """
+
+    tracemalloc.start()
+
     # Getting Neural Network parameters
     config_fname = f'experiments/Exp_{experiment_number}/config.yaml'
     nn_c = load_config_file(config_fname)['nn_hyperparameters']
@@ -183,6 +187,7 @@ def train_dqn(queue,
     environment.init_sim(aggregation_num)
     for i in range(num_episodes): # For each episode
         if save_offline_data:
+            print(f'Here in line 186, saving offline data')
             trajectories.extend([
                 {
                     'observations': [],
@@ -428,6 +433,10 @@ def train_dqn(queue,
             os.remove(temp_path)
             trajectories.clear()
 
+        # current, peak = tracemalloc.get_traced_memory()
+        # print(f"Current memory usage: {current / 1024 ** 2:.2f} MB")
+        # print(f"Peak memory usage: {peak / 1024 ** 2:.2f} MB")
+        
         ### Saving metrics per episode ###
         station_data, agent_data = environment.get_data()
         # Saving as CSV data using the the writer proccess
@@ -465,4 +474,8 @@ def train_dqn(queue,
 
     # np.save(f'outputs/best_paths/route_{zone_index}_seed_{seed}.npy', np.array(best_paths, dtype=object))
 
-    return [q_network.cpu().state_dict() for q_network in q_networks], avg_rewards, avg_output_values, buffers
+    weights = [q_network.cpu().state_dict() for q_network in q_networks]
+    q_networks = None
+    target_q_networks = None
+    optimizers = None
+    return weights, avg_rewards, avg_output_values, buffers
