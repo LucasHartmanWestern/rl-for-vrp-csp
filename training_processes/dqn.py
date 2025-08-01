@@ -289,7 +289,7 @@ def train_dqn(queue,
             sim_done, timestep_reward, timestep_counter,\
                         arrived_at_final = environment.simulate_routes()
 
-            dones.extend(arrived_at_final.tolist())
+            dones.append(arrived_at_final.numpy().tolist())
 
             if timestep_counter == 0:
                 episode_rewards = np.expand_dims(timestep_reward,axis=0)
