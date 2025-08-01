@@ -8,16 +8,12 @@ import time
 import copy
 import pickle
 import h5py
-import tracemalloc
 
 from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from environment.data_loader import load_config_file, save_to_csv
 from environment._pathfinding import haversine
 from misc.utils import format_data, save_to_h5, save_temp_checkpoint
 from training_processes.writer_proccess import printer_queue
-
-# Define the experience tuple
-Experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
 
 def train_dqn(queue, 
               ev_info, 
@@ -73,7 +69,6 @@ def train_dqn(queue,
             - List of average output values for each episode.
     """
 
-    tracemalloc.start()
     print(f'Running DQN V2')
 
     # Getting Neural Network parameters
@@ -174,7 +169,7 @@ def train_dqn(queue,
 
     random_threshold = dqn_rng.random((num_episodes, num_cars))
 
-    # buffers = [deque(maxlen=buffer_limit) for _ in range(num_cars)] # Initialize replay buffer with fixed size
+
     buffers = [
         ExperienceBuffer(buffer_limit, state_dimension, action_dim, device=device) for _ in range(num_cars)]
 
@@ -461,9 +456,6 @@ def train_dqn(queue,
             os.remove(temp_path)
             trajectories.clear()
 
-        # current, peak = tracemalloc.get_traced_memory()
-        # print(f"Current memory usage: {current / 1024 ** 2:.2f} MB")
-        # print(f"Peak memory usage: {peak / 1024 ** 2:.2f} MB")
         
         ### Saving metrics per episode ###
         station_data, agent_data = environment.get_data()
