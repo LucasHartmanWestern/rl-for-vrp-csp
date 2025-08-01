@@ -483,14 +483,14 @@ def train_dqn(queue,
                 print_l(f'Zone: {zone_index + 1} - New Best: {best_avg}')
 
         avg_ir = 0
-        ir_count = 0
-        for distribution in distributions:
-            for out in distribution:
-                avg_ir += out
-                ir_count += 1
-        avg_ir /= ir_count
+        # ir_count = 0
+        # for distribution in distributions:
+        #     for out in distribution:
+        #         avg_ir += out
+        #         ir_count += 1
+        # avg_ir /= ir_count
 
-        
+
         if verbose:
             et = time.time() - start_time
             to_print =  f"(Agg.: {aggregation_num + 1} - Zone: {zone_index + 1}"+\

@@ -6,7 +6,7 @@ import copy
 from datetime import datetime
 import numpy as np
 import torch
-from codecarbon import EmissionsTracker
+# from codecarbon import EmissionsTracker
 import shutil
 import pandas as pd
 import cProfile
@@ -250,15 +250,15 @@ def main_loop(args):
         # Loop through aggregation steps
         for aggregate_step in range(federated_c['aggregation_count']):
             try:
-                # Start tracking emissions
-                tracker = EmissionsTracker(
-                    output_dir=emission_output_dir,
-                    save_to_file=f"emissions.csv",  # Temporary file
-                    tracking_mode='process',
-                    allow_multiple_runs=True,
-                    log_level='error'
-                )
-                tracker.start()
+                # # Start tracking emissions
+                # tracker = EmissionsTracker(
+                #     output_dir=emission_output_dir,
+                #     save_to_file=f"emissions.csv",  # Temporary file
+                #     tracking_mode='process',
+                #     allow_multiple_runs=True,
+                #     log_level='error'
+                # )
+                # tracker.start()
 
                 # Print aggregation step
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count']}"
@@ -414,14 +414,14 @@ def main_loop(args):
         for aggregate_step in range(federated_c['aggregation_count_eval']):
             try:
                 # Start tracking emissions
-                tracker = EmissionsTracker(
-                    output_dir=emission_output_dir,
-                    save_to_file=f"emissions.csv",  # Temporary file
-                    tracking_mode='process',
-                    allow_multiple_runs=True,
-                    log_level='error'
-                )
-                tracker.start()
+                # tracker = EmissionsTracker(
+                #     output_dir=emission_output_dir,
+                #     save_to_file=f"emissions.csv",  # Temporary file
+                #     tracking_mode='process',
+                #     allow_multiple_runs=True,
+                #     log_level='error'
+                # )
+                # tracker.start()
 
                 # Check if we have only one zone - if so, don't use multiprocessing
                 agg_print = f"{aggregate_step + 1}/{federated_c['aggregation_count_eval']}"
