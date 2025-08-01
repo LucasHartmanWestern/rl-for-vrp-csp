@@ -28,7 +28,7 @@ environment_settings:
   - Tesla Model Y
   - BYD Song
   - Tesla Model 3
-  num_of_cars: 10 #100
+  num_of_cars: 100
   num_of_chargers: 1
   radius: 20
   season: spring
