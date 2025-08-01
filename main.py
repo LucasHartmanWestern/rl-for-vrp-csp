@@ -98,7 +98,7 @@ def main_loop(args):
     federated_c = c['federated_learning_settings']
 
     # Data directory where metrics are saved
-    data_dir = args.data_dir if args.data_dir else f"{c['eval_config']['save_path_metrics']}"
+    data_dir = args.data_dir if args.data_dir else f"{c['eval_config']['save_path_metrics'][args.server]}"
     
     # Whether to continue the training
     load_existing_model = eval_c['continue_training']
@@ -166,15 +166,6 @@ def main_loop(args):
     if (run_mode == "Evaluating") or (load_existing_model):
         global_weights = torch.load(f'saved_networks/Exp_{experiment_number}/global_weights.pth')
 
-    # # Start log writer process
-    # log_path = f'{logs_dir}/{date}-{run_mode}_logs.txt'
-    # log_queue = mp.Queue()
-    # log_proc = mp.Process(target=log_writer, args=(log_queue, log_path, verbose))
-    # log_proc.start()
-
-    # print_l, print_et = print_log(log_queue)
-    # print_l(f"Saving metrics to base path: {metrics_with_sub_dir}", )
-
     # Start writer proccess
     metrics_path = f"{metrics_base_path}/{'eval' if args.eval else 'train'}"
     log_path = f'{logs_dir}/{date}-{run_mode}_logs.txt'
@@ -209,7 +200,7 @@ def main_loop(args):
     start_time = time.time()
     for area_idx in range(n_zones):
         environment = EnvironmentClass(config_fname, seed, chargers_seeds[area_idx],\
-                                       area_idx, device=devices[area_idx], dtype=torch.float32)
+                                       area_idx, args.server, device=devices[area_idx], dtype=torch.float32)
 
         environment_list.append(environment)
         ev_info.append(environment.get_ev_info())
@@ -571,6 +562,7 @@ if __name__ == '__main__':
     parser.add_argument('-verb','--verbose', type=bool, default=False, help='Verbose')
     parser.add_argument('-eval', type=bool, default=False, help='Evaluate the model')
     parser.add_argument('-profile', type=bool, default=False, help='Profile the code')
+    parser.add_argument('-server', type=str, default='DRAC', help='Choose between DRAC or Local server. By default is DRAC.')
     args = parser.parse_args()
 
     if args.profile:
