@@ -364,8 +364,8 @@ def main_loop(args):
 
             finally:
                 # Stop tracking emissions
-                emissions = tracker.stop()
-                print_l(f"Total CO₂ emissions: {emissions} kg")
+                # emissions = tracker.stop()
+                # print_l(f"Total CO₂ emissions: {emissions} kg")
                 try:
                     # Read the temporary emissions report
                     temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
@@ -515,9 +515,9 @@ def main_loop(args):
                 old_buffers = list(process_buffers)
 
             finally:
-                # Stop tracking emissions
-                emissions = tracker.stop()
-                print_l(f"Total CO₂ emissions: {emissions} kg")
+                # # Stop tracking emissions
+                # emissions = tracker.stop()
+                # print_l(f"Total CO₂ emissions: {emissions} kg")
                 try:
                     # Read the temporary emissions report
                     temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
