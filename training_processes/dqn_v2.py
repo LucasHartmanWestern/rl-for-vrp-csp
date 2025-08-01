@@ -1,8 +1,6 @@
 import torch
 import torch.optim as optim
 import numpy as np
-import collections
-from collections import namedtuple, deque, defaultdict
 import os
 import time
 import copy
