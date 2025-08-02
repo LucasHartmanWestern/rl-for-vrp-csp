@@ -362,28 +362,28 @@ def main_loop(args):
                 output_values.extend(process_output_values)
                 old_buffers = list(process_buffers)
 
-            finally:
-                # Stop tracking emissions
-                # emissions = tracker.stop()
-                # print_l(f"Total CO₂ emissions: {emissions} kg")
-                try:
-                    # Read the temporary emissions report
-                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
+            # finally:
+            #     # Stop tracking emissions
+            #     # emissions = tracker.stop()
+            #     # print_l(f"Total CO₂ emissions: {emissions} kg")
+            #     try:
+            #         # Read the temporary emissions report
+            #         temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
 
-                    # Remove the temporary emissions file
-                    os.remove(f"{emission_output_dir}/emissions.csv")
+            #         # Remove the temporary emissions file
+            #         os.remove(f"{emission_output_dir}/emissions.csv")
 
-                    # Add the aggregate_step column
-                    temp_df['aggregate_step'] = aggregate_step
+            #         # Add the aggregate_step column
+            #         temp_df['aggregate_step'] = aggregate_step
 
-                    # Determine the write mode based on the aggregate_step
-                    write_mode = 'w' if aggregate_step == 0 else 'a'
+            #         # Determine the write mode based on the aggregate_step
+            #         write_mode = 'w' if aggregate_step == 0 else 'a'
 
-                    # Write or append the updated DataFrame to the main CSV
-                    with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
-                        temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
-                except Exception as e:
-                    print_l(f"Error saving emissions report")
+            #         # Write or append the updated DataFrame to the main CSV
+            #         with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
+            #             temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
+            #     except Exception as e:
+            #         print_l(f"Error saving emissions report")
 
         # Save the aggregated data
         if eval_c['save_aggregate_rewards']:
@@ -514,28 +514,28 @@ def main_loop(args):
                 output_values.extend(process_output_values)
                 old_buffers = list(process_buffers)
 
-            finally:
-                # # Stop tracking emissions
-                # emissions = tracker.stop()
-                # print_l(f"Total CO₂ emissions: {emissions} kg")
-                try:
-                    # Read the temporary emissions report
-                    temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
+            # finally:
+            #     # # Stop tracking emissions
+            #     # emissions = tracker.stop()
+            #     # print_l(f"Total CO₂ emissions: {emissions} kg")
+            #     try:
+            #         # Read the temporary emissions report
+            #         temp_df = pd.read_csv(f"{emission_output_dir}/emissions.csv")
 
-                    # Remove the temporary emissions file
-                    os.remove(f"{emission_output_dir}/emissions.csv")
+            #         # Remove the temporary emissions file
+            #         os.remove(f"{emission_output_dir}/emissions.csv")
 
-                    # Add the aggregate_step column
-                    temp_df['aggregate_step'] = aggregate_step
+            #         # Add the aggregate_step column
+            #         temp_df['aggregate_step'] = aggregate_step
 
-                    # Determine the write mode based on the aggregate_step
-                    write_mode = 'w' if aggregate_step == 0 else 'a'
+            #         # Determine the write mode based on the aggregate_step
+            #         write_mode = 'w' if aggregate_step == 0 else 'a'
 
-                    # Write or append the updated DataFrame to the main CSV
-                    with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
-                        temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
-                except Exception as e:
-                    print_l(f"Error saving emissions report")
+            #         # Write or append the updated DataFrame to the main CSV
+            #         with open(f"{emission_output_dir}/emissions_report.csv", write_mode) as f:
+            #             temp_df.to_csv(f, header=(write_mode == 'w'), index=False)
+            #     except Exception as e:
+            #         print_l(f"Error saving emissions report")
 
     # Print total run time
     print_et(f'Experiment_number: {experiment_number}, run time', start_time, )
