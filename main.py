@@ -362,7 +362,8 @@ def main_loop(args):
                 output_values.extend(process_output_values)
                 old_buffers = list(process_buffers)
 
-            # finally:
+            finally:
+                aux = None
             #     # Stop tracking emissions
             #     # emissions = tracker.stop()
             #     # print_l(f"Total CO₂ emissions: {emissions} kg")
@@ -385,10 +386,10 @@ def main_loop(args):
             #     except Exception as e:
             #         print_l(f"Error saving emissions report")
 
-        # Save the aggregated data
-        if eval_c['save_aggregate_rewards']:
-            save_to_csv(rewards, 'outputs/rewards.csv')
-            save_to_csv(output_values, 'outputs/output_values.csv')
+        # # Save the aggregated data
+        # if eval_c['save_aggregate_rewards']:
+        #     save_to_csv(rewards, 'outputs/rewards.csv')
+        #     save_to_csv(output_values, 'outputs/output_values.csv')
 
     # In evaluation mode, we don't need to train, we just evaluate the already saved model
     elif run_mode == "Evaluating":
@@ -514,7 +515,8 @@ def main_loop(args):
                 output_values.extend(process_output_values)
                 old_buffers = list(process_buffers)
 
-            # finally:
+            finally:
+                aux = None
             #     # # Stop tracking emissions
             #     # emissions = tracker.stop()
             #     # print_l(f"Total CO₂ emissions: {emissions} kg")
