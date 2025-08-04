@@ -671,7 +671,7 @@ class EnvironmentClass:
                 self.max_peak_ep = max_peak
                 self.max_station_id = station_id
 
-            self.reward_episode += self.simulation_reward
+            self.reward_episode += self.simulation_reward.numpy()
             self.distances_episode += self.distances_results[-1,:]
             for agent_idx in range(self.num_cars):
                 duration_agent = self.distances_results[:,agent_idx]
