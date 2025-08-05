@@ -49,7 +49,7 @@ def train_route(queue, ev_info, experiment_number, chargers, environment, routes
             from training_processes.dqn_v2 import train_dqn as train
 
         elif algorithm_dm == 'ODT':
-            from training_processes.odt import train_odt as train
+            from training_processes.odt.train_odt import train_odt as train
 
         elif algorithm_dm == 'REINFORCE':
             from training_processes.reinforce import train_reinforce as train

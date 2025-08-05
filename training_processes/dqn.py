@@ -13,8 +13,9 @@ import tracemalloc
 from decision_makers.dqn_agent import initialize, agent_learn, get_actions, soft_update, save_model
 from environment.data_loader import load_config_file, save_to_csv
 from environment._pathfinding import haversine
-from misc.utils import format_data, save_to_h5, save_temp_checkpoint
+from .odt.odt_helpers.utils import format_data, save_to_h5, save_temp_checkpoint
 from training_processes.writer_proccess import printer_queue
+
 
 # Define the experience tuple
 Experience = namedtuple("Experience", field_names=["state", "distribution", "reward", "next_state", "done"])
@@ -197,7 +198,7 @@ def train_dqn(queue,
                     'terminals_car': [],
                     'zone': zone_index,
                     'aggregation': aggregation_num,
-                    'episode': i, # Critical: Keep this inside the loop for correct episode tracking
+                    'episode': i, 
                     'car_idx': car_idx
                 }
                 for car_idx in range(num_cars)

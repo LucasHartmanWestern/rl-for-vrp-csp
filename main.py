@@ -11,6 +11,7 @@ import shutil
 import pandas as pd
 import cProfile
 from collections import defaultdict
+import torch
 warnings.filterwarnings("ignore")
 
 # Importing proprietary modules
@@ -144,9 +145,6 @@ def main_loop(args):
 
     # Runing experiment selected
     action_dim = env_c['action_dim'] * env_c['num_of_chargers']
-
-    if algorithm_dm == 'ODT':
-        print(variant['odt_hyperparameters']['experiment_number'])
 
     # Assign GPUs to zones
     n_zones = len(env_c['coords'])
@@ -334,7 +332,7 @@ def main_loop(args):
                                                         federated_c['city_multiplier'],\
                                                         federated_c['zone_multiplier'],\
                                                         federated_c['model_multiplier'],\
-                                                        agent_by_zone, is_odt=True)
+                                                        agent_by_zone)
                 elif algorithm_dm == 'DENSER': 
                     # Cannot aggregate weights for DENSER because architecture is different between agents
                     pass
@@ -486,13 +484,13 @@ def main_loop(args):
 
                 print("Join Weights")
 
-                # Aggregate the weights from all local models
+                # Aggregate the attention layers from all local agents
                 if algorithm_dm == 'ODT':
                     global_weights = get_global_weights(local_weights_list, ev_info,\
                                                         federated_c['city_multiplier'],\
                                                         federated_c['zone_multiplier'],\
                                                         federated_c['model_multiplier'],\
-                                                        agent_by_zone, is_odt=True)
+                                                        agent_by_zone)
                 elif algorithm_dm == 'DENSER': 
                     # Cannot aggregate weights for DENSER because architecture is different between agents
                     pass

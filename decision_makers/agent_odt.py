@@ -13,14 +13,17 @@ Both are licensed under the MIT License.
 
 import torch
 import torch.nn as nn
+import random
 
 import transformers
+from transformers import GPT2Config
 
-from decision_transformer.models.model import TrajectoryModel
-from decision_transformer.models.trajectory_gpt2 import GPT2Model
+from ._transformer_backbone import GPT2Model
 import math
 import numpy as np
 import torch.nn.functional as F
+from training_processes.odt.odt_helpers.lamb import Lamb
+from pathlib import Path
 from torch import distributions as pyd
 
 
@@ -123,7 +126,23 @@ class DiagGaussianActor(nn.Module):
         std = log_std.exp()
         return SquashedNormal(mu, std)
 
+class TrajectoryModel(nn.Module):
 
+    def __init__(self, state_dim, act_dim, max_length=None):
+        super().__init__()
+
+        self.state_dim = state_dim
+        self.act_dim = act_dim
+        self.max_length = max_length
+
+    def forward(self, states, actions, rewards, masks=None, attention_mask=None):
+        # "masked" tokens or unspecified inputs can be passed in as None
+        return None, None, None
+
+    def get_predictions(self, states, actions, rewards, **kwargs):
+        # these will come as tensors on the correct device
+        return torch.zeros_like(states[-1]), torch.zeros_like(actions[-1]), torch.zeros_like(rewards[-1])
+        
 class DecisionTransformer(TrajectoryModel):
 
     """
@@ -134,25 +153,39 @@ class DecisionTransformer(TrajectoryModel):
         self,
         state_dim,
         act_dim,
-        hidden_size,
         action_range,
-        ordering=0,
-        max_length=None,
-        eval_context_length=None,
-        max_ep_len=4096,
+        max_ep_len,
+        n_positions,
+        stochastic_policy,
+        target_entropy,
+        odt_config,
         action_tanh=True,
-        stochastic_policy=False,
-        init_temperature=0.1,
-        target_entropy=None,
         **kwargs
     ):
+        hidden_size=odt_config['embed_dim']
+        ordering=odt_config['ordering']
+        max_length=odt_config['K']
+        eval_context_length=odt_config['eval_context_length']
+        init_temperature=odt_config['init_temperature']
+        resid_pdrop=odt_config['dropout']
+        attn_pdrop=odt_config['dropout']
+        n_layer=odt_config['n_layer']
+        n_head=odt_config['n_head']
+        n_inner=4 * odt_config['embed_dim']
+        activation_function=odt_config['activation_function']
+        
         super().__init__(state_dim, act_dim, max_length=max_length)
 
         self.hidden_size = hidden_size
-        config = transformers.GPT2Config(
-            vocab_size=1,  # doesn't matter -- we don't use the vocab
-            n_embd=hidden_size,
-            **kwargs
+        config = GPT2Config(
+            vocab_size              = 1,                       
+            n_positions             = max_ep_len,              
+            n_embd                  = hidden_size,             
+            n_layer                 = n_layer,                 
+            n_head                  = n_head,                  
+            resid_pdrop             = resid_pdrop,             
+            attn_pdrop              = attn_pdrop,              
+            activation_function     = activation_function,     
         )
 
         # note: the only difference between this GPT2Model and the default Huggingface version
@@ -388,3 +421,106 @@ class DecisionTransformer(TrajectoryModel):
 
     def clamp_action(self, action):
         return action.clamp(*self.action_range)
+
+    def set_optimizer_scheduler(self, config):
+        self.optimizer = Lamb(self.parameters(), lr=config['learning_rate'], weight_decay=config['weight_decay'], eps=1e-8)
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lambda steps: min((steps + 1) / config['warmup_steps'], 1))
+        self.log_temperature_optimizer = torch.optim.Adam([self.log_temperature], lr=1e-4, betas=[0.9, 0.999])
+
+    def _save_weights(self, path_prefix, is_offline_model=False):
+        to_save = {
+            "model_state_dict": self.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "scheduler_state_dict": self.scheduler.state_dict(),
+            "np": np.random.get_state(),
+            "python": random.getstate(),
+            "pytorch": torch.get_rng_state(),
+            "log_temperature_optimizer_state_dict": self.log_temperature_optimizer.state_dict(),
+        }
+        with open(f"{path_prefix}/model.pt", "wb") as f:
+            torch.save(to_save, f)
+        print(f"\n Model saved at {path_prefix}/model.pt")
+        if is_offline_model:
+            with open(f"{path_prefix}/offline_model.pt", "wb") as f:
+                torch.save(to_save, f)
+            print(f"Model saved at {path_prefix}/offline_model.pt")
+
+    def _load_weights(self, path_prefix, load_optimizer=True):
+        model_file = Path(f"{path_prefix}/model.pt")
+        if not model_file.exists():
+            return
+        with open(model_file, "rb") as f:
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                map_location = lambda storage, loc: storage.cuda(0)
+            else:
+                map_location = torch.device("cpu")
+            checkpoint = torch.load(f, map_location=map_location)
+        self.load_state_dict(checkpoint["model_state_dict"])
+    
+        if load_optimizer:
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            self.log_temperature_optimizer.load_state_dict(
+                checkpoint["log_temperature_optimizer_state_dict"]
+            )
+        np.random.set_state(checkpoint["np"])
+        random.setstate(checkpoint["python"])
+    
+        pytorch_rng_state = checkpoint.get("pytorch")
+        if pytorch_rng_state is not None:
+            if not isinstance(pytorch_rng_state, torch.ByteTensor):
+                pytorch_rng_state = torch.tensor(
+                    pytorch_rng_state, dtype=torch.uint8, device="cpu"
+                )
+            torch.set_rng_state(pytorch_rng_state)
+        print(f"Model loaded at {model_file}")
+        
+    def get_attn_layers(self, device):
+        attn_number = len(self.transformer.h)
+        attn_layer_size = self.transformer.h[0].attn.c_attn.weight.shape
+        attn_layers = torch.empty((attn_number, attn_layer_size[0], attn_layer_size[1]), dtype=torch.float32, device=device)
+        for i in range(attn_number):
+            attn_layers[i, :, :] = self.transformer.h[i].attn.c_attn.weight
+        return attn_layers
+        
+    def load_attn_layers(self, save_global_path):
+        weights_path = f'{save_global_path}/global_weights.pth'
+        if Path(weights_path).exists():
+            global_weights = torch.load(weights_path)
+            if isinstance(global_weights, list):
+                global_weights_dict = {}
+                for i, weights_dict in enumerate(global_weights):
+                    if isinstance(weights_dict, dict):
+                        for key, value in weights_dict.items():
+                            global_weights_dict[f"zone_{i}_{key}"] = value
+                    else:
+                        raise ValueError("Expected a list of dictionaries, but found a different structure.")
+                global_weights = global_weights_dict
+    
+            return global_weights
+        else:
+            raise FileNotFoundError(f"No global weights found at {weights_path}")
+
+    def load_attn_layers(self, save_global_path):
+        weights_path = Path(save_global_path) / "global_weights.pth"
+        if not weights_path.exists():
+            raise FileNotFoundError(f"No global weights found at {weights_path}")
+
+        raw = torch.load(weights_path, map_location="cpu")
+        if not isinstance(raw, torch.Tensor):
+            raise ValueError(f"Expected a Tensor but found {type(raw)} in {weights_path}")
+
+        num_layers = len(self.transformer.h)
+        if raw.ndim != 3 or raw.shape[0] != num_layers:
+            raise ValueError(
+                f"Tensor must be [num_layers={num_layers}, D1, D2], "
+                f"but got shape {tuple(raw.shape)}"
+            )
+
+        for i in range(num_layers):
+            w = raw[i].to(self.transformer.h[i].attn.c_attn.weight.device)
+            self.transformer.h[i].attn.c_attn.weight = torch.nn.Parameter(w)
+
+        # Reset scheduler epoch 
+        if hasattr(self, "scheduler") and self.scheduler is not None:
+            self.scheduler.last_epoch = -1

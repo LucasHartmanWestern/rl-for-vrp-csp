@@ -1,7 +1,7 @@
 import torch
 import time
 
-def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone, is_odt=False):
+def get_global_weights(zone_weights, ev_info, city_multiplier, zone_multiplier, model_multiplier, nn_by_zone):
 
     """
     Aggregates weights from different zones and models to compute global weights for each zone-model pair.
